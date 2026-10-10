@@ -34,9 +34,18 @@ los tableros con un renderizador fiel (ver «Pendiente»).
 
 ## Pendiente
 
-- **Re-renderizar los 41 PNG con Chromium sin cabeza** (los actuales se hicieron con ImageMagick, que
-  añade un lienzo grande y no dibuja bien desenfoques/resplandores). Renderizar a 824×1830 (2x), recortar
-  al tablero y revisar los 41. **Bloqueado:** la pestaña de Penpot volvió a dar timeouts al reexportar los
-  SVG (regla: dos timeouts seguidos = cancelar). Al reconectar, reexportar los SVG (servidor local +
-  `generateMarkup`) y renderizarlos con Chromium del Playwright
-  (`~/.cache/ms-playwright/chromium-*/chrome-linux64/chrome`).
+- Re-renderizar **3** tableros con Chromium a 824×1830, recortados al tablero (el resto, 38, ya está hecho):
+  `3-notas-lista-de-notas`, `8-modo-oscuro-editor-oscuro`, `8-modo-oscuro-registro-oscuro`. **Bloqueado:** al
+  reexportar estos 3 la pestaña de Penpot se suspendió (dos veces seguidas → cancelar por la regla).
+  Al reconectar: reexportar su SVG (servidor local + `generateMarkup`) forzando
+  `viewBox="<x> <y> 412 915"` y `width`/`height` del SVG raíz al tablero, y renderizar con el Chromium de
+  Playwright (`~/.cache/ms-playwright/chromium-*/chrome-linux64/chrome`) a `--force-device-scale-factor=2`.
+
+### Cómo se renderizan (para los 38 hechos)
+
+`generateMarkup([board], {type:'svg'})`; se **fuerza** el `viewBox` y `width`/`height` del `<svg>` raíz al
+rectángulo del tablero (`board.bounds`, 412×915), porque Penpot los agranda cuando el contenido desborda
+(resplandores del login/registro, sombra del editor). Luego el SVG se envía por `fetch` a un servidor local
+y se captura con **Chromium sin cabeza** a 2× (`--window-size=412,915 --force-device-scale-factor=2`
+→ 824×1830), con la **fuente Inter** instalada en `~/.fonts` (fontconfig) para que no caiga a serif.
+

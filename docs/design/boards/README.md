@@ -48,6 +48,28 @@ sigue siendo la fuente de verdad.
 | `9-tienda-ficha-de-tienda.png` | 9 · Tienda — Ficha de tienda (fuera de v1) |
 | `android-editor.png` | Android — Editor (chasis antiguo) |
 
-> Cómo se generaron: el plugin de Penpot (MCP) generó un SVG por tablero (`generateMarkup`) y lo envió
-> a un servidor local que los guardó; después se convirtieron a PNG en local. El `export_shape` del MCP
-> devuelve la imagen al chat, no escribe a disco, por eso se usó esa vía.
+> Generados con un renderizador fiel: el plugin de Penpot (MCP) produce el SVG de cada tablero
+> (`generateMarkup`), con el `viewBox` y `width/height` **forzados al rectángulo del tablero** (Penpot los
+> agranda si el contenido desborda: resplandores, sombras); se envía a un servidor local y se captura con
+> **Chromium sin cabeza** (Chrome for Testing de Playwright) a 2× → **824×1830**. La fuente **Inter** está
+> instalada en `~/.fonts` para el render. El `export_shape` del MCP devuelve la imagen al chat y no
+> escribe a disco, por eso se usó esta vía.
+>
+> **Estado:** 38 de 41 rehechos a 824×1830. Pendientes (aún con el render antiguo de ImageMagick):
+> `3-notas-lista-de-notas.png`, `8-modo-oscuro-editor-oscuro.png`, `8-modo-oscuro-registro-oscuro.png`
+> (la pestaña de Penpot se suspendió al reexportarlos; ver `../penpot-progress.md`).
+
+## Revisión visual (38 rehechos)
+
+Sin lienzo sobrante, **824×1830** exactos, **sin fondo negro ni halos**, tipografía **Inter** (incluidos
+los tableros con resplandor: login/registro lo muestran correctamente sobre el fondo). Dos observaciones,
+**atribuibles al archivo de Penpot / a su export SVG** (con Chromium, que renderiza fielmente, se
+reproducen), no a la conversión:
+
+1. **Título de nota solapado con el icono.** En «Lista de notas», «Búsqueda» y «Papelera» aparece el pin
+   (o una letra del resaltado) encima de la primera letra del título. En el SVG el título y el icono
+   comparten la misma `x` (27) en varias tarjetas → es del diseño, no del render.
+2. **Overlays translúcidos.** En los tableros con capa superpuesta (menú lateral, modales/diálogos, hojas
+   — menú contextual, mover, confirmar, compartir, conflicto y sesión expirada), el panel deja ver la lista
+   de fondo a través (textos encimados). Es del export SVG de Penpot.
+
