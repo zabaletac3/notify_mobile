@@ -10,6 +10,8 @@ import 'package:axonote_platform/axonote_platform.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+import 'package:axonote_app/data/crypto/vault.dart';
+
 SecretKeyBytes _masterKey([int fill = 9]) =>
     SecretKeyBytes(Uint8List.fromList(List.filled(32, fill)));
 
