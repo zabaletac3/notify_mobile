@@ -4,65 +4,54 @@ Decisión D16: **manda Penpot**. En la fase 2 los valores salieron de `notify_we
 congeló; hay que rehacerlos con lo que diga el archivo de Penpot («Apunte – App de notas», página
 **App Mobile**, 41 tableros de 412×915). Penpot es de solo lectura: no se modifica nada.
 
-Estado: **EN PAUSA.** Al reanudar, continuar desde este archivo.
+Estado: **EN PAUSA (3.ª vez).** Al reanudar, continuar desde este archivo.
 
-## Motivo de la pausa (2.ª vez, 2026-10-10)
+Datos crudos ya extraídos y guardados: [`docs/design/penpot-extract.json`](penpot-extract.json).
 
-1. El MCP estaba suspendido (`no heartbeat for 3828s`); dos reintentos de `getPages` fallaron → pausa.
-2. Tras reconectar el usuario: los **tokens de color se extrajeron bien** (una llamada). Después lancé
-   **6 consultas en paralelo** (agregación de tableros): la 1.ª respondió y las otras 5 dieron
-   `MCP error -32001: Request timed out`. Una consulta mínima posterior también dio timeout.
-3. **Lección:** el plugin de Penpot atiende **de una en una**; no enviar llamadas en paralelo. Con dos
-   timeouts seguidos, cancelar (regla). Se cancela.
+## Pausas (regla de conexión)
 
-## Progreso de esta sesión
+1. **Suspendido por el navegador** (`no heartbeat for 3828s`); dos reintentos fallaron.
+2. Reconectado: se extrajeron los **tokens de color** y se empezó la agregación; al lanzar **6 consultas
+   en paralelo** la 1.ª fue bien y las otras 5 dieron timeout, y una consulta mínima después también →
+   cancelar. **Lección:** el plugin atiende **de una en una**; no paralelizar.
+3. Reanudado: se procesaron los **41 tableros** de uno en uno (bien) y se volcó el acumulador (bien).
+   Después, `export_shape` del tablero «Lista de notas» dio **dos timeouts seguidos** → cancelar.
 
-### Área 1 · Colores — tokens: HECHO (claro y oscuro), y **idénticos** a `tokens.dart`
+## Hecho
 
-Los 17+17 tokens de color se leyeron con valor; coinciden **exactamente** con los de `app/lib/ui/tokens.dart`
-(tomados de `notify_web`). Tabla (claro / oscuro):
+### Área 1 · Colores — HECHO
+- Los **17+17 tokens** de color (claro/oscuro) leídos con valor. **Idénticos** a `app/lib/ui/tokens.dart`
+  (tomados de `notify_web`): en colores **no hay diferencias** con Penpot. Tabla en `penpot-extract.json`.
+- **Colores usados que NO son token**: `#b7791f` (ámbar antiguo, 3×) y `#4285f4` (azul del logo de Google, 3×).
 
-| Token | Claro | Oscuro (sufijo -1) |
-| --- | --- | --- |
-| bg.editor | #fffdf8 | #262522 |
-| bg.app | #f6f2ea | #1b1a18 |
-| bg.sidebar | #ede7dc | #222120 |
-| bg.selected | #dce7f5 | #26364d |
-| bg.hover | #e6dfd3 | #2e2c29 |
-| bg.input | #eae4d9 | #2a2826 |
-| border.default | #e2dacd | #3a3733 |
-| text.primary | #1f1d1a | #f1ede6 |
-| text.secondary | #57514a | #bab3a8 |
-| text.tertiary | #675f55 | #a09990 |
-| accent.default | #2a5db0 | #7ba7e6 |
-| accent.on | #ffffff | #0f1e36 |
-| tag.amber | #8a590c | #e3b062 |
-| tag.plum | #7b4b8a | #c49ad3 |
-| status.danger | #b3382c | #e88a7e |
-| status.danger-bg | #f8e3e0 | #3b2421 |
-| status.success | #2f7d5c | #6cc79c |
+### Áreas 2 y 3 (parcial) · Tipografía, radios, sombras — AGREGADO (41 tableros)
+- **Fuentes:** Inter (953 textos) y `sourcesanspro` (2). 
+- **Sombras:** 56 shapes con sombra.
+- **Radios** (distribución) y **escala tipográfica** (tamaño|peso|interlineado|letterSpacing y conteos) en
+  `penpot-extract.json`. Observaciones:
+  - `title` 28/34 (1.214) y `body` 15/22 (1.467) **sí** casan con la web; `label` 13/18 (1.385) también.
+  - El resto usa mayoritariamente interlineado **1.2** (p. ej. 18|600 → 21.6, no 24; 12|400 → 14.4, no 16):
+    **difiere** de la escala de la web.
+  - Los títulos llevan **letterSpacing negativo** (p. ej. 22|700 → -0.44; 28|700 → -0.56).
+  - Aparecen muchos tamaños (11,12,13,14,15,16,18,20,22,24,28,30,…), más que la escala de 5 pasos de la web.
+- **Ids de los 41 tableros** en `penpot-extract.json` (para exportar/comparar).
 
-Pendiente del área 1: colores usados en tableros que **no** casen con estos tokens.
+## Pendiente
 
-### Agregación de tableros: iniciada
-
-`storage.acc` acumula (fuente, tamaño|peso|interlineado|letterSpacing, colores, radios, sombras, textos).
-Procesado hasta ahora: **solo `1 · Onboarding — Bienvenida`** (6 tamaños, 7 colores distintos).
-
-## Pendiente (todo lo demás)
-
-1. **Colores:** no-token usados en los tableros (con el tablero donde aparecen).
-2. **Tipografía:** escala completa y uso, desde los textos reales (agregando por tablero).
-3. **Radios, bordes, sombras y espaciados** (valores distintos y dónde).
-4. **Los 10 componentes base** medidos en sus apariciones reales (alto, ancho, relleno, radio, borde,
-   sombra, tipografía, colores por estado, tamaño de icono). Si algo no aparece, decirlo.
-5. **Iconos:** lista, tamaño y trazo.
-6. **Los 41 tableros:** estructura en `docs/screens.md` + PNG en `docs/design/boards/<nombre>.png`.
-7. **Comparar** «3 · Notas — Android — Editor» con «Android — Editor».
+1. (Área 1) Dónde aparece `#b7791f` (tablero).
+2. (Área 4) **Los 10 componentes base** medidos en sus apariciones reales (alto, ancho, relleno, radio,
+   borde, sombra, tipografía, colores por estado, tamaño de icono). Sin medir todavía.
+3. (Área 5) **Iconos:** lista, tamaño y trazo.
+4. (Área 6) **PNGs de los 41 tableros** en `docs/design/boards/<nombre>.png` (`export_shape`):
+   **bloqueado** (2 timeouts seguidos con «Lista de notas»). Reintentar con exportaciones más ligeras
+   (¿uno a uno, sin prisa?) o desde el navegador.
+5. (Área 6) Estructura de cada tablero en `docs/screens.md`.
+6. (Área 7) Comparar «3 · Notas — Android — Editor» con «Android — Editor».
+7. **Código:** tokens.dart (tipografía/radios/espaciado), los 10 componentes, galería `/dev/components`
+   (mover «Ver componentes (dev)» y «Entrar (demo)» al centro), regenerar golden y tabla en `decisions.md`.
 
 ## Al reanudar
 
-Consultas **de una en una** (nunca en paralelo), un tablero por llamada; `storage.acc` ya está definido,
-así que reanudar llamando a `storage.mergeBoard(...)` por tablero, empezando por los no procesados.
-Después volcar `storage.acc`, exportar los PNGs y aplicar lo extraído a `tokens.dart`, componentes,
-galería `/dev/components`, golden y `docs/decisions.md`.
+Consultas **secuenciales** (nunca en paralelo), un tablero por llamada. `storage.acc` y `storage.boards`
+ya están poblados en la sesión del plugin; si se pierden, re-construir desde `penpot-extract.json` (ids).
+Empezar por los **PNGs** (o medir los componentes), y terminar con las actualizaciones de código.
