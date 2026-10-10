@@ -224,6 +224,116 @@ void main() {
     });
   });
 
+  group('cuerpo no interpretable', () {
+    Matcher serverFailure() =>
+        isA<AppFailure>().having((e) => e.error, 'error', isA<ServerError>());
+
+    test('un 2xx que no es JSON (HTML de Cloudflare) es server', () async {
+      final adapter = FakeAdapter(
+        (_) async => textResponse(200, '<html>Access denied</html>'),
+      );
+      final client = buildClient(adapter, tokens: await _storeWith('a', 'r'));
+      await expectLater(
+        client.request<UserDto>('GET', '/me', decode: UserDto.fromJson),
+        throwsA(serverFailure()),
+      );
+    });
+
+    test('un 2xx con cuerpo vacío y decode tipado es server', () async {
+      final adapter = FakeAdapter((_) async => emptyResponse(200));
+      final client = buildClient(adapter, tokens: await _storeWith('a', 'r'));
+      await expectLater(
+        client.request<UserDto>('GET', '/me', decode: UserDto.fromJson),
+        throwsA(serverFailure()),
+      );
+    });
+
+    test('el decode por defecto con forma equivocada es server', () async {
+      final adapter = FakeAdapter(
+        (_) async => jsonResponse(200, <Object?>[1, 2, 3]),
+      );
+      final client = buildClient(adapter, tokens: await _storeWith('a', 'r'));
+      await expectLater(
+        client.request<Map<String, Object?>>('GET', '/me'),
+        throwsA(serverFailure()),
+      );
+    });
+
+    test(
+      'con estado de error, un cuerpo no JSON se decide por el estado',
+      () async {
+        final html500 = FakeAdapter(
+          (_) async => textResponse(500, '<html>boom</html>'),
+        );
+        await expectLater(
+          buildClient(html500).request<void>(
+            'POST',
+            '/auth/prelogin',
+            auth: AuthMode.none,
+            body: <String, Object?>{'email': 'persona@example.com'},
+            decode: (_) {},
+          ),
+          throwsA(
+            isA<AppFailure>().having(
+              (e) => (e.error as ServerError).status,
+              'status',
+              500,
+            ),
+          ),
+        );
+
+        final html429 = FakeAdapter(
+          (_) async => textResponse(429, '<html>slow</html>'),
+        );
+        await expectLater(
+          buildClient(html429).request<void>(
+            'POST',
+            '/auth/prelogin',
+            auth: AuthMode.none,
+            body: <String, Object?>{'email': 'persona@example.com'},
+            decode: (_) {},
+          ),
+          throwsA(
+            isA<AppFailure>().having(
+              (e) => e.error,
+              'error',
+              isA<RateLimitedError>(),
+            ),
+          ),
+        );
+      },
+    );
+  });
+
+  group('cancelación', () {
+    test(
+      'el tiempo máximo cancela la petición para liberar la conexión',
+      () async {
+        final adapter = FakeAdapter((_) async {
+          await Future<void>.delayed(const Duration(milliseconds: 300));
+          return jsonResponse(200, <String, Object?>{});
+        });
+        final client = buildClient(
+          adapter,
+          tokens: await _storeWith('a', 'r'),
+          timeout: const Duration(milliseconds: 30),
+        );
+        await expectLater(
+          client.request<void>('GET', '/me', decode: (_) {}),
+          throwsA(
+            isA<AppFailure>().having(
+              (e) => e.error,
+              'error',
+              isA<NetworkError>(),
+            ),
+          ),
+        );
+        await Future<void>.delayed(const Duration(milliseconds: 50));
+        expect(adapter.cancelRequested, isTrue);
+      },
+    );
+  });
+
   group('sesión local', () {
     test('saveTokens guarda, hasSession y clearSession borran', () async {
       final store = MemoryTokenStore();

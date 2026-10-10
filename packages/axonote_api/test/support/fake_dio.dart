@@ -13,6 +13,9 @@ class FakeAdapter implements HttpClientAdapter {
   /// Todas las peticiones recibidas, en orden.
   final List<RequestOptions> requests = <RequestOptions>[];
 
+  /// `true` si dio canceló alguna petición (p. ej. al vencer el tiempo máximo).
+  bool cancelRequested = false;
+
   @override
   Future<ResponseBody> fetch(
     RequestOptions options,
@@ -20,11 +23,25 @@ class FakeAdapter implements HttpClientAdapter {
     Future<void>? cancelFuture,
   ) {
     requests.add(options);
+    if (cancelFuture != null) {
+      cancelFuture.then((_) => cancelRequested = true).ignore();
+    }
     return handler(options);
   }
 
   @override
   void close({bool force = false}) {}
+}
+
+/// Respuesta de texto plano (p. ej. el HTML de Cloudflare Access), no JSON.
+ResponseBody textResponse(
+  int status,
+  String body, {
+  Map<String, List<String>> headers = const <String, List<String>>{
+    'content-type': <String>['text/html'],
+  },
+}) {
+  return ResponseBody.fromString(body, status, headers: headers);
 }
 
 /// Respuesta JSON con estado [status].
