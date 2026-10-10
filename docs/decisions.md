@@ -62,9 +62,10 @@ Sin diferencias en: los 34 colores de token, el trazo de iconos, y radios que ya
 20 diálogo, 24 hoja, 10 tarjeta de nota, casilla 20, interruptor 44×26). Los tamaños de botón 46/54 y la
 altura de input 52 también coincidían.
 
-> Nota: los **PNG de los 41 tableros** no se pudieron guardar (el `export_shape` del MCP devuelve la imagen
-> al chat, no escribe a disco; y devolver SVG por API son ~135 KB por tablero). El archivo de Penpot sigue
-> siendo la referencia visual; ver `docs/design/penpot-progress.md`.
+> Los **PNG de los 41 tableros** están en [`docs/design/boards/`](design/boards/README.md). El
+> `export_shape` del MCP devuelve la imagen al chat (no escribe a disco), así que se generaron pidiendo
+> a Penpot el SVG de cada tablero (`generateMarkup`) desde el propio plugin, enviándolo a un servidor
+> local y convirtiéndolo a PNG en la máquina.
 
 ### 2026-10-10 · Dependencias nuevas de la fase 2 fuera de la §9
 

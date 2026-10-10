@@ -5,8 +5,8 @@ congeló; hay que rehacerlos con lo que diga el archivo de Penpot («Apunte – 
 **App Mobile**, 41 tableros de 412×915). Penpot es de solo lectura: no se modifica nada.
 
 Estado: **HECHO.** Base visual reextraída de Penpot (manda D16). Medidas en
-[`penpot-measurements.md`](penpot-measurements.md) y crudo en [`penpot-extract.json`](penpot-extract.json).
-Único pendiente: guardar los **PNG de los 41 tableros** (bloqueado; ver motivo abajo).
+[`penpot-measurements.md`](penpot-measurements.md), crudo en [`penpot-extract.json`](penpot-extract.json) y
+**los 41 PNG de los tableros** en [`boards/`](boards/README.md).
 
 Datos crudos ya extraídos y guardados: [`docs/design/penpot-extract.json`](penpot-extract.json).
 
