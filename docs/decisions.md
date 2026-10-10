@@ -97,4 +97,70 @@ decisiones de forma, ninguna cambia el formato de bytes (§3) ni los vectores:
 - **`KeyBundle` y `KdfParams` se definen de nuevo dentro de `axonote_crypto`.** Son copias locales
   de los tipos que en la web viven en `domain/crypto.ts`; aquí no pueden importarse de
   `axonote_domain` por la misma regla de dependencias. Mismos campos y mismo nombre.
+## Fase 4
+
+### 2026-10-10 · Los errores de aplicación viven en `axonote_domain`
+
+- **Motivo:** el plan §4.3 sitúa `AppError` (sealed) y `AppFailure` en el dominio y la §4.2 da a
+  `axonote_api` como única dependencia interna `axonote_domain`. Como el paquete estaba vacío, en
+  esta fase se implementaron ahí `AppError` (mismos `kind` que `src/lib/domain/errors.ts`) y
+  `AppFailure`. `AppFailure.toString()` solo imprime el `kind`: un registro accidental de la excepción
+  no puede filtrar campos ni cuerpos.
+
+### 2026-10-10 · Un cuerpo que no encaja es un fallo `server`, no un `kind` nuevo
+
+- **Motivo:** D13 pide `fromJson` estricto, pero `errors.ts` no tiene un `kind` de formato y la §2 no
+  se cambia. Un cuerpo válido a nivel HTTP que no cumple el contrato es un problema del servidor, así
+  que el cliente lo convierte en `AppFailure(ServerError())` (sin estado). La excepción de formato
+  (`JsonFormatException`) solo lleva la ruta del campo, nunca el valor.
+
+### 2026-10-10 · Paridad exacta con `toFailure`
+
+- **Motivo:** se replica `toFailure` de `http-client.ts` **literal**, incluso donde la web descarta
+  códigos: su lista `FORBIDDEN_CODES` solo conserva `email-not-verified`, `google-disabled`,
+  `google-email-unverified` y `account-deleted`, así que `limit-reached` y `google-not-linked`
+  salen con `code = null`. Se deja un test que fija esa paridad. Si en otra fase hace falta
+  distinguir `quota-exceeded`/`limit-reached`, se cambia en la web y aquí a la vez.
+
+### 2026-10-10 · `baseUrl` incluye `/v1`
+
+- **Decisión:** `HttpClientOptions.baseUrl` es el `API_URL` de la §4.5 (p. ej.
+  `http://localhost:8080/v1`) sin barra final; las rutas del contrato (`/auth/login`…) se añaden tal
+  cual. Se normaliza una barra final sobrante.
+
+### 2026-10-10 · Cabeceras de Cloudflare Access
+
+- **Decisión:** `CF-Access-Client-Id` y `CF-Access-Client-Secret` se añaden a cada petición **solo si**
+  están definidas (vacío = no se envían), como pide la §4.5 para los tokens de servicio de QA.
+
+### 2026-10-10 · Renovación: misma política que la web ante fallos transitorios
+
+- **Decisión:** el refresh es de vuelo único y persiste el token nuevo antes de reintentar. Si el
+  refresh devuelve `network`, `server` o `rate-limited`, se propaga ese fallo **sin borrar** los
+  tokens (la sesión puede seguir viva); con cualquier otro fallo se borran y las peticiones pendientes
+  fallan con `session-expired`. `device-revoked` se propaga como fallo propio y limpia la sesión.
+  Es lo que hace `http-client.ts`; la interpretación de «si el refresh falla, todas fallan con sesión
+  expirada» cubre el caso habitual (token de renovación inválido).
+
+### 2026-10-10 · Dependencias de desarrollo fuera de la §9
+
+- **`test`** y **`yaml`**: solo `dev_dependencies` de `axonote_api` (pruebas y lectura del
+  `openapi.yaml` en la prueba de contrato). No son dependencias de ejecución, así que no alteran la
+  §9. `dio` sí está en la §9 (D13).
+
+### 2026-10-10 · Pruebas de integración y código de verificación
+
+- **Decisión:** las pruebas de integración se etiquetan `integration` y se saltan por defecto
+  (`dart_test.yaml`), de modo que la CI no las ejecuta. El código de verificación se lee de la salida
+  del backend (`MAIL_PROVIDER=log` lo imprime en texto legible), cuya ruta llega en
+  `AXONOTE_MAIL_LOG`; la URL de la API, en `AXONOTE_API_URL`. El runbook está en el encabezado de
+  `packages/axonote_api/test/integration/auth_sync_integration_test.dart`.
+
+### 2026-10-10 · Formato: se sigue la lista de la CI, sin tocar `third_party`
+
+- **Motivo:** `dart format .` reformatearía el paquete vendorizado `packages/third_party/appflowy_editor`
+  (la fase 0 lo copió sin pasar el formateador), y no se puede tocar. La puerta de formato se aplica,
+  como en la CI, a los directorios propios (`app/lib`, `app/test`, `tool` y `packages/*/lib` y, aquí,
+  también `packages/axonote_api/test`). `flutter analyze` sí analiza todo el workspace.
+
 
