@@ -18,12 +18,9 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:integration_test/integration_test.dart';
 
 /// `true` solo cuando alguien pasó `--dart-define=AXONOTE_MANUAL_BIOMETRIC_TESTS=true` al
-/// ejecutar: entonces sí se corren las pruebas que necesitan tocar el sensor.
+/// ejecutar: entonces sí se corren las pruebas que necesitan tocar el sensor (el motivo de por
+/// qué están excluidas por defecto está en la cabecera de este fichero).
 const _runManual = bool.fromEnvironment('AXONOTE_MANUAL_BIOMETRIC_TESTS');
-const _manualSkipReason =
-    'Requiere interacción humana (tocar el sensor o registrar una huella nueva): ver '
-    'docs/guides/fase5-pruebas-manuales.md. Se activa con '
-    '--dart-define=AXONOTE_MANUAL_BIOMETRIC_TESTS=true.';
 
 void main() {
   IntegrationTestWidgetsFlutterBinding.ensureInitialized();
@@ -136,7 +133,7 @@ void main() {
         );
         expect(loaded, bytes);
       },
-      skip: _runManual ? false : _manualSkipReason,
+      skip: !_runManual,
     );
   });
 
@@ -162,7 +159,7 @@ void main() {
           throwsA(isA<AuthCancelled>()),
         );
       },
-      skip: _runManual ? false : _manualSkipReason,
+      skip: !_runManual,
     );
   });
 
@@ -198,7 +195,7 @@ void main() {
             throwsA(isA<NoStoredKey>()),
           );
         },
-        skip: _runManual ? false : _manualSkipReason,
+        skip: !_runManual,
       );
     },
   );
@@ -241,7 +238,7 @@ void main() {
           );
           expect(loaded, original);
         },
-        skip: _runManual ? false : _manualSkipReason,
+        skip: !_runManual,
       );
     },
   );
