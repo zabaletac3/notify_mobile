@@ -202,38 +202,32 @@ void main() {
       h.dispose();
     });
 
-    test(
-      'cambiar solo lockTimeout con biometricLock: true no vuelve a guardar '
-      '(la política no cambia, no hace falta pedir biometría otra vez)',
-      () async {
-        final h = _Harness();
-        await h.controller.updateSettings(
-          const LockSettings(
-            biometricLock: true,
-            lockTimeout: LockTimeout.never,
-          ),
-        );
-        await h.controller.unlock(userId: 'u1', masterKey: _masterKey());
-        // unlock() ya guarda una vez (requireAuth: true, por biometricLock).
-        expect(h.platform.storeMasterKeyCallCount, 1);
+    test('cambiar solo lockTimeout con biometricLock: true no vuelve a guardar '
+        '(la política no cambia, no hace falta pedir biometría otra vez)', () async {
+      final h = _Harness();
+      await h.controller.updateSettings(
+        const LockSettings(biometricLock: true, lockTimeout: LockTimeout.never),
+      );
+      await h.controller.unlock(userId: 'u1', masterKey: _masterKey());
+      // unlock() ya guarda una vez (requireAuth: true, por biometricLock).
+      expect(h.platform.storeMasterKeyCallCount, 1);
 
-        // Si updateSettings volviera a guardar sin necesidad, el contador subiría
-        // a 2. No se usa hasStored aquí: con requireAuth: true consumiría
-        // nextAuthResult si se forzara uno, además de solo poder comprobarse
-        // después (ver más abajo).
-        await h.controller.updateSettings(
-          const LockSettings(
-            biometricLock: true,
-            lockTimeout: LockTimeout.oneMinute,
-          ),
-        );
-        expect(h.platform.storeMasterKeyCallCount, 1);
+      // Si updateSettings volviera a guardar sin necesidad, el contador subiría
+      // a 2. No se usa hasStored aquí: con requireAuth: true consumiría
+      // nextAuthResult si se forzara uno, además de solo poder comprobarse
+      // después (ver más abajo).
+      await h.controller.updateSettings(
+        const LockSettings(
+          biometricLock: true,
+          lockTimeout: LockTimeout.oneMinute,
+        ),
+      );
+      expect(h.platform.storeMasterKeyCallCount, 1);
 
-        // Con nextAuthResult limpio (nunca se tocó), la clave sigue intacta.
-        expect(await h.hasStored('u1'), isTrue);
-        h.dispose();
-      },
-    );
+      // Con nextAuthResult limpio (nunca se tocó), la clave sigue intacta.
+      expect(await h.hasStored('u1'), isTrue);
+      h.dispose();
+    });
 
     test(
       'pasar de no-guardar a requireAuth guarda con requireAuth: true',
