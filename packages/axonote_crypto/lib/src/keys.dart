@@ -16,8 +16,9 @@ Future<SecretKeyBytes> unwrap(
   String aad,
 ) async {
   final raw = await open(wrapping, sealed, aad);
-  if (raw.length != 32)
+  if (raw.length != 32) {
     throw const CryptoFormatError('longitud de clave inválida');
+  }
   return SecretKeyBytes(raw);
 }
 
@@ -28,7 +29,8 @@ String exportKeyRaw(SecretKeyBytes key) => toB64u(key.bytes);
 /// 32 bytes.
 SecretKeyBytes importKeyRaw(String raw) {
   final bytes = fromB64u(raw);
-  if (bytes.length != 32)
+  if (bytes.length != 32) {
     throw const CryptoFormatError('longitud de clave inválida');
+  }
   return SecretKeyBytes(bytes);
 }

@@ -80,8 +80,9 @@ FolderPayload decodeFolderPayload(Uint8List bytes) {
   } on FormatException {
     throw const DecryptError();
   }
-  if (value is! Map<String, Object?> || value['name'] is! String)
+  if (value is! Map<String, Object?> || value['name'] is! String) {
     throw const DecryptError();
+  }
   return FolderPayload(name: value['name']! as String);
 }
 
