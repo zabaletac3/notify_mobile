@@ -6,6 +6,8 @@
 // cual (UUID v7 generado en la capa de dominio) y `KeyBundle` es una copia local del tipo que
 // guarda el servidor.
 
+import 'dart:typed_data';
+
 import 'bytes.dart';
 import 'kdf.dart';
 import 'keys.dart';
@@ -88,6 +90,10 @@ Future<NewAccountKeys> createAccountKeys({
   required String userId,
   required Argon2idDeriver argon2id,
   KdfBase kdfBase = defaultKdf,
+  // Solo para pruebas: permite forzar un fallo después de generar la clave maestra, sin tocar
+  // `deriveFromRecoveryKey` en producción (que nunca falla con bytes válidos).
+  Future<RecoveryDerivedKeys> Function(Uint8List recoveryBytes) deriveRecovery =
+      deriveFromRecoveryKey,
 }) async {
   final kdf = newKdfParams(base: kdfBase);
   final derived = await deriveFromPassword(password, kdf, argon2id);
@@ -96,7 +102,7 @@ Future<NewAccountKeys> createAccountKeys({
     try {
       final recoveryBytes = generateRecoveryKey();
       try {
-        final recoveryDerived = await deriveFromRecoveryKey(recoveryBytes);
+        final recoveryDerived = await deriveRecovery(recoveryBytes);
         try {
           final wrappedMasterKey = await wrap(
             derived.kek,

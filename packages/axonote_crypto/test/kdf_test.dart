@@ -113,4 +113,42 @@ void main() {
       b.rkWrap.dispose();
     });
   });
+
+  group('deriveLocalDbKey', () {
+    test('es determinista para la misma clave maestra y el mismo userId', () async {
+      final mkA = SecretKeyBytes(Uint8List.fromList(List.generate(32, (i) => i)));
+      final mkB = SecretKeyBytes(Uint8List.fromList(List.generate(32, (i) => i)));
+      final a = await deriveLocalDbKey(mkA, 'user-1');
+      final b = await deriveLocalDbKey(mkB, 'user-1');
+      expect(a.bytes, equals(b.bytes));
+      expect(a.length, 32);
+      mkA.dispose();
+      mkB.dispose();
+      a.dispose();
+      b.dispose();
+    });
+
+    test('userId distinto produce una clave de base distinta (etiquetas por cuenta, A1)', () async {
+      final mk = SecretKeyBytes(Uint8List.fromList(List.generate(32, (i) => i)));
+      final a = await deriveLocalDbKey(mk, 'user-1');
+      final b = await deriveLocalDbKey(mk, 'user-2');
+      expect(a.bytes, isNot(equals(b.bytes)));
+      mk.dispose();
+      a.dispose();
+      b.dispose();
+    });
+
+    test('no coincide con otra etiqueta HKDF aplicada a los mismos bytes de entrada', () async {
+      // Misma clave de entrada, etiquetas distintas: "apunte/v1/local-db/<userId>" frente a
+      // "apunte/v1/recovery-kek" (deriveFromRecoveryKey usa la misma HKDF interna). Deben divergir.
+      final ikm = Uint8List.fromList(List.generate(32, (i) => i * 3 % 256));
+      final mk = SecretKeyBytes(Uint8List.fromList(ikm));
+      final localDbKey = await deriveLocalDbKey(mk, 'user-1');
+      final recoveryDerived = await deriveFromRecoveryKey(ikm);
+      expect(localDbKey.bytes, isNot(equals(recoveryDerived.rkWrap.bytes)));
+      mk.dispose();
+      localDbKey.dispose();
+      recoveryDerived.rkWrap.dispose();
+    });
+  });
 }
