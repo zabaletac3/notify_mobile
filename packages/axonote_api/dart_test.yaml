@@ -1,0 +1,8 @@
+# Las pruebas de integración necesitan un backend local en marcha (ver el encabezado de
+# test/integration/auth_sync_integration_test.dart). Se saltan por defecto para que la CI normal no
+# las ejecute; se lanzan a propósito con:
+#
+#   dart test --run-skipped -t integration
+tags:
+  integration:
+    skip: "Requiere notify_backend local; ejecuta con: dart test --run-skipped -t integration"

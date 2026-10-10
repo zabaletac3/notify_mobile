@@ -18,5 +18,9 @@ coverage/
 # App de comprobación desechable (fase 0)
 tool/dep_probe/build/
 
+# Cobertura
+coverage/
+**/coverage/
+
 # SO
 .DS_Store
