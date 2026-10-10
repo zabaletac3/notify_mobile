@@ -1,8 +1,9 @@
 /// Formato criptográfico de AxoNote: a1, KDF, claves, relleno y clave de recuperación.
 ///
 /// No se exporta `sealWithIv` (solo para vectores y pruebas): la app siempre usa [seal], que
-/// genera un IV aleatorio. Tampoco se exporta `package:sodium`, para que quien solo necesite el
-/// formato (por ejemplo para leer el contrato) no cargue la librería nativa.
+/// genera un IV aleatorio. De `package:sodium` solo se exporta la clase propia `SodiumArgon2id`
+/// (ver `argon2id_sodium.dart`); sus tipos internos (`SodiumSumo`, `CryptoPwhashAlgorithm`, etc.)
+/// no salen de este paquete.
 library;
 
 export 'src/account_keys.dart';
