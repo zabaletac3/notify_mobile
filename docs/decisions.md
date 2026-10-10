@@ -274,3 +274,90 @@ Falta además decidir, en el arranque, **con qué cuenta** intentar `unlockWithS
 arranque en frío depende de la navegación real de inicio de sesión, que es de la fase 8. Queda
 pendiente para cuando se escriba el arranque completo de la app.
 
+### 2026-10-10 · Revisión de código: correcciones a `MasterKeyStore`, al gestor de bloqueo y al
+almacén seguro
+
+Una revisión de la fase (leyendo el código, sin ejecutar nada) encontró un fallo real y uno de
+política; se corrigen aquí.
+
+**A. `storeMasterKey` no era atómico (fallo real).** Antes, `prepareEncryptCipher` borraba la
+clave de Keystore anterior y generaba la nueva **antes** de autenticar: si la persona cancelaba el
+cuadro de biometría (o `persistEncrypted` fallaba por cualquier motivo), quedaba el texto cifrado
+viejo en `prefs` apuntando a una clave de Keystore que ya no existía — `hasStoredKey` seguía dando
+`true`, pero `loadMasterKey` acababa en un `AEADBadTagException` envuelto en `platform_failure`
+para siempre, en vez de `no_stored_key`. **Se eligió guardar bajo un alias "candidato" (doble
+búfer `a`/`b` por cuenta) y conservar la versión anterior intacta** si algo falla antes de
+`persistEncrypted`: no se perdía nada que ya funcionara. Las escrituras de `prefs` que fijan o
+borran el estado activo usan `commit()`, no `apply()` (no pueden quedar a medias). Prueba
+instrumentada añadida: "cancelar al re-guardar conserva la clave anterior intacta" (paso a paso 4
+de `docs/guides/fase5-pruebas-manuales.md`).
+
+**B. La regla de recordar vivía en quien llamaba, no en el controlador (fallo de política).**
+`VaultLockController.unlock` aceptaba un `remember: bool` y, si era `true`, guardaba siempre con
+`requireAuth: settings.biometricLock` — con `biometricLock: false` guardaba **sin** autenticación
+aunque `lockOnExit` o `lockTimeout` estuvieran activos, así que `unlockWithStoredKey` la devolvía
+tras un bloqueo sin pedir nada: el bloqueo no protegía nada en ese caso. La regla del plan §5.3
+ahora vive en el controlador (`_rememberPolicy`, privada): `biometricLock: true` → `requireAuth:
+true`; `biometricLock: false` y además `lockOnExit: false` y `lockTimeout: never` → `requireAuth:
+false`; cualquier otro caso → no se guarda nada. `unlock` cambia `remember: bool` por
+`rememberOnThisDevice: bool` (`true` por defecto), que solo puede **restringir** (nunca forzar a
+guardar si la regla diría que no). `updateSettings` pasa a ser `async` y reaplica la regla con el
+cofre ya desbloqueado: si falla a medio camino (p. ej. se cancela la biometría al confirmar el
+`requireAuth` nuevo), borra explícitamente lo guardado (coherencia: nada, nunca lo viejo con una
+regla ya abandonada) y relanza el error.
+
+**C. `loadMasterKey` no distinguía "irrecuperable" de "fallo genérico".** Si `keyStore.getKey`
+devolvía `null` o lanzaba `UnrecoverableKeyException`/`InvalidKeyException` (algunos fabricantes
+señalan así la invalidación), o si `decrypt` daba `AEADBadTagException`, antes se perdía todo como
+`platform_failure`, en vez de tratarse igual que una biometría nueva (`key_invalidated`: borrar y
+pedir la contraseña, el criterio correcto porque esos datos ya son irrecuperables). Ahora
+`MasterKeyStore` lanza una única `MasterKeyInvalidatedException` en los tres casos (más el ya
+existente `KeyPermanentlyInvalidatedException`) y la capa del plugin borra y devuelve
+`key_invalidated` siempre igual.
+
+**D. API 26-29 sin biometría registrada daba `platform_failure` en vez de `auth_not_enrolled`.**
+`generateKey` con `requireAuth` en un dispositivo sin biometría ni credencial configurada lanza
+`InvalidAlgorithmParameterException`; el reintento sin StrongBox atrapaba **cualquier** excepción
+y la disfrazaba. Ahora el reintento sin StrongBox solo se dispara ante
+`StrongBoxUnavailableException`; `InvalidAlgorithmParameterException` (con o sin StrongBox) se
+convierte en `AuthNotEnrolledException`, mapeada a `auth_not_enrolled`. **No se pudo probar en el
+ZTE** (Android 13 / API 33): este camino solo existe en API 26-29, que el dispositivo de
+referencia no cubre. Queda verificado por lectura de la documentación de Android, no por una
+prueba instrumentada real; si alguna fase posterior tiene acceso a un dispositivo API 26-29, vale
+la pena confirmarlo allí.
+
+**E. Higiene de la clave en Kotlin.** `storeMasterKey` ahora pone a cero (`fill(0)`) el `ByteArray`
+recibido en todos los caminos (éxito, cancelación, cualquier excepción). Se documentó en
+`axonote_platform.dart` que esa copia es la nativa (el método channel ya copia al cruzar): el
+`Uint8List` original del lado Dart no se ve afectado, y sigue siendo responsabilidad de quien lo
+posee (el `SecretKeyBytes` del `Vault`, que se borra al bloquear). Los bytes que devuelve
+`loadMasterKey` **no** se ponen a cero en Kotlin (tienen que llegar intactos a Dart, que los
+envuelve de inmediato en un `SecretKeyBytes`). `MethodChannelAxonotePlatform` ya no conservaba
+ninguna referencia a los bytes más allá de la llamada ni los incluía en ningún error (solo revisado
+y confirmado, sin cambios).
+
+**F. `signOut` dependía de `_vault?.userId`.** Tras un arranque en frío con la app bloqueada
+(`_vault == null`, nunca se llegó a desbloquear en este proceso), no habría borrado la clave
+guardada de esa cuenta. `signOut` pasa a exigir `required String userId` explícito.
+
+**G. `Vault.newItemKey`/`itemKey`/`rotateItemKey` documentados: la clave devuelta es la misma
+instancia de la caché.** Quien la recibe no debe llamar a `dispose()` sobre ella (lo hace `lock()`
+al bloquear). Prueba añadida que comprueba, con `identical()`, que `newItemKey().key` y la
+instancia que luego devuelve `itemKey()` son el mismo objeto.
+
+**H. `AndroidOptions(encryptedSharedPreferences: true)` no existe en `flutter_secure_storage`
+11.2.0.** Comprobado leyendo el código fuente publicado del paquete (no estaba en el `pub-cache`
+local: nunca se corrió `pub get` en ningún worktree con esta dependencia). Ese parámetro se quitó
+en la v11: desde entonces el paquete siempre cifra con una clave de Keystore, con o sin ese
+nombre. Se usa `AndroidOptions()` (valores por defecto), que ya cumple lo que pedía el plan
+(Keystore, sin autenticación) sin ningún parámetro extra.
+
+**Pendiente para la fase 8** (aceptado como fuera de alcance de esta fase; que no se pierda):
+
+- El arranque en frío: decidir con qué cuenta intentar `unlockWithStoredKey` (ya existe
+  `AccountSecureStore.readUserId()`), y persistir `lastActiveAt` para que el tiempo de bloqueo
+  sobreviva a que el sistema mate el proceso (ver la decisión de más arriba).
+- Activar `AxonotePlatform.setSecure` por defecto (ajuste de privacidad) y en las pantallas
+  concretas que el plan marca como "siempre" (clave de recuperación, códigos de respaldo, secreto
+  TOTP, desbloqueo) — mecanismo ya listo y probado, solo falta activarlo donde corresponda.
+
