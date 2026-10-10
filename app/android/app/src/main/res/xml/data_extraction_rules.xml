@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Plan §5.4: "reglas de extracción de datos que excluyen todo". `allowBackup="false"` ya
+  desactiva la copia de seguridad en la nube; esto cubre además la transferencia de dispositivo a
+  dispositivo (API 31+, Android 12), que es una vía separada y no depende de `allowBackup`.
+-->
+<data-extraction-rules>
+    <cloud-backup disableIfNoEncryptionCapability="false">
+        <exclude domain="root" />
+    </cloud-backup>
+    <device-transfer>
+        <exclude domain="root" />
+    </device-transfer>
+</data-extraction-rules>
