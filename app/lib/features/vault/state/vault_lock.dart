@@ -19,14 +19,11 @@ import 'timer_factory.dart';
 /// ([unlock]) o la recupera de lo guardado ([unlockWithStoredKey]).
 class VaultLockController {
   VaultLockController({
-    required Ref ref,
+    required this._ref,
     AxonotePlatform? platform,
-    Clock clock = const SystemClock(),
-    TimerFactory timerFactory = const RealTimerFactory(),
-  }) : _ref = ref,
-       _platform = platform ?? AxonotePlatform.instance,
-       _clock = clock,
-       _timerFactory = timerFactory;
+    this._clock = const SystemClock(),
+    this._timerFactory = const RealTimerFactory(),
+  }) : _platform = platform ?? AxonotePlatform.instance;
 
   final Ref _ref;
   final AxonotePlatform _platform;

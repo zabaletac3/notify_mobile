@@ -1,5 +1,3 @@
-import 'dart:typed_data';
-
 import 'package:axonote_platform/axonote_platform.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
