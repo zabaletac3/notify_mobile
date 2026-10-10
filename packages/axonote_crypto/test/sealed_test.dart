@@ -82,6 +82,25 @@ void main() {
       final sealed = await seal(key, Uint8List(0), 'ctx');
       expect(await open(key, sealed, 'ctx'), isEmpty);
     });
+
+    test('abrir un sealed cuyo texto cifrado no llega a 16 bytes falla', () {
+      final key = SecretKeyBytes(Uint8List(32));
+      // "AA" decodifica a 1 byte: no alcanza para la etiqueta GCM de 16 bytes.
+      expect(
+        () => open(key, 'a1.AAAAAAAAAAAAAAAA.AA', 'ctx'),
+        throwsA(isA<DecryptError>()),
+      );
+    });
+
+    test(
+      'abrir con una clave ya borrada lanza StateError, no DecryptError',
+      () async {
+        final key = SecretKeyBytes(Uint8List(32));
+        final sealed = await seal(key, utf8Encode('hola'), 'ctx');
+        key.dispose();
+        expect(() => open(key, sealed, 'ctx'), throwsStateError);
+      },
+    );
   });
 
   group('sealWithIv', () {

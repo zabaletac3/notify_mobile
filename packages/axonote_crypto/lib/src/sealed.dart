@@ -63,6 +63,9 @@ Future<Uint8List> open(SecretKeyBytes key, Sealed sealed, String aad) async {
   if (!isSealed(sealed)) throw const CryptoFormatError();
   final parts = sealed.split('.');
   final ct = fromB64u(parts[2]);
+  // Fuera del try: una clave ya borrada es un error de programación (StateError), no un fallo de
+  // descifrado, y no debe disfrazarse de DecryptError.
+  final keyBytes = key.bytes;
   try {
     final iv = fromB64u(parts[1]);
     if (ct.length < _macBytes) throw const DecryptError();
@@ -70,7 +73,7 @@ Future<Uint8List> open(SecretKeyBytes key, Sealed sealed, String aad) async {
     final mac = Mac(ct.sublist(ct.length - _macBytes));
     final plain = await _aesGcm.decrypt(
       SecretBox(cipherText, nonce: iv, mac: mac),
-      secretKey: SecretKeyData(key.bytes),
+      secretKey: SecretKeyData(keyBytes),
       aad: utf8Encode(aad),
     );
     return Uint8List.fromList(plain);
