@@ -18,7 +18,11 @@ class _NeverArgon2id implements Argon2idDeriver {
 }
 
 void main() {
-  final argon2id = SodiumArgon2id.load();
+  late Argon2idDeriver argon2id;
+
+  setUpAll(() async {
+    argon2id = await SodiumArgon2id.load();
+  });
 
   group('deriveFromPassword · KdfUnsupported', () {
     test('rechaza un algoritmo distinto de argon2id sin derivar', () {
@@ -46,6 +50,24 @@ void main() {
       expect(
         () => deriveFromPassword('x', kdf, _NeverArgon2id()),
         throwsA(isA<KdfUnsupported>()),
+      );
+    });
+  });
+
+  group('deriveFromPassword · sal', () {
+    test('rechaza una sal que no mide 16 bytes sin derivar', () {
+      // La web (kdf.ts, SALT_BYTES) siempre genera 16 bytes; una sal de otra longitud solo puede
+      // venir de un servidor con un formato distinto, y se rechaza antes de llamar a Argon2id.
+      final kdf = KdfParams(
+        alg: 'argon2id',
+        memoryKiB: 1024,
+        iterations: 1,
+        parallelism: 1,
+        salt: toB64u(Uint8List(8)),
+      );
+      expect(
+        () => deriveFromPassword('x', kdf, _NeverArgon2id()),
+        throwsA(isA<CryptoFormatError>()),
       );
     });
   });

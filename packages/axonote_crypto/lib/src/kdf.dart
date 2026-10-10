@@ -107,7 +107,8 @@ Future<SecretKeyBytes> _hkdfKeyBytes(Uint8List ikm, String info) async {
 }
 
 /// Contraseña → `authKey` y `kek`. Nunca viaja la contraseña. Lanza [KdfUnsupported] si el
-/// servidor pide parámetros que este cliente no sabe calcular.
+/// servidor pide parámetros que este cliente no sabe calcular, o [CryptoFormatError] si la sal
+/// no mide 16 bytes (la web siempre genera 16; otra longitud es un formato distinto).
 Future<DerivedKeys> deriveFromPassword(
   String password,
   KdfParams params,
@@ -116,9 +117,13 @@ Future<DerivedKeys> deriveFromPassword(
   if (params.alg != 'argon2id' || params.parallelism != 1) {
     throw const KdfUnsupported();
   }
+  final salt = fromB64u(params.salt);
+  if (salt.length != _saltBytes) {
+    throw const CryptoFormatError('longitud de sal inválida');
+  }
   final stretched = await argon2id.derive(
     password: utf8Encode(unorm.nfkc(password)),
-    salt: fromB64u(params.salt),
+    salt: salt,
     memoryKiB: params.memoryKiB,
     iterations: params.iterations,
   );
