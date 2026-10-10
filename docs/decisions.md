@@ -163,4 +163,24 @@ decisiones de forma, ninguna cambia el formato de bytes (§3) ni los vectores:
   como en la CI, a los directorios propios (`app/lib`, `app/test`, `tool` y `packages/*/lib` y, aquí,
   también `packages/axonote_api/test`). `flutter analyze` sí analiza todo el workspace.
 
+### 2026-10-10 · El vuelo único de la renovación es por instancia
+
+- **Decisión:** el `HttpClient` serializa la renovación dentro de la propia instancia. La app debe
+  crear **un solo `HttpClient` por cuenta** y compartirlo entre todos los clientes de recurso.
+- **Motivo:** dos instancias mantendrían cada una su `_refreshing`; ambas podrían gastar a la vez el
+  mismo token de renovación (que es de un solo uso) y el servidor cerraría la sesión por reutilización.
+  En la web lo resuelve el cerrojo entre pestañas (`navigator.locks`); aquí, al ser un solo proceso,
+  basta con no duplicar la instancia.
+
+### 2026-10-10 · Cuerpo no interpretable y cancelación al vencer el tiempo máximo
+
+- **Cuerpo:** el cliente lee el cuerpo en crudo (`ResponseType.plain`) y lo interpreta él mismo. Un 2xx
+  cuyo cuerpo no es JSON (p. ej. el HTML de Cloudflare Access), está vacío o no encaja con el DTO (falla
+  el `decode` por defecto o cualquier cast) es un `AppFailure(ServerError())`, nunca un `TypeError`
+  suelto ni un `network`. Con **estado de error**, manda el estado HTTP (como la web): un cuerpo no JSON
+  con 500 es `server` y con 429 es `rate-limited`.
+- **Cancelación:** al vencer el tiempo máximo se cancela el `CancelToken` de dio, no solo se abandona la
+  `Future`, para liberar la conexión. Cubierto con un test que comprueba que dio cancela.
+
+
 
