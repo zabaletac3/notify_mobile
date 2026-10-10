@@ -5,7 +5,12 @@ import '../tokens.dart';
 
 /// Casilla circular del diseño (20 px). Marcada en `accent` con el check blanco.
 class AxoCheckbox extends StatelessWidget {
-  const AxoCheckbox({super.key, required this.value, this.onChanged, this.label});
+  const AxoCheckbox({
+    super.key,
+    required this.value,
+    this.onChanged,
+    this.label,
+  });
 
   final bool value;
   final ValueChanged<bool>? onChanged;
@@ -22,7 +27,9 @@ class AxoCheckbox extends StatelessWidget {
         shape: BoxShape.circle,
         border: value ? null : Border.all(color: c.borderDefault, width: 2),
       ),
-      child: value ? Center(child: AppIcon('check', size: 14, color: c.accentOn)) : null,
+      child: value
+          ? Center(child: AppIcon('check', size: 14, color: c.accentOn))
+          : null,
     );
 
     if (label == null) {

@@ -5,7 +5,12 @@ import '../tokens.dart';
 /// Diálogo del diseño: radio 20, relleno 28 y hueco 16. El presentador (`showDialog`) se añadirá con
 /// las pantallas; esto es la superficie base.
 class AxoDialog extends StatelessWidget {
-  const AxoDialog({super.key, required this.title, this.content, this.actions = const []});
+  const AxoDialog({
+    super.key,
+    required this.title,
+    this.content,
+    this.actions = const [],
+  });
 
   final String title;
   final Widget? content;
@@ -27,7 +32,10 @@ class AxoDialog extends StatelessWidget {
         children: [
           Text(title, style: AxoType.heading.copyWith(color: c.textPrimary)),
           const SizedBox(height: AxoSpacing.lg),
-          if (content != null) ...[content!, const SizedBox(height: AxoSpacing.lg)],
+          if (content != null) ...[
+            content!,
+            const SizedBox(height: AxoSpacing.lg),
+          ],
           if (actions.isNotEmpty)
             Row(
               mainAxisAlignment: MainAxisAlignment.end,

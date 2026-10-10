@@ -50,7 +50,11 @@ class AxoButton extends StatelessWidget {
       AxoButtonVariant.primary => (c.accentDefault, c.accentOn, null),
       AxoButtonVariant.outline => (null, c.textPrimary, c.borderDefault),
       AxoButtonVariant.destructive => (c.statusDanger, c.accentOn, null),
-      AxoButtonVariant.destructiveSoft => (c.statusDangerBg, c.statusDanger, null),
+      AxoButtonVariant.destructiveSoft => (
+        c.statusDangerBg,
+        c.statusDanger,
+        null,
+      ),
     };
 
     return Semantics(
@@ -84,7 +88,13 @@ class AxoButton extends StatelessWidget {
                     AppIcon(icon!, size: 18, color: fg),
                     const SizedBox(width: AxoSpacing.sm),
                   ],
-                  Text(label, style: AxoType.body.copyWith(color: fg, fontWeight: FontWeight.w600)),
+                  Text(
+                    label,
+                    style: AxoType.body.copyWith(
+                      color: fg,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
                 ],
               ),
             ),

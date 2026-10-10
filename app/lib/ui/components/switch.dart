@@ -35,7 +35,10 @@ class AxoSwitch extends StatelessWidget {
                   margin: const EdgeInsets.all(3),
                   width: 20,
                   height: 20,
-                  decoration: const BoxDecoration(color: Colors.white, shape: BoxShape.circle),
+                  decoration: const BoxDecoration(
+                    color: Colors.white,
+                    shape: BoxShape.circle,
+                  ),
                 ),
               ),
             ),

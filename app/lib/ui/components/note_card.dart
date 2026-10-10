@@ -58,7 +58,11 @@ class AxoNoteCard extends StatelessWidget {
                       ),
                     ),
                   ),
-                  if (date != null) Text(date!, style: AxoType.caption.copyWith(color: c.textTertiary)),
+                  if (date != null)
+                    Text(
+                      date!,
+                      style: AxoType.caption.copyWith(color: c.textTertiary),
+                    ),
                 ],
               ),
               const SizedBox(height: AxoSpacing.xs),

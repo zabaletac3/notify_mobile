@@ -36,14 +36,18 @@ const Set<String> purePackages = {
 };
 
 final _internal = allowedInternal.keys.toSet();
-final _import = RegExp(r"""^\s*(?:import|export)\s+['"](?:package:([^/'"]+)|(dart:[^'"]+))""");
+final _import = RegExp(
+  r"""^\s*(?:import|export)\s+['"](?:package:([^/'"]+)|(dart:[^'"]+))""",
+);
 
 void main() {
   final root = Directory.current;
   final packages = <String, Directory>{
     for (final name in allowedInternal.keys)
       name: Directory(
-        name == 'axonote_app' ? '${root.path}/app/lib' : '${root.path}/packages/$name/lib',
+        name == 'axonote_app'
+            ? '${root.path}/app/lib'
+            : '${root.path}/packages/$name/lib',
       ),
   };
 
@@ -66,11 +70,19 @@ void main() {
             violations.add('$rel: «$name» no puede importar «$pkg»');
           }
         }
-        final isFlutter = pkg == 'flutter' || (pkg?.startsWith('flutter_') ?? false) || dartUri == 'dart:ui';
+        final isFlutter =
+            pkg == 'flutter' ||
+            (pkg?.startsWith('flutter_') ?? false) ||
+            dartUri == 'dart:ui';
         if (isFlutter && purePackages.contains(name)) {
-          violations.add('$rel: el paquete puro «$name» no puede depender de Flutter ($pkg)');
+          violations.add(
+            '$rel: el paquete puro «$name» no puede depender de Flutter ($pkg)',
+          );
         }
-        final isDataOnly = pkg == 'drift' || pkg == 'dio' || (pkg?.startsWith('drift_') ?? false);
+        final isDataOnly =
+            pkg == 'drift' ||
+            pkg == 'dio' ||
+            (pkg?.startsWith('drift_') ?? false);
         if (isDataOnly && name == 'axonote_app' && !inData) {
           violations.add('$rel: fuera de app/lib/data no se importa «$pkg»');
         }
@@ -82,7 +94,9 @@ void main() {
     stdout.writeln('Arquitectura correcta.');
     return;
   }
-  stderr.writeln('Se han encontrado ${violations.length} violación(es) de arquitectura:');
+  stderr.writeln(
+    'Se han encontrado ${violations.length} violación(es) de arquitectura:',
+  );
   for (final v in violations) {
     stderr.writeln('  - $v');
   }

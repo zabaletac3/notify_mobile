@@ -15,7 +15,9 @@ class AxoBottomSheet extends StatelessWidget {
     return Container(
       decoration: BoxDecoration(
         color: c.bgApp,
-        borderRadius: const BorderRadius.vertical(top: Radius.circular(AxoRadii.sheet)),
+        borderRadius: const BorderRadius.vertical(
+          top: Radius.circular(AxoRadii.sheet),
+        ),
       ),
       padding: const EdgeInsets.fromLTRB(20, 12, 20, 36),
       child: Column(

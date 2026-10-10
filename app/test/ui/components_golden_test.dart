@@ -19,7 +19,10 @@ Future<void> runGolden(WidgetTester tester, String name, Widget child) async {
   tester.view.physicalSize = const Size(400, 260);
   addTearDown(tester.view.reset);
 
-  for (final (mode, theme) in [('light', AxoTheme.light()), ('dark', AxoTheme.dark())]) {
+  for (final (mode, theme) in [
+    ('light', AxoTheme.light()),
+    ('dark', AxoTheme.dark()),
+  ]) {
     await tester.pumpWidget(
       MaterialApp(
         debugShowCheckedModeBanner: false,
@@ -34,7 +37,10 @@ Future<void> runGolden(WidgetTester tester, String name, Widget child) async {
       ),
     );
     await tester.pumpAndSettle();
-    await expectLater(find.byType(MaterialApp), matchesGoldenFile('goldens/$name-$mode.png'));
+    await expectLater(
+      find.byType(MaterialApp),
+      matchesGoldenFile('goldens/$name-$mode.png'),
+    );
   }
 }
 
@@ -51,18 +57,30 @@ void main() {
   });
 
   testWidgets('campo', (t) async {
-    await runGolden(t, 'field', const AxoField(label: 'Correo', hint: 'tu@correo.com'));
+    await runGolden(
+      t,
+      'field',
+      const AxoField(label: 'Correo', hint: 'tu@correo.com'),
+    );
   });
 
   testWidgets('interruptor', (t) async {
-    await runGolden(t, 'switch', const AxoSwitch(value: true, onChanged: _onChanged));
+    await runGolden(
+      t,
+      'switch',
+      const AxoSwitch(value: true, onChanged: _onChanged),
+    );
   });
 
   testWidgets('casilla', (t) async {
     await runGolden(
       t,
       'checkbox',
-      const AxoCheckbox(value: true, label: 'Recordarme', onChanged: _onChanged),
+      const AxoCheckbox(
+        value: true,
+        label: 'Recordarme',
+        onChanged: _onChanged,
+      ),
     );
   });
 
@@ -114,8 +132,16 @@ void main() {
         title: 'Eliminar nota',
         content: Text('Esta acción no se puede deshacer.'),
         actions: [
-          AxoButton(label: 'Cancelar', variant: AxoButtonVariant.outline, onPressed: _noop),
-          AxoButton(label: 'Eliminar', variant: AxoButtonVariant.destructive, onPressed: _noop),
+          AxoButton(
+            label: 'Cancelar',
+            variant: AxoButtonVariant.outline,
+            onPressed: _noop,
+          ),
+          AxoButton(
+            label: 'Eliminar',
+            variant: AxoButtonVariant.destructive,
+            onPressed: _noop,
+          ),
         ],
       ),
     );

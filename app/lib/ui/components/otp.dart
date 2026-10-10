@@ -5,7 +5,12 @@ import '../tokens.dart';
 /// Campo OTP del diseño: casillas separadas y rellenas (48×60, radio 12), foco azul. Muestra el valor
 /// recibido; el manejo del teclado se añadirá con la pantalla de verificación (fase 8).
 class AxoOtpField extends StatelessWidget {
-  const AxoOtpField({super.key, this.length = 6, this.value = '', this.focusedIndex});
+  const AxoOtpField({
+    super.key,
+    this.length = 6,
+    this.value = '',
+    this.focusedIndex,
+  });
 
   final int length;
   final String value;
@@ -27,7 +32,9 @@ class AxoOtpField extends StatelessWidget {
             decoration: BoxDecoration(
               color: c.bgInput,
               borderRadius: BorderRadius.circular(AxoRadii.lg),
-              border: i == focus ? Border.all(color: c.accentDefault, width: 2) : null,
+              border: i == focus
+                  ? Border.all(color: c.accentDefault, width: 2)
+                  : null,
             ),
             child: Text(
               i < value.length ? value[i] : '',

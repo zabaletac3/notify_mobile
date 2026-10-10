@@ -21,8 +21,12 @@ PlaceholderScreen _p(String title, {List<Widget> actions = const []}) =>
     PlaceholderScreen(title: title, actions: actions);
 
 /// Botón de demostración que cambia el estado de sesión (para recorrer el esqueleto a mano).
-Widget _demo(String label, AxoSession target) =>
-    Consumer(builder: (context, ref, _) => AxoButton(label: label, onPressed: () => ref.read(sessionProvider.notifier).set(target)));
+Widget _demo(String label, AxoSession target) => Consumer(
+  builder: (context, ref, _) => AxoButton(
+    label: label,
+    onPressed: () => ref.read(sessionProvider.notifier).set(target),
+  ),
+);
 
 final routerProvider = Provider<GoRouter>((ref) {
   final refresh = ValueNotifier<AxoSession>(ref.read(sessionProvider));
@@ -48,29 +52,49 @@ final routerProvider = Provider<GoRouter>((ref) {
     },
     routes: [
       // Introducción y autenticación.
-      GoRoute(path: '/welcome', builder: (_, _) => _p('Bienvenida', actions: [_demo('Entrar (demo)', AxoSession.unlocked)])),
+      GoRoute(
+        path: '/welcome',
+        builder: (_, _) => _p(
+          'Bienvenida',
+          actions: [_demo('Entrar (demo)', AxoSession.unlocked)],
+        ),
+      ),
       GoRoute(path: '/onboarding', builder: (_, _) => _p('Onboarding')),
       GoRoute(path: '/login', builder: (_, _) => _p('Inicio de sesión')),
       GoRoute(path: '/register', builder: (_, _) => _p('Registro')),
       GoRoute(path: '/verify', builder: (_, _) => _p('Verificación de correo')),
-      GoRoute(path: '/forgot-password', builder: (_, _) => _p('Recuperar contraseña')),
-      GoRoute(path: '/forgot-password/sent', builder: (_, _) => _p('Correo enviado')),
+      GoRoute(
+        path: '/forgot-password',
+        builder: (_, _) => _p('Recuperar contraseña'),
+      ),
+      GoRoute(
+        path: '/forgot-password/sent',
+        builder: (_, _) => _p('Correo enviado'),
+      ),
       GoRoute(
         path: '/unlock',
-        builder: (_, _) => _p('Desbloquear', actions: [_demo('Desbloquear (demo)', AxoSession.unlocked)]),
+        builder: (_, _) => _p(
+          'Desbloquear',
+          actions: [_demo('Desbloquear (demo)', AxoSession.unlocked)],
+        ),
       ),
       // Notas.
       GoRoute(
         path: '/notes',
-        builder: (_, _) => _p('Notas', actions: [
-          _demo('Bloquear (demo)', AxoSession.locked),
-          _demo('Cerrar sesión (demo)', AxoSession.noSession),
-        ]),
+        builder: (_, _) => _p(
+          'Notas',
+          actions: [
+            _demo('Bloquear (demo)', AxoSession.locked),
+            _demo('Cerrar sesión (demo)', AxoSession.noSession),
+          ],
+        ),
         routes: [
           GoRoute(
             path: ':id',
             builder: (_, _) => _p('Editor'),
-            routes: [GoRoute(path: 'share', builder: (_, _) => _p('Compartir nota'))],
+            routes: [
+              GoRoute(path: 'share', builder: (_, _) => _p('Compartir nota')),
+            ],
           ),
         ],
       ),
@@ -79,12 +103,27 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(path: '/search', builder: (_, _) => _p('Búsqueda')),
       // Ajustes.
       GoRoute(path: '/settings/menu', builder: (_, _) => _p('Ajustes')),
-      GoRoute(path: '/settings/general', builder: (_, _) => _p('Ajustes generales')),
+      GoRoute(
+        path: '/settings/general',
+        builder: (_, _) => _p('Ajustes generales'),
+      ),
       GoRoute(path: '/settings/account', builder: (_, _) => _p('Mi cuenta')),
-      GoRoute(path: '/settings/sync', builder: (_, _) => _p('Sincronización y dispositivos')),
-      GoRoute(path: '/settings/privacy', builder: (_, _) => _p('Privacidad y seguridad')),
-      GoRoute(path: '/settings/storage', builder: (_, _) => _p('Almacenamiento y exportación')),
-      GoRoute(path: '/settings/delete-account', builder: (_, _) => _p('Eliminar cuenta')),
+      GoRoute(
+        path: '/settings/sync',
+        builder: (_, _) => _p('Sincronización y dispositivos'),
+      ),
+      GoRoute(
+        path: '/settings/privacy',
+        builder: (_, _) => _p('Privacidad y seguridad'),
+      ),
+      GoRoute(
+        path: '/settings/storage',
+        builder: (_, _) => _p('Almacenamiento y exportación'),
+      ),
+      GoRoute(
+        path: '/settings/delete-account',
+        builder: (_, _) => _p('Eliminar cuenta'),
+      ),
       GoRoute(path: '/settings/about', builder: (_, _) => _p('Acerca de')),
       // Ruta inicial: el redirect decide a dónde ir.
       GoRoute(path: '/', builder: (_, _) => _p('Inicio')),

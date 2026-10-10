@@ -12,4 +12,6 @@ class SessionController extends Notifier<AxoSession> {
   void set(AxoSession value) => state = value;
 }
 
-final sessionProvider = NotifierProvider<SessionController, AxoSession>(SessionController.new);
+final sessionProvider = NotifierProvider<SessionController, AxoSession>(
+  SessionController.new,
+);

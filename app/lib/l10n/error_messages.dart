@@ -46,7 +46,11 @@ String? validationMessage(AppLocalizations l10n, String? code) {
 }
 
 /// Mensaje corto para un aviso, según el `kind` (y el `code`) de un error.
-String errorMessage(AppLocalizations l10n, {required String kind, String? code}) {
+String errorMessage(
+  AppLocalizations l10n, {
+  required String kind,
+  String? code,
+}) {
   switch (kind) {
     case 'network':
       return l10n.errorNetwork;

@@ -37,7 +37,9 @@ class AxoMenuItem extends StatelessWidget {
                 AppIcon(icon!, size: 18, color: fg),
                 const SizedBox(width: AxoSpacing.md),
               ],
-              Expanded(child: Text(label, style: AxoType.body.copyWith(color: fg))),
+              Expanded(
+                child: Text(label, style: AxoType.body.copyWith(color: fg)),
+              ),
             ],
           ),
         ),

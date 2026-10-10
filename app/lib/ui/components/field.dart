@@ -34,7 +34,8 @@ class AxoField extends StatefulWidget {
 }
 
 class _AxoFieldState extends State<AxoField> {
-  late final TextEditingController _controller = widget.controller ?? TextEditingController();
+  late final TextEditingController _controller =
+      widget.controller ?? TextEditingController();
   late bool _hidden = widget.obscure;
   bool _focused = false;
 
@@ -59,7 +60,10 @@ class _AxoFieldState extends State<AxoField> {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         if (widget.label != null) ...[
-          Text(widget.label!, style: AxoType.label.copyWith(color: c.textSecondary)),
+          Text(
+            widget.label!,
+            style: AxoType.label.copyWith(color: c.textSecondary),
+          ),
           const SizedBox(height: AxoSpacing.xs),
         ],
         Focus(
