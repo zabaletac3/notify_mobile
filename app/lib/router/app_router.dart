@@ -1,8 +1,10 @@
+import 'package:flutter/foundation.dart' show kDebugMode;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../app/session.dart';
+import '../dev/components_gallery.dart';
 import '../ui/components.dart';
 import '../ui/placeholder_screen.dart';
 
@@ -28,6 +30,18 @@ Widget _demo(String label, AxoSession target) => Consumer(
   ),
 );
 
+/// Botón de navegación (solo depuración).
+Widget _devNav(String label, String location) => Builder(
+  builder: (context) => AxoButton(
+    label: label,
+    variant: AxoButtonVariant.outline,
+    onPressed: () => GoRouter.of(context).go(location),
+  ),
+);
+
+/// Ruta de la galería de componentes, solo en modo debug.
+const _devRoute = '/dev/components';
+
 final routerProvider = Provider<GoRouter>((ref) {
   final refresh = ValueNotifier<AxoSession>(ref.read(sessionProvider));
   ref.listen<AxoSession>(sessionProvider, (_, next) => refresh.value = next);
@@ -38,6 +52,8 @@ final routerProvider = Provider<GoRouter>((ref) {
     redirect: (context, state) {
       final session = refresh.value;
       final loc = state.matchedLocation;
+      // La galería de componentes está accesible en cualquier estado, solo en debug.
+      if (kDebugMode && loc == _devRoute) return null;
       final isPublic = _publicRoutes.contains(loc);
       final isLocked = loc == '/unlock';
       switch (session) {
@@ -56,7 +72,10 @@ final routerProvider = Provider<GoRouter>((ref) {
         path: '/welcome',
         builder: (_, _) => _p(
           'Bienvenida',
-          actions: [_demo('Entrar (demo)', AxoSession.unlocked)],
+          actions: [
+            _demo('Entrar (demo)', AxoSession.unlocked),
+            if (kDebugMode) _devNav('Ver componentes (dev)', _devRoute),
+          ],
         ),
       ),
       GoRoute(path: '/onboarding', builder: (_, _) => _p('Onboarding')),
@@ -125,6 +144,9 @@ final routerProvider = Provider<GoRouter>((ref) {
         builder: (_, _) => _p('Eliminar cuenta'),
       ),
       GoRoute(path: '/settings/about', builder: (_, _) => _p('Acerca de')),
+      // Galería de componentes (solo debug).
+      if (kDebugMode)
+        GoRoute(path: _devRoute, builder: (_, _) => const ComponentsGallery()),
       // Ruta inicial: el redirect decide a dónde ir.
       GoRoute(path: '/', builder: (_, _) => _p('Inicio')),
     ],

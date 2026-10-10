@@ -41,4 +41,27 @@ void main() {
       reason: 'bloqueado → desbloqueo',
     );
   });
+
+  testWidgets('la galería de componentes (dev) es accesible sin sesión', (
+    tester,
+  ) async {
+    final container = ProviderContainer();
+    addTearDown(container.dispose);
+
+    await tester.pumpWidget(
+      UncontrolledProviderScope(
+        container: container,
+        child: MaterialApp.router(
+          debugShowCheckedModeBanner: false,
+          theme: AxoTheme.light(),
+          routerConfig: container.read(routerProvider),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    container.read(routerProvider).go('/dev/components');
+    await tester.pumpAndSettle();
+    expect(find.text('Componentes (dev)'), findsWidgets);
+  });
 }
