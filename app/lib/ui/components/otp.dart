@@ -38,7 +38,7 @@ class AxoOtpField extends StatelessWidget {
             ),
             child: Text(
               i < value.length ? value[i] : '',
-              style: AxoType.heading.copyWith(color: c.textPrimary),
+              style: AxoType.screenTitle.copyWith(color: c.textPrimary),
             ),
           ),
         ],

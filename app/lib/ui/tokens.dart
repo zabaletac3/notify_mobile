@@ -157,48 +157,99 @@ class AxoColors extends ThemeExtension<AxoColors> {
   }
 }
 
-/// Escala tipográfica (Inter), tomada de los textos reales de Penpot. El diseño usa interlineado 1.2 en
-/// casi todo y letter-spacing negativo en los títulos.
+/// Escala tipográfica (Inter), con los roles que usa Penpot. Conviven tamaños/interlineados distintos por
+/// contexto (título de auth 28/34; título de pantalla 24 o 22; cuerpo de lectura 15/22 y texto de interfaz
+/// 15/1.2). Ver la tabla «rol → … → usos» en `docs/design/penpot-measurements.md`.
 abstract final class AxoType {
   static const String family = 'Inter';
 
+  /// Título de autenticación (p. ej. «Verifica tu correo»). 28/700, int. 34, ls -0.56.
   static const TextStyle title = TextStyle(
+    fontFamily: family,
+    fontSize: 28,
+    fontWeight: FontWeight.w700,
+    height: 34 / 28,
+    letterSpacing: -0.56,
+  );
+
+  /// Título de pantalla (p. ej. «Crea tu cuenta»). 24/700, int. 1.2.
+  static const TextStyle screenTitle = TextStyle(
     fontFamily: family,
     fontSize: 24,
     fontWeight: FontWeight.w700,
     height: 1.2,
-    letterSpacing: -0.4,
   );
+
+  /// Título superior de la lista / selector de carpeta. 22/700, ls -0.44.
+  static const TextStyle topTitle = TextStyle(
+    fontFamily: family,
+    fontSize: 22,
+    fontWeight: FontWeight.w700,
+    height: 1.2,
+    letterSpacing: -0.44,
+  );
+
+  /// Título de diálogo. 20/700.
+  static const TextStyle dialogTitle = TextStyle(
+    fontFamily: family,
+    fontSize: 20,
+    fontWeight: FontWeight.w700,
+    height: 1.2,
+  );
+
+  /// Título de hoja inferior. 17/600.
+  static const TextStyle sheetTitle = TextStyle(
+    fontFamily: family,
+    fontSize: 17,
+    fontWeight: FontWeight.w600,
+    height: 1.2,
+  );
+
+  /// Encabezado de sección. 18/600.
   static const TextStyle heading = TextStyle(
     fontFamily: family,
     fontSize: 18,
     fontWeight: FontWeight.w600,
     height: 1.2,
   );
+
+  /// Título de nota en la lista. 14/600.
+  static const TextStyle noteTitle = TextStyle(
+    fontFamily: family,
+    fontSize: 14,
+    fontWeight: FontWeight.w600,
+    height: 1.2,
+  );
+
+  /// Cuerpo de lectura (texto largo). 15/400, int. 22.
   static const TextStyle body = TextStyle(
+    fontFamily: family,
+    fontSize: 15,
+    fontWeight: FontWeight.w400,
+    height: 22 / 15,
+  );
+
+  /// Texto de interfaz (campos, botones, opciones). 15/400, int. 1.2.
+  static const TextStyle bodyUi = TextStyle(
     fontFamily: family,
     fontSize: 15,
     fontWeight: FontWeight.w400,
     height: 1.2,
   );
+
+  /// Etiqueta. 13/500.
   static const TextStyle label = TextStyle(
     fontFamily: family,
     fontSize: 13,
     fontWeight: FontWeight.w500,
     height: 1.2,
   );
+
+  /// Pie/caption. 12/400.
   static const TextStyle caption = TextStyle(
     fontFamily: family,
     fontSize: 12,
     fontWeight: FontWeight.w400,
-    height: 1.2,
-  );
-
-  /// Título de nota en la lista (14/600 en Penpot).
-  static const TextStyle noteTitle = TextStyle(
-    fontFamily: family,
-    fontSize: 14,
-    fontWeight: FontWeight.w600,
     height: 1.2,
   );
 }

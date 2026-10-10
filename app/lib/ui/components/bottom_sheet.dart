@@ -36,7 +36,10 @@ class AxoBottomSheet extends StatelessWidget {
           ),
           const SizedBox(height: AxoSpacing.xl),
           if (title != null) ...[
-            Text(title!, style: AxoType.heading.copyWith(color: c.textPrimary)),
+            Text(
+              title!,
+              style: AxoType.sheetTitle.copyWith(color: c.textPrimary),
+            ),
             const SizedBox(height: AxoSpacing.lg),
           ],
           ...children,

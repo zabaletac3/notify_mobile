@@ -32,7 +32,7 @@ class PlaceholderScreen extends StatelessWidget {
           children: [
             Text(
               title,
-              style: AxoType.title.copyWith(color: c.textPrimary),
+              style: AxoType.screenTitle.copyWith(color: c.textPrimary),
               textAlign: TextAlign.center,
             ),
             const SizedBox(height: AxoSpacing.sm),

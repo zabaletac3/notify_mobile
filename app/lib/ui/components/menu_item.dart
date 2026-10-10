@@ -40,7 +40,7 @@ class AxoMenuItem extends StatelessWidget {
               Expanded(
                 child: Text(
                   label,
-                  style: AxoType.body.copyWith(
+                  style: AxoType.bodyUi.copyWith(
                     color: fg,
                     fontWeight: FontWeight.w500,
                   ),

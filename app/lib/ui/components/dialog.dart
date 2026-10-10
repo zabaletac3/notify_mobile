@@ -30,7 +30,10 @@ class AxoDialog extends StatelessWidget {
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Text(title, style: AxoType.heading.copyWith(color: c.textPrimary)),
+          Text(
+            title,
+            style: AxoType.dialogTitle.copyWith(color: c.textPrimary),
+          ),
           const SizedBox(height: AxoSpacing.lg),
           if (content != null) ...[
             content!,

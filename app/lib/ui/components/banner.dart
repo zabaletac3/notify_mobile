@@ -41,7 +41,7 @@ class AxoBanner extends StatelessWidget {
           AppIcon(icon, size: 18, color: fg),
           const SizedBox(width: AxoSpacing.sm),
           Expanded(
-            child: Text(message, style: AxoType.body.copyWith(color: fg)),
+            child: Text(message, style: AxoType.bodyUi.copyWith(color: fg)),
           ),
         ],
       ),
