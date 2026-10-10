@@ -26,6 +26,9 @@ jobs:
 
       - name: Android SDK
         uses: android-actions/setup-android@v3
+        with:
+          # El paquete `tools` ya no existe en el repositorio del SDK; se piden los que usa el build.
+          packages: 'platform-tools platforms;android-36 build-tools;36.0.0'
 
       - name: Dependencias
         run: flutter pub get
