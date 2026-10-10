@@ -86,6 +86,13 @@ void main() {
       );
     });
 
+    test('rechaza un JSON con sintaxis inválida', () {
+      expect(
+        () => decodeFolderPayload(pad(utf8Encode('{no es json'))),
+        throwsA(isA<DecryptError>()),
+      );
+    });
+
     test('rechaza un nombre con el tipo equivocado', () {
       expect(
         () => decodeFolderPayload(_jsonBytes({'name': 1})),
