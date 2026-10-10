@@ -31,6 +31,9 @@ se hayan tenido que aplicar. Formato: fecha, fase, decisión, motivo, referencia
 
 ### 2026-10-10 · Penpot congelado durante la fase 2; tokens desde el sistema ya validado
 
+> **NO VALE COMO CIERRE (D16, manda Penpot).** Se está rehaciendo la base visual con lo que diga
+> Penpot. Progreso y estado en [`docs/design/penpot-progress.md`](design/penpot-progress.md).
+
 - **Situación:** la pestaña de Penpot del MCP se congeló (el navegador la suspendió) al consultar
   valores de tokens y medidas. Sí se pudo explorar antes: página `App Mobile` con 41 tableros de
   412×915, dos sets de color (`Apunte/Color/Light`, `Apunte/Color oscuro/Dark`) y tipografía **Inter**.
