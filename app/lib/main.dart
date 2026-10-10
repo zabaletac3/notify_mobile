@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import 'features/vault/ui/vault_activity_gate.dart';
 import 'l10n/app_localizations.dart';
 import 'router/app_router.dart';
 import 'ui/theme.dart';
@@ -24,6 +25,8 @@ class AxoNoteApp extends ConsumerWidget {
       localizationsDelegates: AppLocalizations.localizationsDelegates,
       supportedLocales: AppLocalizations.supportedLocales,
       routerConfig: ref.watch(routerProvider),
+      builder: (context, child) =>
+          VaultActivityGate(child: child ?? const SizedBox.shrink()),
     );
   }
 }
