@@ -1,0 +1,9 @@
+name: axonote_crypto
+description: "Formato criptográfico de AxoNote: a1, KDF, claves, relleno y clave de recuperación."
+version: 0.1.0
+publish_to: 'none'
+
+environment:
+  sdk: ^3.13.5
+
+resolution: workspace

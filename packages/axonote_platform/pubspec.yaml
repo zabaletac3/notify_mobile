@@ -1,0 +1,21 @@
+name: axonote_platform
+description: "Módulo nativo propio de AxoNote: Android Keystore, biometría y FLAG_SECURE."
+version: 0.1.0
+publish_to: 'none'
+
+environment:
+  sdk: ^3.13.5
+  flutter: '>=3.3.0'
+
+resolution: workspace
+
+dependencies:
+  flutter:
+    sdk: flutter
+
+flutter:
+  plugin:
+    platforms:
+      android:
+        package: com.axonote.axonote_platform
+        pluginClass: AxonotePlatformPlugin

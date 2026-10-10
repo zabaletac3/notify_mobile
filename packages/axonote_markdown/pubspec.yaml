@@ -1,0 +1,9 @@
+name: axonote_markdown
+description: "Códec de Markdown de AxoNote: modelo de bloques, analizador y serializador."
+version: 0.1.0
+publish_to: 'none'
+
+environment:
+  sdk: ^3.13.5
+
+resolution: workspace
