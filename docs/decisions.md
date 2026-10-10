@@ -360,4 +360,11 @@ nombre. Se usa `AndroidOptions()` (valores por defecto), que ya cumple lo que pe
 - Activar `AxonotePlatform.setSecure` por defecto (ajuste de privacidad) y en las pantallas
   concretas que el plan marca como "siempre" (clave de recuperación, códigos de respaldo, secreto
   TOTP, desbloqueo) — mecanismo ya listo y probado, solo falta activarlo donde corresponda.
+- `unlock` con `biometricLock: true` muestra el cuadro de biometría en cada desbloqueo por
+  contraseña, porque siempre vuelve a guardar la clave maestra con `_applyRememberPolicy` tras
+  obtenerla (el plan no distingue este caso). La fase 8, que es quien construye la pantalla de
+  desbloqueo por contraseña, debe decidir si conviene omitir el re-guardado cuando ya hay una
+  clave guardada para esa cuenta con la misma política (mismo `requireAuth`): ahorraría ese cuadro
+  de biometría redundante, a costa de tener que comparar el estado guardado antes de decidir. No
+  se cambia en esta fase.
 
