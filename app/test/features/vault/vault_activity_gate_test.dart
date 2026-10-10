@@ -34,11 +34,12 @@ void main() {
     addTearDown(container.dispose);
 
     final controller = container.read(vaultLockControllerProvider);
-    controller.updateSettings(const LockSettings(lockTimeout: LockTimeout.oneMinute));
+    await controller.updateSettings(
+      const LockSettings(lockTimeout: LockTimeout.oneMinute),
+    );
     await controller.unlock(
       userId: 'u1',
       masterKey: SecretKeyBytes(Uint8List(32)),
-      remember: false,
     );
 
     await tester.pumpWidget(
@@ -84,11 +85,10 @@ void main() {
     addTearDown(container.dispose);
 
     final controller = container.read(vaultLockControllerProvider);
-    controller.updateSettings(const LockSettings(lockOnExit: true));
+    await controller.updateSettings(const LockSettings(lockOnExit: true));
     await controller.unlock(
       userId: 'u1',
       masterKey: SecretKeyBytes(Uint8List(32)),
-      remember: false,
     );
 
     await tester.pumpWidget(

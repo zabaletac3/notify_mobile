@@ -38,6 +38,15 @@ class _Harness {
 
   AxoSession get session => container.read(sessionProvider);
 
+  Future<bool> hasStored(String userId) async {
+    try {
+      await platform.loadMasterKey(userId: userId, prompt: 'x');
+      return true;
+    } on NoStoredKey {
+      return false;
+    }
+  }
+
   void dispose() {
     controller.dispose();
     container.dispose();
@@ -45,48 +54,240 @@ class _Harness {
 }
 
 void main() {
-  group('unlock', () {
+  group('unlock · regla de recuerdo (plan §5.3)', () {
     test('pone el cofre desbloqueado y la sesión en unlocked', () async {
       final h = _Harness();
-      await h.controller.unlock(
-        userId: 'u1',
-        masterKey: _masterKey(),
-        remember: false,
-      );
+      await h.controller.unlock(userId: 'u1', masterKey: _masterKey());
       expect(h.session, AxoSession.unlocked);
       expect(h.controller.vault.isUnlocked, isTrue);
       h.dispose();
     });
 
-    test('con remember: true, guarda la clave en axonote_platform', () async {
+    test('biometricLock: true → se guarda con requireAuth: true', () async {
       final h = _Harness();
-      await h.controller.unlock(
-        userId: 'u1',
-        masterKey: _masterKey(7),
-        remember: true,
+      await h.controller.updateSettings(
+        const LockSettings(
+          biometricLock: true,
+          lockOnExit: true,
+          lockTimeout: LockTimeout.oneMinute,
+        ),
       );
+      await h.controller.unlock(userId: 'u1', masterKey: _masterKey(7));
+      // requireAuth: true y sin forzar nada: la Fake exige que haya biometría disponible (la hay
+      // por defecto) para completar storeMasterKey; que haya quedado guardado así se comprueba
+      // forzando un fallo de biometría en la próxima carga.
+      h.platform.nextAuthResult = const AuthCancelled();
+      await expectLater(
+        h.platform.loadMasterKey(userId: 'u1', prompt: 'x'),
+        throwsA(isA<AuthCancelled>()),
+      );
+      h.dispose();
+    });
+
+    test(
+      'biometricLock: true gana aunque lockOnExit/lockTimeout permitirían guardar sin auth',
+      () async {
+        final h = _Harness();
+        await h.controller.updateSettings(
+          const LockSettings(
+            biometricLock: true,
+            lockOnExit: false,
+            lockTimeout: LockTimeout.never,
+          ),
+        );
+        await h.controller.unlock(userId: 'u1', masterKey: _masterKey());
+        h.platform.nextAuthResult = const AuthCancelled();
+        await expectLater(
+          h.platform.loadMasterKey(userId: 'u1', prompt: 'x'),
+          throwsA(isA<AuthCancelled>()),
+        );
+        h.dispose();
+      },
+    );
+
+    test(
+      'biometricLock: false, lockOnExit: false, lockTimeout: never → '
+      'se guarda con requireAuth: false',
+      () async {
+        final h = _Harness();
+        await h.controller.updateSettings(
+          const LockSettings(
+            biometricLock: false,
+            lockOnExit: false,
+            lockTimeout: LockTimeout.never,
+          ),
+        );
+        await h.controller.unlock(userId: 'u1', masterKey: _masterKey(7));
+        // Si se hubiera guardado con requireAuth: true, esto fallaría (se consume aquí sin
+        // afectar al resultado); con requireAuth: false, carga directo sin mirarlo.
+        h.platform.nextAuthResult = const AuthCancelled();
+        final loaded = await h.platform.loadMasterKey(userId: 'u1', prompt: 'x');
+        expect(loaded, Uint8List.fromList(List.filled(32, 7)));
+        h.dispose();
+      },
+    );
+
+    test(
+      'biometricLock: false, lockOnExit: true, lockTimeout: never → no se guarda nada',
+      () async {
+        final h = _Harness();
+        await h.controller.updateSettings(
+          const LockSettings(
+            biometricLock: false,
+            lockOnExit: true,
+            lockTimeout: LockTimeout.never,
+          ),
+        );
+        await h.controller.unlock(userId: 'u1', masterKey: _masterKey());
+        expect(await h.hasStored('u1'), isFalse);
+        h.dispose();
+      },
+    );
+
+    test(
+      'biometricLock: false, lockOnExit: false, lockTimeout: 1m → no se guarda nada',
+      () async {
+        final h = _Harness();
+        await h.controller.updateSettings(
+          const LockSettings(
+            biometricLock: false,
+            lockOnExit: false,
+            lockTimeout: LockTimeout.oneMinute,
+          ),
+        );
+        await h.controller.unlock(userId: 'u1', masterKey: _masterKey());
+        expect(await h.hasStored('u1'), isFalse);
+        h.dispose();
+      },
+    );
+
+    test(
+      'biometricLock: false, lockOnExit: true, lockTimeout: 1m → no se guarda nada',
+      () async {
+        final h = _Harness();
+        await h.controller.updateSettings(
+          const LockSettings(
+            biometricLock: false,
+            lockOnExit: true,
+            lockTimeout: LockTimeout.oneMinute,
+          ),
+        );
+        await h.controller.unlock(userId: 'u1', masterKey: _masterKey());
+        expect(await h.hasStored('u1'), isFalse);
+        h.dispose();
+      },
+    );
+
+    test(
+      'rememberOnThisDevice: false no guarda nada aunque la regla permitiría guardar',
+      () async {
+        final h = _Harness();
+        await h.controller.updateSettings(
+          const LockSettings(
+            biometricLock: false,
+            lockOnExit: false,
+            lockTimeout: LockTimeout.never,
+          ),
+        );
+        await h.controller.unlock(
+          userId: 'u1',
+          masterKey: _masterKey(),
+          rememberOnThisDevice: false,
+        );
+        expect(await h.hasStored('u1'), isFalse);
+        h.dispose();
+      },
+    );
+  });
+
+  group('updateSettings · reaplica la regla con el cofre desbloqueado', () {
+    test('pasar de requireAuth a no-guardar borra lo guardado', () async {
+      final h = _Harness();
+      await h.controller.updateSettings(const LockSettings(biometricLock: true));
+      await h.controller.unlock(userId: 'u1', masterKey: _masterKey());
+      expect(await h.hasStored('u1'), isTrue);
+
+      await h.controller.updateSettings(
+        const LockSettings(
+          biometricLock: false,
+          lockOnExit: true,
+          lockTimeout: LockTimeout.oneMinute,
+        ),
+      );
+      expect(await h.hasStored('u1'), isFalse);
+      h.dispose();
+    });
+
+    test('pasar de no-guardar a noAuth guarda con requireAuth: false', () async {
+      final h = _Harness();
+      await h.controller.updateSettings(
+        const LockSettings(biometricLock: false, lockOnExit: true),
+      );
+      await h.controller.unlock(userId: 'u1', masterKey: _masterKey(7));
+      expect(await h.hasStored('u1'), isFalse);
+
+      await h.controller.updateSettings(
+        const LockSettings(
+          biometricLock: false,
+          lockOnExit: false,
+          lockTimeout: LockTimeout.never,
+        ),
+      );
+      h.platform.nextAuthResult = const AuthCancelled();
       final loaded = await h.platform.loadMasterKey(userId: 'u1', prompt: 'x');
       expect(loaded, Uint8List.fromList(List.filled(32, 7)));
       h.dispose();
     });
 
     test(
-      'remember usa requireAuth según biometricLock de los ajustes actuales',
+      'si reaplicar falla (biometría cancelada), no queda nada guardado y se relanza',
       () async {
         final h = _Harness();
-        h.controller.updateSettings(const LockSettings(biometricLock: false));
-        await h.controller.unlock(
-          userId: 'u1',
-          masterKey: _masterKey(),
-          remember: true,
+        await h.controller.updateSettings(
+          const LockSettings(
+            biometricLock: false,
+            lockOnExit: false,
+            lockTimeout: LockTimeout.never,
+          ),
         );
+        await h.controller.unlock(userId: 'u1', masterKey: _masterKey());
+        expect(await h.hasStored('u1'), isTrue);
+
         h.platform.nextAuthResult = const AuthCancelled();
-        // Si se hubiera guardado con requireAuth: true, esto fallaría; con false, carga directo.
-        final loaded = await h.platform.loadMasterKey(userId: 'u1', prompt: 'x');
-        expect(loaded, isNotEmpty);
+        await expectLater(
+          h.controller.updateSettings(const LockSettings(biometricLock: true)),
+          throwsA(isA<AuthCancelled>()),
+        );
+        // Coherente: nada guardado (ni lo viejo, con la regla ya abandonada, ni lo nuevo, que
+        // nunca llegó a confirmarse).
+        expect(await h.hasStored('u1'), isFalse);
         h.dispose();
       },
     );
+
+    test(
+      'rememberOnThisDevice: false sigue sin guardar aunque cambien los ajustes',
+      () async {
+        final h = _Harness();
+        await h.controller.unlock(
+          userId: 'u1',
+          masterKey: _masterKey(),
+          rememberOnThisDevice: false,
+        );
+        expect(await h.hasStored('u1'), isFalse);
+
+        await h.controller.updateSettings(const LockSettings(biometricLock: true));
+        expect(await h.hasStored('u1'), isFalse);
+        h.dispose();
+      },
+    );
+
+    test('sin sesión desbloqueada, solo guarda el ajuste (no toca axonote_platform)', () async {
+      final h = _Harness();
+      await h.controller.updateSettings(const LockSettings(biometricLock: true));
+      expect(await h.hasStored('u1'), isFalse);
+      h.dispose();
+    });
   });
 
   group('unlockWithStoredKey', () {
@@ -152,11 +353,7 @@ void main() {
   group('lock', () {
     test('borra el cofre de memoria y pasa a locked', () async {
       final h = _Harness();
-      await h.controller.unlock(
-        userId: 'u1',
-        masterKey: _masterKey(),
-        remember: false,
-      );
+      await h.controller.unlock(userId: 'u1', masterKey: _masterKey());
       final vault = h.controller.vault;
       h.controller.lock();
       expect(h.session, AxoSession.locked);
@@ -169,30 +366,38 @@ void main() {
   group('signOut', () {
     test('bloquea, borra la sesión y la clave guardada en axonote_platform', () async {
       final h = _Harness();
-      await h.controller.unlock(
-        userId: 'u1',
-        masterKey: _masterKey(),
-        remember: true,
-      );
-      await h.controller.signOut();
+      await h.controller.unlock(userId: 'u1', masterKey: _masterKey());
+      await h.controller.signOut(userId: 'u1');
       expect(h.session, AxoSession.noSession);
-      await expectLater(
-        h.platform.loadMasterKey(userId: 'u1', prompt: 'x'),
-        throwsA(isA<NoStoredKey>()),
-      );
+      expect(await h.hasStored('u1'), isFalse);
       h.dispose();
     });
+
+    test(
+      'borra la clave guardada aunque el cofre nunca se desbloqueara en este proceso '
+      '(arranque en frío bloqueado)',
+      () async {
+        final h = _Harness();
+        await h.platform.storeMasterKey(
+          userId: 'u1',
+          bytes: Uint8List(32),
+          requireAuth: false,
+        );
+        // _vault es null: nunca se llamó a unlock ni a unlockWithStoredKey en este proceso.
+        await h.controller.signOut(userId: 'u1');
+        expect(await h.hasStored('u1'), isFalse);
+        h.dispose();
+      },
+    );
   });
 
   group('tiempo de bloqueo (§5.3)', () {
     test('"never" no bloquea por mucho que pase el tiempo', () async {
       final h = _Harness();
-      h.controller.updateSettings(const LockSettings(lockTimeout: LockTimeout.never));
-      await h.controller.unlock(
-        userId: 'u1',
-        masterKey: _masterKey(),
-        remember: false,
+      await h.controller.updateSettings(
+        const LockSettings(lockTimeout: LockTimeout.never),
       );
+      await h.controller.unlock(userId: 'u1', masterKey: _masterKey());
       h.timers.advance(const Duration(minutes: 30));
       expect(h.session, AxoSession.unlocked);
       h.dispose();
@@ -200,14 +405,10 @@ void main() {
 
     test('"1m" bloquea tras un minuto sin actividad', () async {
       final h = _Harness();
-      h.controller.updateSettings(
+      await h.controller.updateSettings(
         const LockSettings(lockTimeout: LockTimeout.oneMinute),
       );
-      await h.controller.unlock(
-        userId: 'u1',
-        masterKey: _masterKey(),
-        remember: false,
-      );
+      await h.controller.unlock(userId: 'u1', masterKey: _masterKey());
       h.timers.advance(const Duration(seconds: 59));
       expect(h.session, AxoSession.unlocked);
       h.timers.advance(const Duration(seconds: 2));
@@ -217,14 +418,10 @@ void main() {
 
     test('la actividad reinicia la cuenta de inactividad', () async {
       final h = _Harness();
-      h.controller.updateSettings(
+      await h.controller.updateSettings(
         const LockSettings(lockTimeout: LockTimeout.oneMinute),
       );
-      await h.controller.unlock(
-        userId: 'u1',
-        masterKey: _masterKey(),
-        remember: false,
-      );
+      await h.controller.unlock(userId: 'u1', masterKey: _masterKey());
       h.timers.advance(const Duration(seconds: 50));
       h.controller.noteActivity();
       h.timers.advance(const Duration(seconds: 50));
@@ -237,14 +434,10 @@ void main() {
 
     test('"immediately" bloquea al pasar a segundo plano', () async {
       final h = _Harness();
-      h.controller.updateSettings(
+      await h.controller.updateSettings(
         const LockSettings(lockTimeout: LockTimeout.immediately),
       );
-      await h.controller.unlock(
-        userId: 'u1',
-        masterKey: _masterKey(),
-        remember: false,
-      );
+      await h.controller.unlock(userId: 'u1', masterKey: _masterKey());
       h.controller.appBackgrounded();
       expect(h.session, AxoSession.locked);
       h.dispose();
@@ -252,14 +445,10 @@ void main() {
 
     test('"immediately" no bloquea mientras sigue en primer plano', () async {
       final h = _Harness();
-      h.controller.updateSettings(
+      await h.controller.updateSettings(
         const LockSettings(lockTimeout: LockTimeout.immediately),
       );
-      await h.controller.unlock(
-        userId: 'u1',
-        masterKey: _masterKey(),
-        remember: false,
-      );
+      await h.controller.unlock(userId: 'u1', masterKey: _masterKey());
       h.timers.advance(const Duration(minutes: 10));
       expect(h.session, AxoSession.unlocked);
       h.dispose();
@@ -267,14 +456,10 @@ void main() {
 
     test('lockOnExit bloquea al pasar a segundo plano aunque el tiempo sea "never"', () async {
       final h = _Harness();
-      h.controller.updateSettings(
+      await h.controller.updateSettings(
         const LockSettings(lockOnExit: true, lockTimeout: LockTimeout.never),
       );
-      await h.controller.unlock(
-        userId: 'u1',
-        masterKey: _masterKey(),
-        remember: false,
-      );
+      await h.controller.unlock(userId: 'u1', masterKey: _masterKey());
       h.controller.appBackgrounded();
       expect(h.session, AxoSession.locked);
       h.dispose();
@@ -284,14 +469,10 @@ void main() {
       'sin lockOnExit, al volver de segundo plano se descuenta el tiempo pasado fuera',
       () async {
         final h = _Harness();
-        h.controller.updateSettings(
+        await h.controller.updateSettings(
           const LockSettings(lockTimeout: LockTimeout.oneMinute),
         );
-        await h.controller.unlock(
-          userId: 'u1',
-          masterKey: _masterKey(),
-          remember: false,
-        );
+        await h.controller.unlock(userId: 'u1', masterKey: _masterKey());
         h.controller.appBackgrounded();
         h.clock.advance(const Duration(seconds: 70));
         h.controller.appResumed();
@@ -304,14 +485,10 @@ void main() {
       'sin lockOnExit, si no pasó suficiente tiempo fuera sigue desbloqueado',
       () async {
         final h = _Harness();
-        h.controller.updateSettings(
+        await h.controller.updateSettings(
           const LockSettings(lockTimeout: LockTimeout.oneMinute),
         );
-        await h.controller.unlock(
-          userId: 'u1',
-          masterKey: _masterKey(),
-          remember: false,
-        );
+        await h.controller.unlock(userId: 'u1', masterKey: _masterKey());
         h.controller.appBackgrounded();
         h.clock.advance(const Duration(seconds: 10));
         h.controller.appResumed();
@@ -322,14 +499,10 @@ void main() {
 
     test('bloquear a mano cancela cualquier temporizador pendiente', () async {
       final h = _Harness();
-      h.controller.updateSettings(
+      await h.controller.updateSettings(
         const LockSettings(lockTimeout: LockTimeout.oneMinute),
       );
-      await h.controller.unlock(
-        userId: 'u1',
-        masterKey: _masterKey(),
-        remember: false,
-      );
+      await h.controller.unlock(userId: 'u1', masterKey: _masterKey());
       expect(h.timers.pendingCount, 1);
       h.controller.lock();
       expect(h.timers.pendingCount, 0);

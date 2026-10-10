@@ -39,6 +39,11 @@ class VaultLockController {
   DateTime? _lastActiveAt;
   bool _inBackground = false;
 
+  /// `false` solo si en el último [unlock] se pidió explícitamente no recordar en este
+  /// dispositivo (p. ej. un dispositivo compartido). Mientras sea `true`, [_rememberPolicy]
+  /// decide; en `false`, nunca se guarda nada pase lo que pase en los ajustes.
+  bool _allowRemember = true;
+
   /// El cofre actual. Lanza [VaultLockedError] si no hay sesión o está bloqueado.
   Vault get vault {
     final current = _vault;
@@ -54,31 +59,76 @@ class VaultLockController {
       _ref.read(sessionProvider.notifier).set(value);
 
   /// Cambia los ajustes que gobiernan el bloqueo (§5.3). Si el cofre está desbloqueado, reajusta
-  /// el temporizador al nuevo `lockTimeout` sin perder la actividad ya contada.
-  void updateSettings(LockSettings settings) {
+  /// el temporizador al nuevo `lockTimeout` sin perder la actividad ya contada, y **reaplica la
+  /// regla de recuerdo** (ver [_rememberPolicy]) con la clave maestra que ya hay en memoria: un
+  /// cambio que deja de cumplir la regla de guardar borra lo guardado; uno que empieza a
+  /// cumplirla lo guarda con el `requireAuth` correcto.
+  ///
+  /// Si reaplicar falla (p. ej. se cancela la biometría al confirmar el `requireAuth` nuevo), no
+  /// debe quedar nada guardado a medias con la regla vieja: se borra explícitamente y el error se
+  /// relanza para que quien llame decida qué mostrar.
+  Future<void> updateSettings(LockSettings settings) async {
     _settings = settings;
-    if (_isUnlocked) _rescheduleTimer();
+    if (!_isUnlocked) return;
+    _rescheduleTimer();
+    final vault = _vault;
+    if (vault == null) return;
+    try {
+      await _applyRememberPolicy(vault.userId, vault.requireKey());
+    } catch (_) {
+      await _platform.deleteMasterKey(userId: vault.userId);
+      rethrow;
+    }
   }
 
   /// Desbloquea con una clave maestra ya obtenida (contraseña, tras `unlockWithPassword` de
-  /// `axonote_crypto`, o la que devolvió [unlockWithStoredKey]). Con `remember` la guarda en
-  /// `axonote_platform` para no pedir la contraseña la próxima vez: con `requireAuth` según
-  /// `biometricLock` de los ajustes actuales.
+  /// `axonote_crypto`, o la que devolvió [unlockWithStoredKey]).
+  ///
+  /// Qué se guarda en `axonote_platform` lo decide únicamente la regla del plan §5.3
+  /// ([_rememberPolicy]), nunca quien llama: con `biometricLock: true` se guarda con
+  /// `requireAuth: true`; con `biometricLock: false` **solo** si además `lockOnExit: false` y
+  /// `lockTimeout: never` se guarda con `requireAuth: false` (clave de dispositivo, igual que la
+  /// web); en cualquier otro caso no se guarda nada y toca pedir la contraseña la próxima vez. Con
+  /// `rememberOnThisDevice: false` (p. ej. un dispositivo compartido) nunca se guarda, sea cual
+  /// sea la regla.
   Future<void> unlock({
     required String userId,
     required SecretKeyBytes masterKey,
-    required bool remember,
+    bool rememberOnThisDevice = true,
   }) async {
     _replaceVault(userId, masterKey);
-    if (remember) {
-      await _platform.storeMasterKey(
-        userId: userId,
-        bytes: masterKey.bytes,
-        requireAuth: _settings.biometricLock,
-      );
-    }
+    _allowRemember = rememberOnThisDevice;
+    await _applyRememberPolicy(userId, masterKey);
     _setSession(AxoSession.unlocked);
     _noteActivityNow();
+  }
+
+  /// Guarda, sustituye o borra lo guardado en `axonote_platform` según [_rememberPolicy] y
+  /// [_allowRemember]. No lanza por sí misma más que lo que lance `axonote_platform`.
+  Future<void> _applyRememberPolicy(String userId, SecretKeyBytes masterKey) async {
+    if (!_allowRemember) {
+      await _platform.deleteMasterKey(userId: userId);
+      return;
+    }
+    switch (_rememberPolicy(_settings)) {
+      case _RememberPolicy.requireAuth:
+        await _platform.storeMasterKey(
+          userId: userId,
+          bytes: masterKey.bytes,
+          requireAuth: true,
+        );
+        break;
+      case _RememberPolicy.noAuth:
+        await _platform.storeMasterKey(
+          userId: userId,
+          bytes: masterKey.bytes,
+          requireAuth: false,
+        );
+        break;
+      case _RememberPolicy.dontRemember:
+        await _platform.deleteMasterKey(userId: userId);
+        break;
+    }
   }
 
   /// Intenta desbloquear con la clave recordada en el dispositivo (pide biometría si
@@ -99,6 +149,9 @@ class VaultLockController {
       return false;
     }
     _replaceVault(userId, SecretKeyBytes(bytes));
+    // Ya había algo guardado y se acaba de leer con éxito: este dispositivo sí recuerda. Si más
+    // tarde cambian los ajustes, updateSettings reaplica la regla con normalidad.
+    _allowRemember = true;
     _setSession(AxoSession.unlocked);
     _noteActivityNow();
     return true;
@@ -122,14 +175,17 @@ class VaultLockController {
   }
 
   /// Cierra la sesión: bloquea y borra además la clave maestra guardada en `axonote_platform`
-  /// (A1: cerrar sesión o `device-revoked` borra las claves locales). No borra la base de datos
-  /// local ni el resto de lo guardado en `flutter_secure_storage`: eso es de quien orqueste el
-  /// cierre de sesión completo (fase 8), que también sabe si hay que olvidar la cuenta entera.
-  Future<void> signOut() async {
-    final userId = _vault?.userId;
+  /// (A1: cerrar sesión o `device-revoked` borra las claves locales). `userId` es obligatorio y
+  /// explícito (no se toma de `_vault?.userId`): tras un arranque en frío con la app bloqueada
+  /// (`_vault == null`, nunca se llegó a desbloquear en este proceso) igualmente hay que borrar la
+  /// clave guardada de esa cuenta, y sin el `userId` de quien llama no habría forma de saber cuál.
+  /// No borra la base de datos local ni el resto de lo guardado en `flutter_secure_storage`: eso
+  /// es de quien orqueste el cierre de sesión completo (fase 8), que también sabe si hay que
+  /// olvidar la cuenta entera.
+  Future<void> signOut({required String userId}) async {
     lock();
     _vault = null;
-    if (userId != null) await _platform.deleteMasterKey(userId: userId);
+    await _platform.deleteMasterKey(userId: userId);
     _setSession(AxoSession.noSession);
   }
 
@@ -203,3 +259,27 @@ final vaultLockControllerProvider = Provider<VaultLockController>((ref) {
   ref.onDispose(controller.dispose);
   return controller;
 });
+
+/// Qué hacer con la clave maestra en `axonote_platform`, según el plan §5.3. La regla vive aquí,
+/// no en quien llama a [VaultLockController.unlock]: de lo contrario, un llamador que ignore la
+/// regla podría guardar sin autenticación con `biometricLock: true`, o guardar igualmente con
+/// `lockOnExit`/`lockTimeout` activos, dejando el bloqueo sin efecto real.
+enum _RememberPolicy {
+  /// `biometricLock: true`.
+  requireAuth,
+
+  /// `biometricLock: false`, `lockOnExit: false` y `lockTimeout: never` (clave de dispositivo,
+  /// igual que la web).
+  noAuth,
+
+  /// Cualquier otra combinación: no se guarda nada, se pide la contraseña.
+  dontRemember,
+}
+
+_RememberPolicy _rememberPolicy(LockSettings settings) {
+  if (settings.biometricLock) return _RememberPolicy.requireAuth;
+  if (!settings.lockOnExit && settings.lockTimeout == LockTimeout.never) {
+    return _RememberPolicy.noAuth;
+  }
+  return _RememberPolicy.dontRemember;
+}
