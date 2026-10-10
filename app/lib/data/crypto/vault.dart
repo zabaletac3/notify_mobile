@@ -66,6 +66,11 @@ class Vault {
   Future<SecretKeyBytes> localDbKey() => deriveLocalDbKey(requireKey(), userId);
 
   /// Clave nueva para un elemento, ya cifrada con la maestra.
+  ///
+  /// El [SecretKeyBytes] de [NewItemKey.key] es **la misma instancia** que queda en la caché
+  /// interna, no una copia: quien la reciba no debe llamar a `dispose()` sobre ella (seguiría
+  /// usándose desde la caché hasta el próximo [lock]). Es [lock] quien la borra, junto con el
+  /// resto de la caché.
   Future<NewItemKey> newItemKey(ItemEntity entity, String id) async {
     final master = requireKey();
     final key = generateKeyBytes();
@@ -76,6 +81,9 @@ class Vault {
 
   /// Clave de un elemento a partir de la que guarda el servidor. Se recuerda en caché mientras
   /// esté desbloqueado.
+  ///
+  /// Igual que en [newItemKey]: el [SecretKeyBytes] devuelto es el de la caché, no una copia; no
+  /// se debe llamar a `dispose()` sobre él. Se borra solo al bloquear ([lock]).
   Future<SecretKeyBytes> itemKey(ItemEntity entity, String id, Sealed wrapped) async {
     final master = requireKey();
     final cacheKey = _cacheKey(entity, id, wrapped);
@@ -86,7 +94,8 @@ class Vault {
     return key;
   }
 
-  /// Cambia la clave de un elemento (al revocar un enlace público, o al duplicar).
+  /// Cambia la clave de un elemento (al revocar un enlace público, o al duplicar). Mismo aviso que
+  /// [newItemKey]: no hay que borrar la clave devuelta a mano.
   Future<NewItemKey> rotateItemKey(ItemEntity entity, String id) =>
       newItemKey(entity, id);
 
@@ -94,7 +103,9 @@ class Vault {
       '${entity.name}:$id:$wrapped';
 }
 
-/// Clave nueva de un elemento junto con su versión cifrada con la clave maestra.
+/// Clave nueva de un elemento junto con su versión cifrada con la clave maestra. [key] es la
+/// misma instancia que guarda el [Vault] en su caché (ver [Vault.newItemKey]): no se debe llamar
+/// a `dispose()` sobre ella; el [Vault] la borra al bloquear.
 class NewItemKey {
   const NewItemKey({required this.key, required this.wrapped});
 

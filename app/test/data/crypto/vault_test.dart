@@ -107,6 +107,20 @@ void main() {
       expect(rotated.key.bytes, isNot(equals(first.key.bytes)));
     });
 
+    test(
+      'newItemKey.key es la misma instancia que queda en caché (no se debe '
+      'hacer dispose aparte: ver doc de newItemKey)',
+      () async {
+        final created = await vault.newItemKey(ItemEntity.note, 'n1');
+        final cached = await vault.itemKey(
+          ItemEntity.note,
+          'n1',
+          created.wrapped,
+        );
+        expect(identical(created.key, cached), isTrue);
+      },
+    );
+
     test('lock() también borra las claves de elemento en caché', () async {
       final created = await vault.newItemKey(ItemEntity.note, 'n1');
       vault.lock();
