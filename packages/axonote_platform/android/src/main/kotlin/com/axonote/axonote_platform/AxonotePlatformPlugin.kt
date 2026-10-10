@@ -7,7 +7,6 @@ import android.content.ClipboardManager
 import android.content.Context
 import android.os.Build
 import android.os.PersistableBundle
-import android.security.keystore.KeyPermanentlyInvalidatedException
 import android.view.WindowManager
 import androidx.fragment.app.FragmentActivity
 import io.flutter.embedding.engine.plugins.FlutterPlugin
@@ -17,7 +16,7 @@ import io.flutter.plugin.common.MethodCall
 import io.flutter.plugin.common.MethodChannel
 import io.flutter.plugin.common.MethodChannel.MethodCallHandler
 import io.flutter.plugin.common.MethodChannel.Result
-import javax.crypto.AEADBadTagException
+import javax.crypto.Cipher
 
 /**
  * Canal de métodos de `axonote_platform` (plan §5.2): Android Keystore, biometría y
@@ -94,29 +93,54 @@ class AxonotePlatformPlugin : FlutterPlugin, MethodCallHandler, ActivityAware {
             return
         }
 
-        try {
-            val cipher = masterKeyStore.prepareEncryptCipher(userId, requireAuth)
-            if (!requireAuth) {
-                masterKeyStore.persistEncrypted(userId, cipher, bytes, false)
-                result.success(null)
+        val pending =
+            try {
+                masterKeyStore.prepareEncryptCipher(userId, requireAuth)
+            } catch (e: AuthNotEnrolledException) {
+                bytes.fill(0)
+                result.error("auth_not_enrolled", null, null)
+                return
+            } catch (e: Exception) {
+                bytes.fill(0)
+                result.error("platform_failure", e.message, null)
                 return
             }
-            val fragmentActivity = requireFragmentActivity(result) ?: return
-            BiometricGate.authenticate(fragmentActivity, cipher, prompt) { authResult ->
-                when (authResult) {
-                    is AuthResult.Success -> {
-                        try {
-                            masterKeyStore.persistEncrypted(userId, authResult.cipher, bytes, true)
-                            result.success(null)
-                        } catch (e: Exception) {
-                            result.error("platform_failure", e.message, null)
-                        }
-                    }
-                    is AuthResult.Failure -> result.error(authResult.code, null, null)
-                }
+
+        // Cifra y confirma: sustituye el alias activo solo si tiene éxito (ver doc de
+        // MasterKeyStore). En cualquier desenlace, la clave maestra en claro se borra de memoria.
+        fun succeed(cipher: Cipher) {
+            try {
+                masterKeyStore.persistEncrypted(userId, pending.slot, cipher, bytes, requireAuth)
+                result.success(null)
+            } catch (e: Exception) {
+                masterKeyStore.abortPending(userId, pending.slot)
+                result.error("platform_failure", e.message, null)
+            } finally {
+                bytes.fill(0)
             }
-        } catch (e: Exception) {
-            result.error("platform_failure", e.message, null)
+        }
+
+        fun fail(code: String) {
+            masterKeyStore.abortPending(userId, pending.slot)
+            bytes.fill(0)
+            result.error(code, null, null)
+        }
+
+        if (!requireAuth) {
+            succeed(pending.cipher)
+            return
+        }
+        val fragmentActivity = requireFragmentActivity(result)
+        if (fragmentActivity == null) {
+            masterKeyStore.abortPending(userId, pending.slot)
+            bytes.fill(0)
+            return
+        }
+        BiometricGate.authenticate(fragmentActivity, pending.cipher, prompt) { authResult ->
+            when (authResult) {
+                is AuthResult.Success -> succeed(authResult.cipher)
+                is AuthResult.Failure -> fail(authResult.code)
+            }
         }
     }
 
@@ -132,33 +156,41 @@ class AxonotePlatformPlugin : FlutterPlugin, MethodCallHandler, ActivityAware {
             return
         }
 
-        try {
-            val cipher = masterKeyStore.prepareDecryptCipher(userId)
-            if (!masterKeyStore.requiresAuth(userId)) {
-                result.success(masterKeyStore.decrypt(userId, cipher))
+        val cipher =
+            try {
+                masterKeyStore.prepareDecryptCipher(userId)
+            } catch (e: MasterKeyInvalidatedException) {
+                masterKeyStore.delete(userId)
+                result.error("key_invalidated", null, null)
+                return
+            } catch (e: Exception) {
+                result.error("platform_failure", e.message, null)
                 return
             }
-            val fragmentActivity = requireFragmentActivity(result) ?: return
-            BiometricGate.authenticate(fragmentActivity, cipher, prompt) { authResult ->
-                when (authResult) {
-                    is AuthResult.Success -> {
-                        try {
-                            result.success(masterKeyStore.decrypt(userId, authResult.cipher))
-                        } catch (e: AEADBadTagException) {
-                            result.error("platform_failure", "no se pudo descifrar", null)
-                        } catch (e: Exception) {
-                            result.error("platform_failure", e.message, null)
-                        }
-                    }
-                    is AuthResult.Failure -> result.error(authResult.code, null, null)
-                }
+
+        fun finishDecrypt(c: Cipher) {
+            try {
+                result.success(masterKeyStore.decrypt(userId, c))
+            } catch (e: MasterKeyInvalidatedException) {
+                // El texto cifrado ya es irrecuperable con esta clave: se borra y se pide la
+                // contraseña, igual que una biometría nueva.
+                masterKeyStore.delete(userId)
+                result.error("key_invalidated", null, null)
+            } catch (e: Exception) {
+                result.error("platform_failure", e.message, null)
             }
-        } catch (e: KeyPermanentlyInvalidatedException) {
-            // Huella (u otra biometría) nueva desde que se guardó: ya no se puede recuperar.
-            masterKeyStore.delete(userId)
-            result.error("key_invalidated", null, null)
-        } catch (e: Exception) {
-            result.error("platform_failure", e.message, null)
+        }
+
+        if (!masterKeyStore.requiresAuth(userId)) {
+            finishDecrypt(cipher)
+            return
+        }
+        val fragmentActivity = requireFragmentActivity(result) ?: return
+        BiometricGate.authenticate(fragmentActivity, cipher, prompt) { authResult ->
+            when (authResult) {
+                is AuthResult.Success -> finishDecrypt(authResult.cipher)
+                is AuthResult.Failure -> result.error(authResult.code, null, null)
+            }
         }
     }
 

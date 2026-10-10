@@ -15,7 +15,16 @@ abstract class AxonotePlatform {
 
   /// Guarda `bytes` (32 B: la clave maestra) cifrados con una clave de Android Keystore propia de
   /// `userId`. Genera la clave de Keystore de nuevo cada vez (sustituye cualquier valor previo de
-  /// esa cuenta), por si `requireAuth` cambió.
+  /// esa cuenta), por si `requireAuth` cambió. Es atómico: si algo falla a medio camino (se
+  /// cancela la biometría, no hay actividad, etc.), lo que hubiera guardado antes para `userId`
+  /// queda intacto, nunca a medias.
+  ///
+  /// El método channel copia `bytes` al cruzar a Kotlin: esa copia nativa se pone a cero en
+  /// cuanto termina de cifrarla (con éxito o sin él), pero el `Uint8List` de este lado (el
+  /// original, en la VM de Dart) no se ve afectado por eso. Quien llama (normalmente con
+  /// `masterKey.bytes` de un `SecretKeyBytes`) sigue siendo responsable de su propio ciclo de
+  /// vida igual que siempre: lo borra quien sea dueño de ese `SecretKeyBytes` (el `Vault`, al
+  /// bloquear), no esta llamada.
   ///
   /// Con `requireAuth: true` la clave de Keystore exige autenticación (biometría o, en API ≥ 30,
   /// también la credencial del dispositivo) para cada uso — también para este cifrado inicial —
@@ -32,11 +41,15 @@ abstract class AxonotePlatform {
   });
 
   /// Recupera la clave maestra guardada para `userId`. Si se guardó con `requireAuth: true`,
-  /// muestra el cuadro de autenticación nativo con el texto de `prompt` antes de descifrar.
+  /// muestra el cuadro de autenticación nativo con el texto de `prompt` antes de descifrar. Los
+  /// bytes que devuelve, a diferencia de los que recibe [storeMasterKey], **no** se ponen a cero
+  /// en el lado Kotlin: tienen que cruzar intactos hasta aquí. Quien llame (el gestor de
+  /// bloqueo) los envuelve de inmediato en un `SecretKeyBytes`, que ya sabe borrarse a sí mismo.
   ///
   /// Lanza [NoStoredKey] si no hay nada guardado, [KeyInvalidated] si la clave quedó invalidada
-  /// (biometría nueva desde que se guardó: ya se borró en el Keystore), [AuthCancelled],
-  /// [AuthNotEnrolled], [AuthLockedOut] o [AxonotePlatformFailure].
+  /// (biometría nueva desde que se guardó, o el texto cifrado ya no corresponde a la clave: en
+  /// ambos casos ya se borró en el Keystore), [AuthCancelled], [AuthNotEnrolled],
+  /// [AuthLockedOut] o [AxonotePlatformFailure].
   Future<Uint8List> loadMasterKey({required String userId, required String prompt});
 
   /// Borra la clave de Keystore y lo guardado de `userId`. No lanza si no había nada.
