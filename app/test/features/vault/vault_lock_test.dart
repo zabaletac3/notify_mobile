@@ -203,6 +203,56 @@ void main() {
     });
 
     test(
+      'cambiar solo lockTimeout con biometricLock: true no vuelve a guardar '
+      '(la política no cambia, no hace falta pedir biometría otra vez)',
+      () async {
+        final h = _Harness();
+        await h.controller.updateSettings(
+          const LockSettings(
+            biometricLock: true,
+            lockTimeout: LockTimeout.never,
+          ),
+        );
+        await h.controller.unlock(userId: 'u1', masterKey: _masterKey());
+        expect(await h.hasStored('u1'), isTrue);
+
+        // Si updateSettings llamara a storeMasterKey sin necesidad, esto se
+        // consumiría y lanzaría AuthCancelled (la prueba fallaría abajo).
+        h.platform.nextAuthResult = const AuthCancelled();
+        await h.controller.updateSettings(
+          const LockSettings(
+            biometricLock: true,
+            lockTimeout: LockTimeout.oneMinute,
+          ),
+        );
+        expect(await h.hasStored('u1'), isTrue);
+        h.dispose();
+      },
+    );
+
+    test(
+      'pasar de no-guardar a requireAuth guarda con requireAuth: true',
+      () async {
+        final h = _Harness();
+        await h.controller.updateSettings(
+          const LockSettings(biometricLock: false, lockOnExit: true),
+        );
+        await h.controller.unlock(userId: 'u1', masterKey: _masterKey(3));
+        expect(await h.hasStored('u1'), isFalse);
+
+        await h.controller.updateSettings(
+          const LockSettings(biometricLock: true),
+        );
+        h.platform.nextAuthResult = const AuthCancelled();
+        await expectLater(
+          h.platform.loadMasterKey(userId: 'u1', prompt: 'x'),
+          throwsA(isA<AuthCancelled>()),
+        );
+        h.dispose();
+      },
+    );
+
+    test(
       'pasar de no-guardar a noAuth guarda con requireAuth: false',
       () async {
         final h = _Harness();

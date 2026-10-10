@@ -56,18 +56,25 @@ class VaultLockController {
       _ref.read(sessionProvider.notifier).set(value);
 
   /// Cambia los ajustes que gobiernan el bloqueo (§5.3). Si el cofre está desbloqueado, reajusta
-  /// el temporizador al nuevo `lockTimeout` sin perder la actividad ya contada, y **reaplica la
-  /// regla de recuerdo** (ver [_rememberPolicy]) con la clave maestra que ya hay en memoria: un
-  /// cambio que deja de cumplir la regla de guardar borra lo guardado; uno que empieza a
-  /// cumplirla lo guarda con el `requireAuth` correcto.
+  /// el temporizador al nuevo `lockTimeout` sin perder la actividad ya contada.
+  ///
+  /// Solo toca lo guardado en `axonote_platform` cuando el cambio de ajustes hace que
+  /// [_rememberPolicy] dé un resultado distinto al de antes (p. ej. activar o desactivar
+  /// `biometricLock`): un cambio que deja de cumplir la regla de guardar borra lo guardado; uno
+  /// que empieza a cumplirla lo guarda con el `requireAuth` correcto. Si la política no cambia
+  /// (p. ej. solo cambia `lockTimeout` con `biometricLock: true` en ambos casos), no vuelve a
+  /// guardar ni pide biometría de nuevo sin necesidad.
   ///
   /// Si reaplicar falla (p. ej. se cancela la biometría al confirmar el `requireAuth` nuevo), no
   /// debe quedar nada guardado a medias con la regla vieja: se borra explícitamente y el error se
   /// relanza para que quien llame decida qué mostrar.
   Future<void> updateSettings(LockSettings settings) async {
+    final previousPolicy = _rememberPolicy(_settings);
+    final nextPolicy = _rememberPolicy(settings);
     _settings = settings;
     if (!_isUnlocked) return;
     _rescheduleTimer();
+    if (!_allowRemember || previousPolicy == nextPolicy) return;
     final vault = _vault;
     if (vault == null) return;
     try {
