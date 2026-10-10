@@ -14,8 +14,12 @@ import 'kdf.dart';
 class SodiumArgon2id implements Argon2idDeriver {
   SodiumArgon2id(this._sodium);
 
-  /// Carga la librería nativa (vía los hooks de compilación del paquete `sodium`).
-  factory SodiumArgon2id.load() => SodiumArgon2id(SodiumSumoInit.init());
+  /// Carga la librería nativa (vía los hooks de compilación del paquete `sodium`). La firma de
+  /// `SodiumSumoInit.init()` es `FutureOr<SodiumSumo>` para el analizador (la variante de
+  /// respaldo sin FFI es asíncrona); la de FFI es síncrona en ejecución, pero `load` se mantiene
+  /// asíncrono para valer en ambos casos.
+  static Future<SodiumArgon2id> load() async =>
+      SodiumArgon2id(await SodiumSumoInit.init());
 
   final SodiumSumo _sodium;
 
