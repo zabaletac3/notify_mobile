@@ -42,9 +42,13 @@ class VaultLockController {
   bool _allowRemember = true;
 
   /// El cofre actual. Lanza [VaultLockedError] si no hay sesión o está bloqueado.
+  ///
+  /// No basta con comprobar que `_vault` no sea nulo: tras [lock] sigue siendo la misma
+  /// instancia (ya bloqueada, ver [Vault.lock]), así que también se exige que la sesión esté en
+  /// [AxoSession.unlocked].
   Vault get vault {
     final current = _vault;
-    if (current == null) throw const VaultLockedError();
+    if (current == null || !_isUnlocked) throw const VaultLockedError();
     return current;
   }
 
