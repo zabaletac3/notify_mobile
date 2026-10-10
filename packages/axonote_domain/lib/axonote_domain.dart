@@ -5,3 +5,4 @@
 library;
 
 export 'src/errors.dart';
+export 'src/lock_settings.dart';
