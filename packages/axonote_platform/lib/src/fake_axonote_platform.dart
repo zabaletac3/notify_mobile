@@ -38,6 +38,12 @@ class FakeAxonotePlatform extends AxonotePlatform {
 
   bool secure = false;
 
+  /// Cuántas veces se llamó a [storeMasterKey] desde que se creó (o desde el último reinicio a
+  /// mano). Para pruebas que necesitan comprobar que algo NO vuelve a guardar innecesariamente,
+  /// sin que comprobarlo consuma [nextAuthResult] (a diferencia de mirar si sigue guardado con
+  /// [loadMasterKey]).
+  int storeMasterKeyCallCount = 0;
+
   /// Simula que la persona registró una biometría nueva: invalida cualquier clave guardada con
   /// `requireAuth: true` (plan §5.2: "si la clave quedó invalidada (huella nueva) ... se borra y
   /// se pide la contraseña").
@@ -50,6 +56,7 @@ class FakeAxonotePlatform extends AxonotePlatform {
     required bool requireAuth,
     String? prompt,
   }) async {
+    storeMasterKeyCallCount++;
     if (requireAuth) {
       final forced = nextAuthResult;
       nextAuthResult = null;

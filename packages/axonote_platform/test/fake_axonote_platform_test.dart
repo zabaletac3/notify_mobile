@@ -42,6 +42,27 @@ void main() {
     await platform.deleteMasterKey(userId: 'nadie');
   });
 
+  test('storeMasterKeyCallCount cuenta cada llamada, incluso si falla', () async {
+    expect(platform.storeMasterKeyCallCount, 0);
+    await platform.storeMasterKey(
+      userId: 'u1',
+      bytes: Uint8List.fromList([1]),
+      requireAuth: false,
+    );
+    expect(platform.storeMasterKeyCallCount, 1);
+
+    platform.nextAuthResult = const AuthCancelled();
+    await expectLater(
+      platform.storeMasterKey(
+        userId: 'u1',
+        bytes: Uint8List.fromList([2]),
+        requireAuth: true,
+      ),
+      throwsA(isA<AuthCancelled>()),
+    );
+    expect(platform.storeMasterKeyCallCount, 2);
+  });
+
   group('requireAuth: true', () {
     test('carga con éxito cuando no se fuerza ningún error', () async {
       await platform.storeMasterKey(
