@@ -91,40 +91,49 @@ Future<NewAccountKeys> createAccountKeys({
 }) async {
   final kdf = newKdfParams(base: kdfBase);
   final derived = await deriveFromPassword(password, kdf, argon2id);
-  final masterKey = generateKeyBytes();
-  final recoveryBytes = generateRecoveryKey();
   try {
-    final recoveryDerived = await deriveFromRecoveryKey(recoveryBytes);
+    final masterKey = generateKeyBytes();
     try {
-      final wrappedMasterKey = await wrap(
-        derived.kek,
-        masterKey,
-        masterKeyAad(userId, MasterKeyKind.password),
-      );
-      final recoveryWrappedMasterKey = await wrap(
-        recoveryDerived.rkWrap,
-        masterKey,
-        masterKeyAad(userId, MasterKeyKind.recovery),
-      );
-      return NewAccountKeys(
-        userId: userId,
-        authKey: derived.authKey,
-        recoveryAuth: recoveryDerived.recoveryAuth,
-        masterKey: masterKey,
-        recoveryKey: formatRecoveryKey(recoveryBytes),
-        keys: KeyBundle(
-          kdf: kdf,
-          wrappedMasterKey: wrappedMasterKey,
-          recoveryWrappedMasterKey: recoveryWrappedMasterKey,
-          keysVersion: 1,
-        ),
-      );
-    } finally {
-      recoveryDerived.rkWrap.dispose();
+      final recoveryBytes = generateRecoveryKey();
+      try {
+        final recoveryDerived = await deriveFromRecoveryKey(recoveryBytes);
+        try {
+          final wrappedMasterKey = await wrap(
+            derived.kek,
+            masterKey,
+            masterKeyAad(userId, MasterKeyKind.password),
+          );
+          final recoveryWrappedMasterKey = await wrap(
+            recoveryDerived.rkWrap,
+            masterKey,
+            masterKeyAad(userId, MasterKeyKind.recovery),
+          );
+          return NewAccountKeys(
+            userId: userId,
+            authKey: derived.authKey,
+            recoveryAuth: recoveryDerived.recoveryAuth,
+            masterKey: masterKey,
+            recoveryKey: formatRecoveryKey(recoveryBytes),
+            keys: KeyBundle(
+              kdf: kdf,
+              wrappedMasterKey: wrappedMasterKey,
+              recoveryWrappedMasterKey: recoveryWrappedMasterKey,
+              keysVersion: 1,
+            ),
+          );
+        } finally {
+          recoveryDerived.rkWrap.dispose();
+        }
+      } finally {
+        recoveryBytes.fillRange(0, recoveryBytes.length, 0);
+      }
+    } catch (_) {
+      // Si algo falla tras generar la clave maestra, nunca se devuelve: se borra aquí.
+      masterKey.dispose();
+      rethrow;
     }
   } finally {
     derived.kek.dispose();
-    recoveryBytes.fillRange(0, recoveryBytes.length, 0);
   }
 }
 
@@ -196,26 +205,33 @@ Future<PasswordChangeKeys> changePasswordKeys({
     keys: current,
     argon2id: argon2id,
   );
-  final kdf = newKdfParams(base: kdfBase);
-  final derived = await deriveFromPassword(newPassword, kdf, argon2id);
   try {
-    final wrappedMasterKey = await wrap(
-      derived.kek,
-      unlocked.masterKey,
-      masterKeyAad(userId, MasterKeyKind.password),
-    );
-    return PasswordChangeKeys(
-      currentAuthKey: unlocked.authKey,
-      newAuthKey: derived.authKey,
-      masterKey: unlocked.masterKey,
-      keys: current.copyWith(
-        kdf: kdf,
-        wrappedMasterKey: wrappedMasterKey,
-        keysVersion: current.keysVersion + 1,
-      ),
-    );
-  } finally {
-    derived.kek.dispose();
+    final kdf = newKdfParams(base: kdfBase);
+    final derived = await deriveFromPassword(newPassword, kdf, argon2id);
+    try {
+      final wrappedMasterKey = await wrap(
+        derived.kek,
+        unlocked.masterKey,
+        masterKeyAad(userId, MasterKeyKind.password),
+      );
+      return PasswordChangeKeys(
+        currentAuthKey: unlocked.authKey,
+        newAuthKey: derived.authKey,
+        masterKey: unlocked.masterKey,
+        keys: current.copyWith(
+          kdf: kdf,
+          wrappedMasterKey: wrappedMasterKey,
+          keysVersion: current.keysVersion + 1,
+        ),
+      );
+    } finally {
+      derived.kek.dispose();
+    }
+  } catch (_) {
+    // Si algo falla tras desbloquear con la contraseña actual, la clave maestra nunca se
+    // devuelve: se borra aquí.
+    unlocked.masterKey.dispose();
+    rethrow;
   }
 }
 
@@ -253,27 +269,34 @@ Future<RecoveredKeys> recoverWithRecoveryKey({
         recoveryWrappedMasterKey,
         masterKeyAad(userId, MasterKeyKind.recovery),
       );
-      final kdf = newKdfParams(base: kdfBase);
-      final derived = await deriveFromPassword(newPassword, kdf, argon2id);
       try {
-        final wrappedMasterKey = await wrap(
-          derived.kek,
-          masterKey,
-          masterKeyAad(userId, MasterKeyKind.password),
-        );
-        return RecoveredKeys(
-          newAuthKey: derived.authKey,
-          recoveryAuth: recoveryDerived.recoveryAuth,
-          masterKey: masterKey,
-          keys: KeyBundle(
-            kdf: kdf,
-            wrappedMasterKey: wrappedMasterKey,
-            recoveryWrappedMasterKey: recoveryWrappedMasterKey,
-            keysVersion: 0, // lo fija el servidor
-          ),
-        );
-      } finally {
-        derived.kek.dispose();
+        final kdf = newKdfParams(base: kdfBase);
+        final derived = await deriveFromPassword(newPassword, kdf, argon2id);
+        try {
+          final wrappedMasterKey = await wrap(
+            derived.kek,
+            masterKey,
+            masterKeyAad(userId, MasterKeyKind.password),
+          );
+          return RecoveredKeys(
+            newAuthKey: derived.authKey,
+            recoveryAuth: recoveryDerived.recoveryAuth,
+            masterKey: masterKey,
+            keys: KeyBundle(
+              kdf: kdf,
+              wrappedMasterKey: wrappedMasterKey,
+              recoveryWrappedMasterKey: recoveryWrappedMasterKey,
+              keysVersion: 0, // lo fija el servidor
+            ),
+          );
+        } finally {
+          derived.kek.dispose();
+        }
+      } catch (_) {
+        // Si algo falla tras abrir la clave maestra con la clave de recuperación, nunca se
+        // devuelve: se borra aquí.
+        masterKey.dispose();
+        rethrow;
       }
     } finally {
       recoveryDerived.rkWrap.dispose();

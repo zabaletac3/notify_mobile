@@ -17,9 +17,45 @@ class _NeverArgon2id implements Argon2idDeriver {
   }
 }
 
+/// Fuerza un error en una llamada concreta (1-based) a Argon2id; las demás se delegan a [real].
+/// Sirve para forzar un fallo *después* de un paso que ya produjo una clave maestra, y comprobar
+/// que el camino de error la borra en vez de devolverla.
+class _FlakyArgon2id implements Argon2idDeriver {
+  _FlakyArgon2id(this.real, {required this.failOnCall});
+
+  final Argon2idDeriver real;
+  final int failOnCall;
+  int calls = 0;
+
+  @override
+  Future<Uint8List> derive({
+    required Uint8List password,
+    required Uint8List salt,
+    required int memoryKiB,
+    required int iterations,
+  }) {
+    calls++;
+    if (calls == failOnCall) {
+      throw _ForcedFailure();
+    }
+    return real.derive(
+      password: password,
+      salt: salt,
+      memoryKiB: memoryKiB,
+      iterations: iterations,
+    );
+  }
+}
+
+class _ForcedFailure implements Exception {}
+
 void main() {
-  final argon2id = SodiumArgon2id.load();
+  late Argon2idDeriver argon2id;
   const userId = '018f6f9a-7b1c-7c3e-8c9d-00000000ffff';
+
+  setUpAll(() async {
+    argon2id = await SodiumArgon2id.load();
+  });
 
   group('masterKeyAad', () {
     test('combina el userId y el tipo de clave', () {
@@ -239,6 +275,75 @@ void main() {
         throwsA(isA<DecryptError>()),
       );
     });
+
+    test('createAccountKeys propaga el error si Argon2id falla', () async {
+      // Argon2id es lo único inyectable y aquí es la única llamada: falla antes de que exista
+      // una clave maestra que borrar. El borrado en el camino de error (si algo falla después de
+      // generarla: un `wrap`) queda como código defensivo no accesible desde esta prueba, porque
+      // ni `wrap` ni la derivación de la clave de recuperación fallan con entradas válidas.
+      final flaky = _FlakyArgon2id(argon2id, failOnCall: 1);
+      await expectLater(
+        createAccountKeys(
+          password: 'x',
+          userId: userId,
+          argon2id: flaky,
+          kdfBase: lightKdf,
+        ),
+        throwsA(isA<_ForcedFailure>()),
+      );
+    });
+
+    test(
+      'changePasswordKeys borra la clave maestra si falla tras desbloquear',
+      () async {
+        final created = await createAccountKeys(
+          password: 'vieja',
+          userId: userId,
+          argon2id: argon2id,
+          kdfBase: lightKdf,
+        );
+        // Llamada 1 (desbloquear con la contraseña actual): real, produce la clave maestra.
+        // Llamada 2 (derivar la contraseña nueva): falla ya con la clave maestra en memoria.
+        final flaky = _FlakyArgon2id(argon2id, failOnCall: 2);
+        await expectLater(
+          changePasswordKeys(
+            currentPassword: 'vieja',
+            newPassword: 'nueva',
+            userId: userId,
+            current: created.keys,
+            argon2id: flaky,
+            kdfBase: lightKdf,
+          ),
+          throwsA(isA<_ForcedFailure>()),
+        );
+      },
+    );
+
+    test(
+      'recoverWithRecoveryKey borra la clave maestra si falla tras abrirla',
+      () async {
+        final created = await createAccountKeys(
+          password: 'original',
+          userId: userId,
+          argon2id: argon2id,
+          kdfBase: lightKdf,
+        );
+        // La clave de recuperación no usa Argon2id: la clave maestra ya existe (por el `unwrap`)
+        // cuando la única llamada a Argon2id (para la contraseña nueva) falla.
+        final flaky = _FlakyArgon2id(argon2id, failOnCall: 1);
+        await expectLater(
+          recoverWithRecoveryKey(
+            recoveryKeyText: created.recoveryKey,
+            newPassword: 'nueva',
+            userId: userId,
+            recoveryWrappedMasterKey: created.keys.recoveryWrappedMasterKey,
+            argon2id: flaky,
+            kdfBase: lightKdf,
+          ),
+          throwsA(isA<_ForcedFailure>()),
+        );
+      },
+    );
   });
 
   group('deriveAuthKey', () {
