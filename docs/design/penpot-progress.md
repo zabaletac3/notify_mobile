@@ -4,7 +4,9 @@ Decisión D16: **manda Penpot**. En la fase 2 los valores salieron de `notify_we
 congeló; hay que rehacerlos con lo que diga el archivo de Penpot («Apunte – App de notas», página
 **App Mobile**, 41 tableros de 412×915). Penpot es de solo lectura: no se modifica nada.
 
-Estado: **EN PAUSA (3.ª vez).** Al reanudar, continuar desde este archivo.
+Estado: **HECHO.** Base visual reextraída de Penpot (manda D16). Medidas en
+[`penpot-measurements.md`](penpot-measurements.md) y crudo en [`penpot-extract.json`](penpot-extract.json).
+Único pendiente: guardar los **PNG de los 41 tableros** (bloqueado; ver motivo abajo).
 
 Datos crudos ya extraídos y guardados: [`docs/design/penpot-extract.json`](penpot-extract.json).
 

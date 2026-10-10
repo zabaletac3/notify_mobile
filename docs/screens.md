@@ -9,8 +9,10 @@ medidas salen de `notify_web/docs/design-tokens.md` y `components.md` (sistema y
 diseño; ver `docs/decisions.md`), más lo explorado en Penpot (tableros, tipografía Inter, tamaños).
 
 Editor: se usa el tablero **«3 · Notas — Android — Editor»** como referencia. Diferencias con el tablero
-antiguo **«Android — Editor»**: _pendiente de comparar en Penpot_ (la pestaña MCP estaba congelada durante
-la ejecución de la fase 2; se anotará aquí al reconciliar).
+antiguo **«Android — Editor»** (comparado en Penpot): el antiguo tenía **solo las barras** superior y de
+estado (botones atrás/compartir/deshacer/más y selector de carpeta), **sin documento ni barra de formato**;
+el nuevo añade el **documento** (etiquetas, checklist, viñetas, títulos, título de nota y fecha) y la
+**barra de formato**. Se usa el nuevo.
 
 ## 1 · Onboarding — Fase 8
 

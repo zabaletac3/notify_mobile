@@ -157,49 +157,60 @@ class AxoColors extends ThemeExtension<AxoColors> {
   }
 }
 
-/// Escala tipográfica (Inter). Los tamaños son punto/interlínea del diseño.
+/// Escala tipográfica (Inter), tomada de los textos reales de Penpot. El diseño usa interlineado 1.2 en
+/// casi todo y letter-spacing negativo en los títulos.
 abstract final class AxoType {
   static const String family = 'Inter';
 
   static const TextStyle title = TextStyle(
     fontFamily: family,
-    fontSize: 28,
+    fontSize: 24,
     fontWeight: FontWeight.w700,
-    height: 34 / 28,
+    height: 1.2,
+    letterSpacing: -0.4,
   );
   static const TextStyle heading = TextStyle(
     fontFamily: family,
     fontSize: 18,
     fontWeight: FontWeight.w600,
-    height: 24 / 18,
+    height: 1.2,
   );
   static const TextStyle body = TextStyle(
     fontFamily: family,
     fontSize: 15,
     fontWeight: FontWeight.w400,
-    height: 22 / 15,
+    height: 1.2,
   );
   static const TextStyle label = TextStyle(
     fontFamily: family,
     fontSize: 13,
     fontWeight: FontWeight.w500,
-    height: 18 / 13,
+    height: 1.2,
   );
   static const TextStyle caption = TextStyle(
     fontFamily: family,
     fontSize: 12,
     fontWeight: FontWeight.w400,
-    height: 16 / 12,
+    height: 1.2,
+  );
+
+  /// Título de nota en la lista (14/600 en Penpot).
+  static const TextStyle noteTitle = TextStyle(
+    fontFamily: family,
+    fontSize: 14,
+    fontWeight: FontWeight.w600,
+    height: 1.2,
   );
 }
 
-/// Radios del diseño.
+/// Radios del diseño (Penpot incluye el del marco del dispositivo, 28, y el de las tarjetas/buscador).
 abstract final class AxoRadii {
   static const double sm = 8;
   static const double lg = 12;
   static const double xl = 14;
   static const double xxl = 20;
   static const double sheet = 24;
+  static const double card = 28;
 }
 
 /// Escala de espaciado (múltiplos de 4).
@@ -213,7 +224,7 @@ abstract final class AxoSpacing {
   static const double xxxl = 32;
 }
 
-/// Medidas de los componentes base (px), del diseño.
+/// Medidas de los componentes base (px), medidas en Penpot.
 abstract final class AxoSizes {
   static const double buttonSm = 36;
   static const double button = 46;
@@ -222,10 +233,10 @@ abstract final class AxoSizes {
   static const double switchWidth = 44;
   static const double switchHeight = 26;
   static const double checkbox = 20;
-  static const double otpWidth = 48;
+  static const double otpWidth = 53;
   static const double otpHeight = 60;
   static const double noteCard = 80;
-  static const double menuItem = 38;
-  static const double toast = 380;
+  static const double menuItem = 48;
+  static const double toast = 388;
   static const double tapTarget = 44;
 }

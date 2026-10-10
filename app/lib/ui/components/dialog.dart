@@ -20,7 +20,7 @@ class AxoDialog extends StatelessWidget {
   Widget build(BuildContext context) {
     final c = Theme.of(context).extension<AxoColors>()!;
     return Container(
-      constraints: const BoxConstraints(maxWidth: 480),
+      constraints: const BoxConstraints(maxWidth: 348),
       padding: const EdgeInsets.all(28),
       decoration: BoxDecoration(
         color: c.bgEditor,

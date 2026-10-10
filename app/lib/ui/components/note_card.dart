@@ -44,7 +44,7 @@ class AxoNoteCard extends StatelessWidget {
               Row(
                 children: [
                   if (pinned) ...[
-                    const AppIcon('pin', size: 13, color: Color(0xFF8A590C)),
+                    AppIcon('pin', size: 13, color: c.tagAmber),
                     const SizedBox(width: AxoSpacing.xs),
                   ],
                   Expanded(
@@ -52,16 +52,16 @@ class AxoNoteCard extends StatelessWidget {
                       title,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
-                      style: AxoType.label.copyWith(
-                        color: c.textPrimary,
-                        fontWeight: FontWeight.w600,
-                      ),
+                      style: AxoType.noteTitle.copyWith(color: c.textPrimary),
                     ),
                   ),
                   if (date != null)
                     Text(
                       date!,
-                      style: AxoType.caption.copyWith(color: c.textTertiary),
+                      style: AxoType.caption.copyWith(
+                        color: c.textSecondary,
+                        fontWeight: FontWeight.w500,
+                      ),
                     ),
                 ],
               ),
@@ -70,7 +70,7 @@ class AxoNoteCard extends StatelessWidget {
                 preview,
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
-                style: AxoType.caption.copyWith(color: c.textSecondary),
+                style: AxoType.caption.copyWith(color: c.textTertiary),
               ),
             ],
           ),

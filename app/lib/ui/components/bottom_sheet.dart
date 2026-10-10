@@ -26,7 +26,7 @@ class AxoBottomSheet extends StatelessWidget {
         children: [
           Center(
             child: Container(
-              width: 32,
+              width: 36,
               height: 4,
               decoration: BoxDecoration(
                 color: c.borderDefault,
@@ -34,7 +34,7 @@ class AxoBottomSheet extends StatelessWidget {
               ),
             ),
           ),
-          const SizedBox(height: AxoSpacing.lg),
+          const SizedBox(height: AxoSpacing.xl),
           if (title != null) ...[
             Text(title!, style: AxoType.heading.copyWith(color: c.textPrimary)),
             const SizedBox(height: AxoSpacing.lg),

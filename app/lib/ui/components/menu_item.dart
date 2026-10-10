@@ -3,7 +3,7 @@ import 'package:flutter/material.dart';
 import '../app_icon.dart';
 import '../tokens.dart';
 
-/// Elemento de menú del diseño: 38 px de alto, relleno 9/12, hueco 12. Puede ser destructivo.
+/// Elemento de menú del diseño: 48 px de alto, relleno 16, hueco 12, icono 20. Puede ser destructivo.
 class AxoMenuItem extends StatelessWidget {
   const AxoMenuItem({
     super.key,
@@ -30,15 +30,21 @@ class AxoMenuItem extends StatelessWidget {
         borderRadius: BorderRadius.circular(AxoRadii.sm),
         child: Container(
           height: AxoSizes.menuItem,
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
+          padding: const EdgeInsets.symmetric(horizontal: 16),
           child: Row(
             children: [
               if (icon != null) ...[
-                AppIcon(icon!, size: 18, color: fg),
+                AppIcon(icon!, size: 20, color: fg),
                 const SizedBox(width: AxoSpacing.md),
               ],
               Expanded(
-                child: Text(label, style: AxoType.body.copyWith(color: fg)),
+                child: Text(
+                  label,
+                  style: AxoType.body.copyWith(
+                    color: fg,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
               ),
             ],
           ),
