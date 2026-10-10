@@ -214,17 +214,22 @@ void main() {
           ),
         );
         await h.controller.unlock(userId: 'u1', masterKey: _masterKey());
-        expect(await h.hasStored('u1'), isTrue);
+        // unlock() ya guarda una vez (requireAuth: true, por biometricLock).
+        expect(h.platform.storeMasterKeyCallCount, 1);
 
-        // Si updateSettings llamara a storeMasterKey sin necesidad, esto se
-        // consumiría y lanzaría AuthCancelled (la prueba fallaría abajo).
-        h.platform.nextAuthResult = const AuthCancelled();
+        // Si updateSettings volviera a guardar sin necesidad, el contador subiría
+        // a 2. No se usa hasStored aquí: con requireAuth: true consumiría
+        // nextAuthResult si se forzara uno, además de solo poder comprobarse
+        // después (ver más abajo).
         await h.controller.updateSettings(
           const LockSettings(
             biometricLock: true,
             lockTimeout: LockTimeout.oneMinute,
           ),
         );
+        expect(h.platform.storeMasterKeyCallCount, 1);
+
+        // Con nextAuthResult limpio (nunca se tocó), la clave sigue intacta.
         expect(await h.hasStored('u1'), isTrue);
         h.dispose();
       },
