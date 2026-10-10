@@ -74,3 +74,27 @@ altura de input 52 también coincidían.
 - **`intl`** (`^0.20.3`): lo trae `flutter_localizations` y lo usa la localización `es` (ARB).
 - `flutter_riverpod` y `go_router` están en la §9 (D9), no requieren nota.
 
+## Fase 3
+
+### 2026-10-10 · Forma de la API de `axonote_crypto` no fijada por el plan
+
+El plan (§10, Fase 3) da la lista de funciones y errores, pero no su firma exacta en Dart. Tres
+decisiones de forma, ninguna cambia el formato de bytes (§3) ni los vectores:
+
+- **Argon2id inyectado como parámetro, no como estado global mutable.** La web usa un setter de
+  módulo (`setArgon2Impl`) porque JS no tiene un equivalente cómodo a pasar una dependencia por
+  todas las funciones. En Dart, `deriveFromPassword` y las funciones de `account_keys.dart` que
+  derivan contraseña reciben `Argon2idDeriver` como argumento explícito. Motivo: nada de estado
+  global en un paquete puro, y las pruebas pueden usar la implementación real
+  (`SodiumArgon2id`) sin tocar un singleton compartido entre archivos de prueba.
+- **Los códecs de nota, carpeta y enlace no dependen de un tipo `Vault`.** En la web,
+  `note-codec.ts`/`share-codec.ts` reciben un `Vault` que reparte y cachea las claves de cada
+  elemento. Ese reparto y esa caché son estado de sesión (dominio/app, no criptografía pura), y
+  `axonote_crypto` no depende de `axonote_domain` (regla de la §4.2). Por eso los códecs de este
+  paquete son funciones sin estado que ya reciben la `SecretKeyBytes` del elemento
+  (`sealNotePayload`/`openNotePayload`, etc.); el equivalente al `Vault` (repartir y cachear esa
+  clave a partir de la maestra) se escribe en una fase posterior, fuera de este paquete.
+- **`KeyBundle` y `KdfParams` se definen de nuevo dentro de `axonote_crypto`.** Son copias locales
+  de los tipos que en la web viven en `domain/crypto.ts`; aquí no pueden importarse de
+  `axonote_domain` por la misma regla de dependencias. Mismos campos y mismo nombre.
+
