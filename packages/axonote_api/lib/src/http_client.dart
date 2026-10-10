@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 
 import 'package:axonote_domain/axonote_domain.dart';
 import 'package:dio/dio.dart';
@@ -56,6 +57,11 @@ class HttpClientOptions {
 ///
 /// El móvil usa el modo de sesión **en cuerpo**: el `refreshToken` viaja en el JSON y **nunca** se
 /// envía la cabecera `X-AxoNote-Session` (ver §3 del plan y `handler.go` del backend).
+///
+/// **El vuelo único es por instancia.** Crea **un solo** `HttpClient` por cuenta: dos instancias
+/// mantendrían cada una su propia renovación en curso y podrían gastar dos veces el token de
+/// renovación (que es de un solo uso), con lo que el servidor cerraría la sesión por reutilización.
+/// Quien necesite varios clientes de recurso, que compartan el mismo `HttpClient`.
 class HttpClient {
   HttpClient(this.options)
     : _dio = options.dio ?? Dio(),
@@ -158,19 +164,41 @@ class HttpClient {
   ) async {
     final response = await _send(method, path, body, token);
     final status = response.statusCode ?? 0;
+    final parsed = _parseBody(response.data);
     if (status < 200 || status >= 300) {
+      // Con estado de error se decide por el estado, como la web (aunque el cuerpo no sea JSON).
       throw toFailure(
         status,
-        response.data,
+        parsed.body,
         response.headers.value('retry-after'),
       );
     }
+    // 2xx: si el cuerpo no es JSON, o no encaja con el DTO, es un fallo del servidor (no de red).
+    if (parsed.parseFailed) throw const AppFailure(ServerError());
     try {
-      return decode(response.data);
+      return decode(parsed.body);
     } on JsonFormatException {
-      // El contrato se cumplió a nivel HTTP pero el cuerpo no encaja: fallo de formato.
+      throw const AppFailure(ServerError());
+    } on TypeError {
+      // El `decode` por defecto (`json as T`) y cualquier cast de un DTO.
       throw const AppFailure(ServerError());
     }
+  }
+
+  /// Interpreta el cuerpo crudo como JSON. Un cuerpo que no es JSON válido se marca con
+  /// `parseFailed` (no se lanza aquí: con estado de error manda el estado, y en 2xx lo decide quien
+  /// llama). Un cuerpo vacío es `null`.
+  ({Object? body, bool parseFailed}) _parseBody(Object? raw) {
+    if (raw == null) return (body: null, parseFailed: false);
+    if (raw is String) {
+      if (raw.isEmpty) return (body: null, parseFailed: false);
+      try {
+        return (body: jsonDecode(raw), parseFailed: false);
+      } on FormatException {
+        return (body: null, parseFailed: true);
+      }
+    }
+    return (body: raw, parseFailed: false);
   }
 
   Future<Response<dynamic>> _send(
@@ -179,11 +207,15 @@ class HttpClient {
     Object? body,
     String? token,
   ) async {
+    // El cuerpo se lee en crudo (`plain`) y se interpreta aquí: así un HTML de Cloudflare Access con
+    // 200 no lo intenta parsear dio y no se confunde con un fallo de red.
+    final cancelToken = CancelToken();
     final requestOptions = RequestOptions(
       path: path,
       method: method,
       baseUrl: _baseUrl,
       data: body,
+      cancelToken: cancelToken,
       headers: <String, Object>{
         'Accept': 'application/json',
         if (body != null) 'Content-Type': 'application/json',
@@ -191,15 +223,20 @@ class HttpClient {
         ..._cloudflareHeaders,
       },
       validateStatus: (_) => true,
-      responseType: ResponseType.json,
+      responseType: ResponseType.plain,
     );
     final future = _dio.fetch<dynamic>(requestOptions);
-    // Si vence el tiempo máximo, la petición se abandona; se ignora su resultado tardío.
+    // Si vence el tiempo máximo, se cancela la petición para liberar la conexión; se ignora su
+    // resultado tardío.
     future.ignore();
     try {
-      return await future.timeout(_timeout);
-    } on TimeoutException {
-      throw const AppFailure(NetworkError());
+      return await future.timeout(
+        _timeout,
+        onTimeout: () {
+          cancelToken.cancel('tiempo máximo de la petición');
+          throw const AppFailure(NetworkError());
+        },
+      );
     } on DioException catch (e) {
       final response = e.response;
       // Con `validateStatus` permisivo no debería llegar aquí con respuesta; si llega, se mapea.
@@ -247,10 +284,11 @@ class HttpClient {
     }
 
     final status = response.statusCode ?? 0;
+    final parsed = _parseBody(response.data);
     if (status < 200 || status >= 300) {
       final failure = toFailure(
         status,
-        response.data,
+        parsed.body,
         response.headers.value('retry-after'),
       );
       final error = failure.error;
@@ -265,7 +303,7 @@ class HttpClient {
       return null;
     }
 
-    final data = response.data;
+    final data = parsed.body;
     final map = data is Map
         ? data.cast<String, Object?>()
         : const <String, Object?>{};
