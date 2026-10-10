@@ -1,0 +1,18 @@
+name: axonote_workspace
+description: "Workspace de AxoNote móvil."
+publish_to: 'none'
+
+environment:
+  sdk: ^3.13.5
+
+workspace:
+  - app
+
+# Los paquetes Dart puros (axonote_domain, _crypto, _markdown, _api, _sync) y el
+# plugin axonote_platform se añaden en la fase 2.
+
+# SQLite con SQLite3MultipleCiphers para cifrar la base local (decisión D10).
+hooks:
+  user_defines:
+    sqlite3:
+      source: sqlite3mc
