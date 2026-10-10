@@ -184,3 +184,93 @@ decisiones de forma, ninguna cambia el formato de bytes (§3) ni los vectores:
 
 
 
+## Fase 5
+
+### 2026-10-10 · `storeMasterKey` gana un `prompt` opcional (desvío de la firma literal del plan)
+
+- **Lo que dice el plan (§5.2):** `storeMasterKey(userId, bytes, requireAuth)`, sin texto de
+  cuadro; solo `loadMasterKey(userId, prompt)` lo lleva.
+- **Por qué no basta tal cual:** en Android, una clave de Keystore con `setUserAuthenticationRequired(true)`
+  exige autenticación para **cualquier** uso del `Cipher`, también para cifrar (no solo para
+  descifrar). Guardar la clave maestra con `requireAuth: true` —activar el desbloqueo
+  biométrico— necesita entonces un `BiometricPrompt` igual que cargarla, con su propio texto
+  (patrón estándar de Android: "confirma tu huella para activar el desbloqueo biométrico").
+- **Decisión:** `storeMasterKey` acepta un `prompt` opcional (con un valor por defecto si no se
+  pasa) y solo lo usa cuando `requireAuth: true`; con `requireAuth: false` cifra sin pedir nada,
+  como antes. No cambia el formato guardado ni el resto de la firma.
+
+### 2026-10-10 · `axonote_platform` añade `setSecure` y `copySensitive` más allá de la lista del §5.2
+
+El §5.2 lista `storeMasterKey`, `loadMasterKey`, `deleteMasterKey` y `authAvailability`, pero el
+§5.4 («Endurecimiento de plataforma») solo se puede cumplir con código nativo:
+`FLAG_SECURE` (`setSecure`) y marcar el portapapeles como sensible (`copySensitive`,
+`ClipDescription.EXTRA_IS_SENSITIVE`, API ≥ 33). Como A8 dice que todo el código nativo propio
+vive en este único módulo, ambos métodos se añadieron aquí en vez de crear un segundo canal.
+
+### 2026-10-10 · Dependencia nativa nueva: `androidx.biometric:biometric:1.1.0`
+
+No está en la tabla de dependencias del §9 (esa tabla es de paquetes Dart/`pub`). Es la única
+forma de usar `BiometricPrompt` con `CryptoObject` y `Authenticators.BIOMETRIC_STRONG |
+DEVICE_CREDENTIAL` sin escribir el diálogo de biometría a mano. Versión 1.1.0 (estable, no una
+`alpha`): ya incluye el soporte de `DEVICE_CREDENTIAL` que pide el plan para API ≥ 30.
+
+### 2026-10-10 · `MainActivity` pasa de `FlutterActivity` a `FlutterFragmentActivity`
+
+`BiometricPrompt` exige una `FragmentActivity` (la `Activity` por defecto de Flutter no lo es).
+Es el cambio estándar que documentan los plugins de biometría de Flutter para este caso exacto.
+No afecta a nada de lo que ya había en `MainActivity` (seguía vacía).
+
+### 2026-10-10 · `createAccountKeys` gana un parámetro `deriveRecovery` solo para pruebas
+
+- **Pendiente de la fase 3:** `account_keys.dart:132` (el `catch` que borra `masterKey` si algo
+  falla después de generarla) no tenía ninguna prueba que lo ejecutara de verdad: `Argon2id` es lo
+  único inyectable en `createAccountKeys` y su única llamada ocurre *antes* de generar la clave
+  maestra, así que forzarle un fallo nunca llega a ese `catch`.
+- **Decisión:** `createAccountKeys` acepta `deriveRecovery` (por defecto, la función real
+  `deriveFromRecoveryKey`), que se llama justo después de generar la clave maestra. Una prueba
+  puede pasar una versión que falle a propósito para ejercitar el `catch` sin tocar
+  `deriveFromRecoveryKey` real (que nunca falla con bytes válidos) ni debilitar nada. Ver
+  `packages/axonote_crypto/test/account_keys_test.dart`.
+
+### 2026-10-10 · Dónde vive el `Vault` (equivalente a `data/crypto/vault.ts`)
+
+La fase 3 ya había anotado que el reparto y caché de claves de elemento «se escribe en una fase
+posterior, fuera de» `axonote_crypto`, por la regla de dependencias del §4.2 (`axonote_crypto` no
+puede depender de `axonote_domain` ni de `flutter`). Esta fase lo escribe en
+`app/lib/data/crypto/vault.dart`: mismo comportamiento que la referencia web, mismo AAD, con
+`SecretKeyBytes` en vez de `CryptoKey`. `Vault.localDbKey()` añade la derivación de A1/A2
+(`axonote_crypto.deriveLocalDbKey`, función pública nueva en ese paquete) para que, con el cofre
+bloqueado, nadie pueda obtener la clave de la base (lanza `VaultLockedError`).
+
+### 2026-10-10 · `VaultLockedError` es local a `app/lib/data/crypto/vault.dart`, no un `AppError`
+
+El §4.3 del plan describe un `AppError` `sealed` compartido (mismos `kind` que
+`src/lib/domain/errors.ts`), pero ese tipo todavía no existe en `axonote_domain` (ninguna fase
+anterior lo ha necesitado). Crear ahora esa jerarquía completa de errores de dominio para un solo
+caso de uso se salía del alcance de esta fase. `Vault` lanza su propia excepción local
+(`VaultLockedError`); cuando `axonote_domain` tenga `AppError`/`fail.locked()` (previsiblemente
+fase 6 u 8, que sí reparten entidades por repositorios), ese código deberá traducir
+`VaultLockedError` al `kind` que corresponda.
+
+### 2026-10-10 · `FLAG_SECURE` por defecto no se activa todavía de forma global
+
+El §5.4 dice que, según el ajuste de privacidad (activado por defecto), se oculta la vista previa
+en recientes «en el resto» de pantallas, y que en pantallas concretas (clave de recuperación,
+códigos de respaldo, secreto TOTP, desbloqueo) va **siempre**. Ninguna de esas pantallas existe
+todavía (llegan en las fases 8, 9 y 10) y el ajuste de privacidad en sí es de la fase 11
+(«Ajustes»). Esta fase deja listo y probado el mecanismo (`AxonotePlatform.setSecure`), pero no
+lo activa por defecto en `main.dart`: hacerlo ahora, sin una pantalla de ajustes que lo pueda
+desactivar, bloquearía capturas de pantalla en todo el dispositivo (incluidas las que necesiten
+las fases siguientes para documentar su trabajo) sin forma de revertirlo. Queda anotado aquí para
+que las fases 8-11 lo activen donde corresponda.
+
+### 2026-10-10 · El tiempo de bloqueo no sobrevive a que el sistema mate el proceso
+
+El plan (§5.3, última viñeta) pide medir el tiempo de bloqueo "con la hora de la última actividad
+guardada si el sistema mató el proceso". `VaultLockController._lastActiveAt` solo vive en memoria
+mientras el proceso sigue vivo: no se persiste en `flutter_secure_storage` ni se lee al arrancar.
+Falta además decidir, en el arranque, **con qué cuenta** intentar `unlockWithStoredKey` (lo sabe
+`AccountSecureStore.readUserId()`, ya escrito, pero nadie lo llama todavía): ese cableado de
+arranque en frío depende de la navegación real de inicio de sesión, que es de la fase 8. Queda
+pendiente para cuando se escriba el arranque completo de la app.
+
