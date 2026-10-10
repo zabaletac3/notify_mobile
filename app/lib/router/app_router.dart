@@ -7,6 +7,7 @@ import '../app/session.dart';
 import '../dev/components_gallery.dart';
 import '../ui/components.dart';
 import '../ui/placeholder_screen.dart';
+import '../ui/tokens.dart';
 
 /// Rutas de introducción y autenticación (accesibles sin sesión).
 const _publicRoutes = {
@@ -42,6 +43,39 @@ Widget _devNav(String label, String location) => Builder(
 /// Ruta de la galería de componentes, solo en modo debug.
 const _devRoute = '/dev/components';
 
+/// Pantalla de bienvenida vacía con los accesos visibles (centrados): entrar (demo) y galería de
+/// componentes (solo debug). No van en la barra superior.
+Widget _welcome() => Builder(
+  builder: (context) {
+    final c = Theme.of(context).extension<AxoColors>()!;
+    return Scaffold(
+      backgroundColor: c.bgApp,
+      body: SafeArea(
+        child: Center(
+          child: Padding(
+            padding: const EdgeInsets.all(AxoSpacing.xxl),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  'Bienvenida',
+                  style: AxoType.screenTitle.copyWith(color: c.textPrimary),
+                ),
+                const SizedBox(height: AxoSpacing.xxl),
+                _demo('Entrar (demo)', AxoSession.unlocked),
+                if (kDebugMode) ...[
+                  const SizedBox(height: AxoSpacing.md),
+                  _devNav('Ver componentes (dev)', _devRoute),
+                ],
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  },
+);
+
 final routerProvider = Provider<GoRouter>((ref) {
   final refresh = ValueNotifier<AxoSession>(ref.read(sessionProvider));
   ref.listen<AxoSession>(sessionProvider, (_, next) => refresh.value = next);
@@ -68,16 +102,7 @@ final routerProvider = Provider<GoRouter>((ref) {
     },
     routes: [
       // Introducción y autenticación.
-      GoRoute(
-        path: '/welcome',
-        builder: (_, _) => _p(
-          'Bienvenida',
-          actions: [
-            _demo('Entrar (demo)', AxoSession.unlocked),
-            if (kDebugMode) _devNav('Ver componentes (dev)', _devRoute),
-          ],
-        ),
-      ),
+      GoRoute(path: '/welcome', builder: (_, _) => _welcome()),
       GoRoute(path: '/onboarding', builder: (_, _) => _p('Onboarding')),
       GoRoute(path: '/login', builder: (_, _) => _p('Inicio de sesión')),
       GoRoute(path: '/register', builder: (_, _) => _p('Registro')),
