@@ -1,0 +1,63 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  ci:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Flutter 3.47.7
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.47.7'
+          channel: stable
+          cache: true
+
+      - name: Android SDK
+        uses: android-actions/setup-android@v3
+        with:
+          # El paquete `tools` ya no existe en el repositorio del SDK; se piden los que usa el build.
+          packages: 'platform-tools platforms;android-36 build-tools;36.0.0'
+
+      - name: Dependencias
+        run: flutter pub get
+
+      - name: Formato
+        run: >
+          dart format --output=none --set-exit-if-changed
+          app/lib app/test tool
+          packages/axonote_domain/lib packages/axonote_crypto/lib
+          packages/axonote_markdown/lib packages/axonote_api/lib
+          packages/axonote_sync/lib packages/axonote_platform/lib
+
+      - name: Análisis
+        run: flutter analyze
+
+      - name: Pruebas
+        run: |
+          (cd app && flutter test)
+          for p in packages/axonote_*; do
+            if [ -d "$p/test" ]; then (cd "$p" && flutter test); fi
+          done
+
+      - name: Comprobación de imports
+        run: dart run tool/check_imports.dart
+
+      - name: Comprobación de contrato
+        run: |
+          git clone --depth 1 https://github.com/zabaletac3/notify_web.git /tmp/notify_web
+          NOTIFY_WEB=/tmp/notify_web bash tool/check_contract.sh
+
+      - name: APK de debug
+        run: cd app && flutter build apk --debug

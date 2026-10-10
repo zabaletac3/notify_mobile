@@ -7,9 +7,12 @@ environment:
 
 workspace:
   - app
-
-# Los paquetes Dart puros (axonote_domain, _crypto, _markdown, _api, _sync) y el
-# plugin axonote_platform se añaden en la fase 2.
+  - packages/axonote_domain
+  - packages/axonote_crypto
+  - packages/axonote_markdown
+  - packages/axonote_api
+  - packages/axonote_sync
+  - packages/axonote_platform
 
 # SQLite con SQLite3MultipleCiphers para cifrar la base local (decisión D10).
 hooks:

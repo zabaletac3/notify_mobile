@@ -1,0 +1,9 @@
+name: axonote_api
+description: "Cliente HTTP de AxoNote (dio): DTO, mapeo de errores y renovación de sesión."
+version: 0.1.0
+publish_to: 'none'
+
+environment:
+  sdk: ^3.13.5
+
+resolution: workspace

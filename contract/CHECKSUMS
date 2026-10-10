@@ -1,0 +1,13 @@
+19efb5c890bc9c35407ca2c3a446ff8b20c809543100f033a8022735677dd094  ./openapi.yaml
+d5b10c15f8c24921a68c8f88bf0f182f11f392a5be6bf7fb3b8b9d76023f34b7  ./vectors/kdf.json
+7f3d44e04a50088b3b9e84930f12a58a027ba1d2ce29e66b71ea2cf0d1941f38  ./vectors/markdown.json
+ffe3436f387dd2ef7007f7b30a9570365e58f900cf9d3cf95ebf597e9c72bcc1  ./vectors/note-payload.json
+1448928ebb80e927987da980ff4ba4f0529102f03826384f960fccf185bbefc1  ./vectors/padding.json
+bd692a9cd1ae39378a4dbaeebd936748175461cf2fd1c85ae559864145bea8f1  ./vectors/README.md
+7661aa6b8e36f3e1c103974da393cceeca0188afff929b6efd325c887cf23c9a  ./vectors/recovery-key.json
+0f655cbdf2e05f23dcea26ab5f6a1c4da5abc0440e417e0cf1d9205865b67801  ./vectors/sealed.json
+c585a56b2aaf8747e7baef726d21a87ce5c60a6439d2f6eb16cd21b5ad5646d7  ./vectors/share.json
+252132b929849e346c2d664913d3868fcddf8bb82e3da16db69b0492ee6df6db  ./vectors/sync-behavior.json
+7a3edd3c60b67b440aa441a6512f2c9b257f698e6b984bc64666d29c1cb68ca7  ./vectors/sync.json
+3c00f8ba95c5b824a7537e3376008415a01b321c4d6e35ceddb847a86bf21597  ./vectors/trusted-device.json
+e594bbc6819565a0f916d6c7e76947fd412aa6b770c8a5f42f0269cb696d4dcd  ./vectors/wrap.json

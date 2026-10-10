@@ -330,8 +330,26 @@ pantalla de inicio de sesión; `forbidden/quota-exceeded` y `limit-reached` → 
 
 El campo `content` es lo que emite TipTap 3 en la web con `StarterKit` + `TaskList` + `TaskItem` anidado
 (`src/lib/components/app/note-editor.svelte`). Conjunto que el móvil edita: párrafo, títulos 1–6,
-negrita, cursiva, tachado, código en línea, enlace, lista con viñetas, lista numerada, lista de tareas
-(anidadas), cita, bloque de código, separador y salto de línea duro. Todo lo demás es **bloque opaco**.
+negrita, cursiva, tachado, **subrayado** (`++texto++`, sintaxis propia de TipTap), código en línea,
+enlace, lista con viñetas, lista numerada, lista de tareas (anidadas), cita, bloque de código, separador
+y salto de línea duro. Todo lo demás es **bloque opaco**.
+
+Hechos comprobados el 2026-10-10 ejecutando el serializador real (no son CommonMark estándar; el
+analizador y el serializador del móvil deben reproducirlos, y la fase 1b los fija como vectores):
+
+- **Las líneas en blanco de más son contenido.** Un párrafo vacío entre `a` y `b` se guarda como
+  `a\n\n\n\nb`; dos seguidos, con `&nbsp;` en medio; uno al final, como `a\n\n`. El paquete `markdown`
+  de Dart las descarta: el analizador propio debe contarlas y crear párrafos vacíos.
+- **`<`, `>` y `&` siempre salen como entidades** (`&lt;`, `&gt;`, `&amp;`), en cualquier posición.
+- **Escapes** con `\` de `* _ \` [ ] ~ \\` cuando son texto literal; `#`, `-` y `1.` al inicio de línea
+  **no** se escapan (limitación de la web, ver §12).
+- **Normalizaciones al leer:** `*`/`+` → `-`; `_x_` → `*x*`; `__x__` → `**x**`; título con subrayado →
+  `#`; sangría de 4 espacios o tabulador → 2 espacios; `1)` → `1.`; `***`/`___` → `---`; CRLF → LF;
+  salto final eliminado; URL suelta → `[url](url)`; salto duro con `\` → dos espacios.
+- Una lista de tareas y una de viñetas contiguas se separan con una línea en blanco.
+- **La web destruye lo que no entiende:** una tabla desaparece, una imagen queda en su texto alternativo,
+  el HTML se convierte en texto con entidades y una nota al pie se deforma. El móvil lo conserva como
+  bloque opaco, pero la web lo perderá al editar esa nota (ver §12).
 
 ### 8.2 Piezas
 
@@ -344,6 +362,7 @@ negrita, cursiva, tachado, código en línea, enlace, lista con viñetas, lista 
 4. **Conservación por bloque.** Al cargar se calcula una huella estructural de cada bloque. Al guardar:
    bloque con la misma huella → se emite su `source` byte a byte; bloque cambiado, nuevo o movido →
    pasa por el serializador. Separadores originales entre bloques intactos; `\n\n` en los demás casos.
+   Los párrafos vacíos son bloques (§8.1), no separadores.
 5. **Bloque opaco**: lo que el analizador no reconoce (tablas, HTML, imágenes, notas al pie) se muestra
    como tarjeta de solo lectura con su texto y se emite siempre intacto.
 6. **Adaptador al editor** (`app/lib/features/editor`): `appflowy_editor`. Convierte bloques ↔ nodos
@@ -432,6 +451,43 @@ anotada en `docs/decisions.md`. Argon2id real ≤ 3 s en el ZTE.
 
 **Hecho cuando:** `pnpm vectors:generate` es determinista, `pnpm test:unit --run` pasa y el PR está fusionado en `notify_web`.
 
+### Fase 1b · Ampliación de vectores en `notify_web` (1 sem) — debe estar cerrada antes de la fase 7
+
+La revisión de la fase 1 (2026-10-10) encontró que los vectores son correctos y deterministas pero no
+bastan para lo que el móvil tiene que reproducir. Esta fase los completa. Solo toca `notify_web`.
+
+1. **`markdown.json`, sentido documento → Markdown.** Hoy solo hay `analizar → serializar` sobre entradas
+   mínimas; el móvil necesita saber qué emite TipTap para un documento **editado**. Añadir `serialize`:
+   casos `{name, doc, markdown, reparses}` con `doc` en JSON de TipTap, `markdown = serializar(doc)` y
+   `reparses = analizar(markdown)` equivale a `doc`. Cubrir como mínimo: párrafos vacíos (uno, dos,
+   al final, al inicio); texto literal con cada carácter especial (`* _ \` [ ] ~ \\ < > &`) y al inicio de
+   línea (`#`, `-`, `1.`, `>`, `[ ]`, `---`, tres comillas invertidas); espacios al inicio y al final;
+   salto duro simple y doble; cada marca sola y todas las combinaciones de dos, en ambos órdenes;
+   marca con espacio final (`hola ` en negrita); subrayado; código con comillas invertidas dentro;
+   enlace con marcas y con título; elementos vacíos (viñeta, tarea, título, bloque de código);
+   listas contiguas (viñetas+viñetas, viñetas+tareas, numerada+viñetas); elemento de lista con dos
+   párrafos, con bloque de código y con cita; cita con lista y con varios párrafos; lista numerada
+   dentro de viñetas y al revés; tareas a 3 niveles con estados mezclados; título con marcas;
+   bloque de código con líneas en blanco y con salto final.
+2. **`markdown.json`, más casos de lectura** en `cases`: los de la lista «Normalizaciones al leer» de la
+   §8.1, autolinks, entidades (`&copy;`, `&nbsp;`), nota al pie, HTML de bloque, imagen en línea y una
+   tabla seguida de texto. Un documento largo que combine todos los bloques.
+3. **`sync-behavior.json` reproducible sin servidor.** Hoy los pasos solo dicen `{device, op}`: para
+   reproducirlos en Dart habría que reescribir `MockSyncServer`. Cada paso `sync` del dispositivo `a`
+   debe llevar `exchanges[]` con, por página, `request` (`cursor`, `changes[{entity, id, op, baseRevision}]`)
+   y `response` (`cursor`, `hasMore`, `applied`, `conflicts`, `remoteChanges` en campos lógicos). El
+   móvil usa un transporte guionizado: comprueba la petición y devuelve la respuesta grabada.
+   `editDuringSync` indica en qué intercambio ocurre la edición.
+4. **Escenarios que faltan:** editar y luego borrar una nota ya sincronizada (queda solo el borrado, con
+   su revisión base); nota en conflicto que no bloquea el envío de otras; cambio remoto que actualiza un
+   conflicto abierto; borrado remoto de una nota en conflicto; carpeta borrada en remoto con cambio
+   local pendiente; borrar una carpeta con notas (pasan a «sin carpeta»); mover a la papelera y
+   restaurar; resolver `local` y volver a editar antes de sincronizar.
+5. Actualizar el README de vectores y las pruebas web (idempotencia donde `reparses` sea verdadero).
+
+**Hecho cuando:** `pnpm vectors:generate` no cambia nada al repetirse, `pnpm test:unit --run` pasa, el PR
+está fusionado y `tool/sync_contract.sh` actualizó `contract/` en `notify_mobile`.
+
 ### Fase 2 · Esqueleto (1 sem)
 
 1. Paquetes vacíos con sus `pubspec`, `analysis_options.yaml` estricto (`strict-casts`, `strict-inference`,
@@ -498,7 +554,8 @@ consulta en < 50 ms y una búsqueda en < 100 ms en el ZTE.
 `axonote_sync` (§7), disparadores, estado de sincronización (`idle|syncing|offline|error`, pendientes,
 primer conflicto), primera descarga por páginas en isolate con progreso.
 
-**Hecho cuando:** pasan todos los escenarios de `sync-behavior.json` y `sync.json`; prueba manual
+**Hecho cuando:** pasan todos los escenarios de `sync-behavior.json` (con el transporte guionizado de la
+fase 1b) y `sync.json`; prueba manual
 documentada con la web y el móvil sobre la misma cuenta en el backend local: crear, editar, mover a la
 papelera, borrar y generar un conflicto en ambos sentidos, sin pérdida de datos.
 
@@ -528,7 +585,8 @@ oscuro; desplazamiento sin cuadros perdidos con 10 000 notas en build de perfil.
 
 **Hecho cuando:** (a) para cada caso de `markdown.json`, analizar `canonical` y guardar sin editar
 devuelve los mismos bytes; (b) para cada caso `supported`, forzar el serializador sobre todos los
-bloques devuelve `canonical`; (c) prueba de propiedad: editar el bloque *i* deja idénticos los bytes de
+bloques devuelve `canonical`; (b2) cada caso de `serialize` produce su `markdown` byte a byte;
+(c) prueba de propiedad: editar el bloque *i* deja idénticos los bytes de
 los demás; (d) una nota de 100 KB abre en < 300 ms y se escribe sin retraso perceptible en el ZTE;
 (e) ida y vuelta manual web ↔ móvil con cada formato, documentada.
 
@@ -557,7 +615,7 @@ y anotados en `docs/benchmarks.md`; ninguna tarea abierta en `docs/blockers.md`.
 Identificador definitivo, App Links (`assetlinks.json` en el dominio de la web), restablecimiento de
 contraseña dentro de la app, ficha de privacidad, lanzamiento por pruebas internas.
 
-**Total fases 0–12: unas 25 semanas de una persona.**
+**Total fases 0–12 (con la 1b): unas 26 semanas de una persona.**
 
 ---
 
@@ -607,6 +665,8 @@ se anota la medida real y la causa en `docs/benchmarks.md`.
 | `cryptography` es lento en AES-GCM por lotes | Fase 6 | Usar `crypto_aead_aes256gcm` de libsodium si el dispositivo lo admite; si no, se mantiene. |
 | TipTap no se puede ejecutar sin interfaz en Node | Fase 1 | Generar `markdown.json` con Playwright sobre una página interna de la web. |
 | El serializador no iguala `canonical` en algún caso | Fase 10 | Ese tipo de bloque pasa a `supported: false` y se trata como opaco. Se anota en `docs/decisions.md`. |
+| La web borra tablas, imágenes, HTML y notas al pie al editar una nota (comprobado) | Hoy | No bloquea al móvil, que conserva esos bloques. Queda como defecto de `notify_web` a corregir aparte: afecta ya a «Importar notas». |
+| La web guarda sin escapar un párrafo que empieza por `#`, `-` o `1.` (al releer cambia de tipo) | Hoy | El móvil replica el comportamiento de la web para no divergir; defecto de `notify_web` a corregir aparte. |
 | El servidor sube `parallelism` | Producción | Mensaje «Actualiza AxoNote»; nueva versión con otra librería de Argon2id. |
 | Token de renovación gastado tras un cierre brusco | Producción | Se pierde la sesión; se pide iniciar sesión otra vez. La base local se conserva solo si la cuenta coincide. |
 

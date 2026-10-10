@@ -1,0 +1,25 @@
+# Análisis estricto compartido por todo el workspace (app y packages).
+# Cada paquete lo incluye con `include: ../../analysis_options.yaml` (la app, `../`).
+include: package:flutter_lints/flutter.yaml
+
+analyzer:
+  language:
+    strict-casts: true
+    strict-inference: true
+    strict-raw-types: true
+  exclude:
+    # Paquete de terceros copiado y parcheado (fase 0); no se analiza con nuestras reglas.
+    - packages/third_party/**
+  errors:
+    # Un `print` en la app es un error salvo que sea intencionado (no lo es).
+    avoid_print: error
+    unawaited_futures: error
+
+linter:
+  rules:
+    avoid_print: true
+    unawaited_futures: true
+    prefer_const_constructors: true
+    prefer_const_constructors_in_immutables: true
+    prefer_const_declarations: true
+    prefer_const_literals_to_create_immutables: true

@@ -1,0 +1,9 @@
+name: axonote_sync
+description: "Motor de sincronización de AxoNote: cola y ciclo sobre interfaces."
+version: 0.1.0
+publish_to: 'none'
+
+environment:
+  sdk: ^3.13.5
+
+resolution: workspace
