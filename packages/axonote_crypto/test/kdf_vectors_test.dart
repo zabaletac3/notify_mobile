@@ -7,7 +7,11 @@ import 'support/vectors.dart';
 void main() {
   final vector = loadVector('kdf');
   final cases = listOf(vector['cases']);
-  final argon2id = SodiumArgon2id.load();
+  late Argon2idDeriver argon2id;
+
+  setUpAll(() async {
+    argon2id = await SodiumArgon2id.load();
+  });
 
   group('kdf.json · cases', () {
     for (final case_ in cases) {
