@@ -18,13 +18,24 @@ void main() {
     expect(shareContentAad(slug), vector['contentAad']);
     expect(isValidSlug(slug), isTrue);
 
-    final shareKey = await unwrap(masterKey, vector['wrappedShareKey']! as String, vector['keyAad']! as String);
+    final shareKey = await unwrap(
+      masterKey,
+      vector['wrappedShareKey']! as String,
+      vector['keyAad']! as String,
+    );
     try {
       expect(shareKey.bytes, equals(fromB64u(vector['shareKey']! as String)));
       expect(exportKeyRaw(shareKey), vector['shareKey']);
-      expect(shareKeyFromFragment(vector['keyFragment']! as String), vector['shareKey']);
+      expect(
+        shareKeyFromFragment(vector['keyFragment']! as String),
+        vector['shareKey'],
+      );
 
-      final payload = await openLinkPayload(shareKey, slug, vector['payload']! as String);
+      final payload = await openLinkPayload(
+        shareKey,
+        slug,
+        vector['payload']! as String,
+      );
       expect(payload.title, decrypted['title']);
       expect(payload.content, decrypted['content']);
     } finally {

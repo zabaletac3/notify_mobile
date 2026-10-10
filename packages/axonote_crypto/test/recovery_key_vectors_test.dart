@@ -30,7 +30,10 @@ void main() {
     for (final case_ in tolerant) {
       final name = case_['name']! as String;
       test(name, () {
-        expect(parseRecoveryKey(case_['text']! as String), equals(fromB64u(case_['bytes']! as String)));
+        expect(
+          parseRecoveryKey(case_['text']! as String),
+          equals(fromB64u(case_['bytes']! as String)),
+        );
       });
     }
   });
@@ -39,7 +42,10 @@ void main() {
     for (final case_ in invalid) {
       final name = case_['name']! as String;
       test(name, () {
-        expect(() => parseRecoveryKey(case_['text']! as String), throwsA(isA<CryptoFormatError>()));
+        expect(
+          () => parseRecoveryKey(case_['text']! as String),
+          throwsA(isA<CryptoFormatError>()),
+        );
       });
     }
   });

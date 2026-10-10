@@ -9,7 +9,12 @@ Uint8List _jsonBytes(Object? value) => pad(utf8Encode(jsonEncode(value)));
 void main() {
   group('NotePayload', () {
     test('ida y vuelta conserva los campos', () {
-      const payload = NotePayload(title: 't', content: 'c', tags: ['a', 'b'], pinned: true);
+      const payload = NotePayload(
+        title: 't',
+        content: 'c',
+        tags: ['a', 'b'],
+        pinned: true,
+      );
       expect(decodeNotePayload(encodeNotePayload(payload)).title, 't');
       expect(decodeNotePayload(encodeNotePayload(payload)).content, 'c');
       expect(decodeNotePayload(encodeNotePayload(payload)).tags, ['a', 'b']);
@@ -17,16 +22,24 @@ void main() {
     });
 
     test('rechaza un JSON con sintaxis inválida', () {
-      expect(() => decodeNotePayload(pad(utf8Encode('{no es json'))), throwsA(isA<DecryptError>()));
+      expect(
+        () => decodeNotePayload(pad(utf8Encode('{no es json'))),
+        throwsA(isA<DecryptError>()),
+      );
     });
 
     test('rechaza un JSON que no es un objeto', () {
-      expect(() => decodeNotePayload(_jsonBytes([1, 2, 3])), throwsA(isA<DecryptError>()));
+      expect(
+        () => decodeNotePayload(_jsonBytes([1, 2, 3])),
+        throwsA(isA<DecryptError>()),
+      );
     });
 
     test('rechaza cuando falta un campo', () {
       expect(
-        () => decodeNotePayload(_jsonBytes({'title': 't', 'content': 'c', 'tags': <String>[]})),
+        () => decodeNotePayload(
+          _jsonBytes({'title': 't', 'content': 'c', 'tags': <String>[]}),
+        ),
         throwsA(isA<DecryptError>()),
       );
     });
@@ -34,7 +47,12 @@ void main() {
     test('rechaza "pinned" con el tipo equivocado', () {
       expect(
         () => decodeNotePayload(
-          _jsonBytes({'title': 't', 'content': 'c', 'tags': <String>[], 'pinned': 'si'}),
+          _jsonBytes({
+            'title': 't',
+            'content': 'c',
+            'tags': <String>[],
+            'pinned': 'si',
+          }),
         ),
         throwsA(isA<DecryptError>()),
       );
@@ -43,7 +61,12 @@ void main() {
     test('rechaza "tags" con un elemento que no es texto', () {
       expect(
         () => decodeNotePayload(
-          _jsonBytes({'title': 't', 'content': 'c', 'tags': [1], 'pinned': false}),
+          _jsonBytes({
+            'title': 't',
+            'content': 'c',
+            'tags': [1],
+            'pinned': false,
+          }),
         ),
         throwsA(isA<DecryptError>()),
       );
@@ -57,18 +80,29 @@ void main() {
     });
 
     test('rechaza cuando falta el nombre', () {
-      expect(() => decodeFolderPayload(_jsonBytes({})), throwsA(isA<DecryptError>()));
+      expect(
+        () => decodeFolderPayload(_jsonBytes({})),
+        throwsA(isA<DecryptError>()),
+      );
     });
 
     test('rechaza un nombre con el tipo equivocado', () {
-      expect(() => decodeFolderPayload(_jsonBytes({'name': 1})), throwsA(isA<DecryptError>()));
+      expect(
+        () => decodeFolderPayload(_jsonBytes({'name': 1})),
+        throwsA(isA<DecryptError>()),
+      );
     });
   });
 
   group('sealNotePayload/openNotePayload', () {
     test('ida y vuelta con una clave', () async {
       final key = SecretKeyBytes(Uint8List(32));
-      const payload = NotePayload(title: 't', content: 'c', tags: [], pinned: false);
+      const payload = NotePayload(
+        title: 't',
+        content: 'c',
+        tags: [],
+        pinned: false,
+      );
       final sealed = await sealNotePayload(key, payload, 'aad');
       final opened = await openNotePayload(key, sealed, 'aad');
       expect(opened.title, 't');

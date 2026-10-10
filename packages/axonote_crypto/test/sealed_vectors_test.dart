@@ -24,7 +24,12 @@ void main() {
         expect(fromUtf8(opened), plaintext);
 
         // Cifrar con el mismo IV debe producir exactamente el mismo `sealed`.
-        final reproduced = await sealWithIv(key, utf8Encode(plaintext), aad, fromB64u(case_['iv']! as String));
+        final reproduced = await sealWithIv(
+          key,
+          utf8Encode(plaintext),
+          aad,
+          fromB64u(case_['iv']! as String),
+        );
         expect(reproduced, sealed);
       });
     }
@@ -43,7 +48,9 @@ void main() {
         final errorMatcher = switch (failure['error']) {
           'DecryptError' => isA<DecryptError>(),
           'CryptoFormatError' => isA<CryptoFormatError>(),
-          _ => fail('tipo de error desconocido en el vector: ${failure['error']}'),
+          _ => fail(
+            'tipo de error desconocido en el vector: ${failure['error']}',
+          ),
         };
         await expectLater(open(key, sealed, aad), throwsA(errorMatcher));
       });

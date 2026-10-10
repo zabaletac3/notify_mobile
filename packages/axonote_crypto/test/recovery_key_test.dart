@@ -21,8 +21,14 @@ void main() {
 
   group('formatRecoveryKey', () {
     test('rechaza una clave que no mide 32 bytes', () {
-      expect(() => formatRecoveryKey(Uint8List(31)), throwsA(isA<CryptoFormatError>()));
-      expect(() => formatRecoveryKey(Uint8List(33)), throwsA(isA<CryptoFormatError>()));
+      expect(
+        () => formatRecoveryKey(Uint8List(31)),
+        throwsA(isA<CryptoFormatError>()),
+      );
+      expect(
+        () => formatRecoveryKey(Uint8List(33)),
+        throwsA(isA<CryptoFormatError>()),
+      );
     });
   });
 

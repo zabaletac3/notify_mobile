@@ -20,7 +20,8 @@ BigInt _toBigInt(Uint8List bytes) {
 
 /// Texto legible: 52 caracteres base32 + 1 de control, en grupos de 4 separados por «-».
 String formatRecoveryKey(Uint8List key) {
-  if (key.length != _keyBytes) throw const CryptoFormatError('longitud inválida');
+  if (key.length != _keyBytes)
+    throw const CryptoFormatError('longitud inválida');
   final n = _toBigInt(key) << 4; // 256 bits → 260 bits (52 × 5)
   final buffer = StringBuffer();
   for (var i = _chars - 1; i >= 0; i--) {
@@ -43,7 +44,8 @@ Uint8List parseRecoveryKey(String text) {
       .replaceAll(RegExp(r'[\s-]'), '')
       .replaceAll('O', '0')
       .replaceAll(RegExp('[IL]'), '1');
-  if (clean.length != _chars + 1) throw const CryptoFormatError('longitud inválida');
+  if (clean.length != _chars + 1)
+    throw const CryptoFormatError('longitud inválida');
 
   var n = BigInt.zero;
   for (var i = 0; i < _chars; i++) {
@@ -61,7 +63,8 @@ Uint8List parseRecoveryKey(String text) {
     key[i] = (n & BigInt.from(255)).toInt();
     n >>= 8;
   }
-  if (_checkSymbols[(_toBigInt(key) % BigInt.from(37)).toInt()] != clean[_chars]) {
+  if (_checkSymbols[(_toBigInt(key) % BigInt.from(37)).toInt()] !=
+      clean[_chars]) {
     throw const CryptoFormatError('dígito de control incorrecto');
   }
   return key;

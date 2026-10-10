@@ -23,77 +23,95 @@ void main() {
 
   group('masterKeyAad', () {
     test('combina el userId y el tipo de clave', () {
-      expect(masterKeyAad(userId, MasterKeyKind.password), 'apunte/v1/mk/$userId/password');
-      expect(masterKeyAad(userId, MasterKeyKind.recovery), 'apunte/v1/mk/$userId/recovery');
-      expect(masterKeyAad(userId, MasterKeyKind.device), 'apunte/v1/mk/$userId/device');
+      expect(
+        masterKeyAad(userId, MasterKeyKind.password),
+        'apunte/v1/mk/$userId/password',
+      );
+      expect(
+        masterKeyAad(userId, MasterKeyKind.recovery),
+        'apunte/v1/mk/$userId/recovery',
+      );
+      expect(
+        masterKeyAad(userId, MasterKeyKind.device),
+        'apunte/v1/mk/$userId/device',
+      );
     });
   });
 
   group('ciclo de vida de una cuenta', () {
-    test('createAccountKeys → unlockWithPassword recupera la misma clave maestra', () async {
-      final created = await createAccountKeys(
-        password: 'contraseña de prueba',
-        userId: userId,
-        argon2id: argon2id,
-        kdfBase: lightKdf,
-      );
-      expect(created.keys.keysVersion, 1);
+    test(
+      'createAccountKeys → unlockWithPassword recupera la misma clave maestra',
+      () async {
+        final created = await createAccountKeys(
+          password: 'contraseña de prueba',
+          userId: userId,
+          argon2id: argon2id,
+          kdfBase: lightKdf,
+        );
+        expect(created.keys.keysVersion, 1);
 
-      final unlocked = await unlockWithPassword(
-        password: 'contraseña de prueba',
-        userId: userId,
-        keys: created.keys,
-        argon2id: argon2id,
-      );
-      expect(unlocked.masterKey.bytes, equals(created.masterKey.bytes));
-      expect(unlocked.authKey, created.authKey);
-      unlocked.masterKey.dispose();
-    });
-
-    test('unlockWithPassword con la contraseña equivocada lanza DecryptError', () async {
-      final created = await createAccountKeys(
-        password: 'correcta',
-        userId: userId,
-        argon2id: argon2id,
-        kdfBase: lightKdf,
-      );
-      expect(
-        () => unlockWithPassword(
-          password: 'incorrecta',
+        final unlocked = await unlockWithPassword(
+          password: 'contraseña de prueba',
           userId: userId,
           keys: created.keys,
           argon2id: argon2id,
-        ),
-        throwsA(isA<DecryptError>()),
-      );
-    });
+        );
+        expect(unlocked.masterKey.bytes, equals(created.masterKey.bytes));
+        expect(unlocked.authKey, created.authKey);
+        unlocked.masterKey.dispose();
+      },
+    );
 
-    test('unlockWithPassword rechaza un KeyBundle con KDF no compatible', () async {
-      final created = await createAccountKeys(
-        password: 'x',
-        userId: userId,
-        argon2id: argon2id,
-        kdfBase: lightKdf,
-      );
-      final incompatible = created.keys.copyWith(
-        kdf: KdfParams(
-          alg: created.keys.kdf.alg,
-          memoryKiB: created.keys.kdf.memoryKiB,
-          iterations: created.keys.kdf.iterations,
-          parallelism: 2,
-          salt: created.keys.kdf.salt,
-        ),
-      );
-      expect(
-        () => unlockWithPassword(
+    test(
+      'unlockWithPassword con la contraseña equivocada lanza DecryptError',
+      () async {
+        final created = await createAccountKeys(
+          password: 'correcta',
+          userId: userId,
+          argon2id: argon2id,
+          kdfBase: lightKdf,
+        );
+        expect(
+          () => unlockWithPassword(
+            password: 'incorrecta',
+            userId: userId,
+            keys: created.keys,
+            argon2id: argon2id,
+          ),
+          throwsA(isA<DecryptError>()),
+        );
+      },
+    );
+
+    test(
+      'unlockWithPassword rechaza un KeyBundle con KDF no compatible',
+      () async {
+        final created = await createAccountKeys(
           password: 'x',
           userId: userId,
-          keys: incompatible,
-          argon2id: _NeverArgon2id(),
-        ),
-        throwsA(isA<KdfUnsupported>()),
-      );
-    });
+          argon2id: argon2id,
+          kdfBase: lightKdf,
+        );
+        final incompatible = created.keys.copyWith(
+          kdf: KdfParams(
+            alg: created.keys.kdf.alg,
+            memoryKiB: created.keys.kdf.memoryKiB,
+            iterations: created.keys.kdf.iterations,
+            parallelism: 2,
+            salt: created.keys.kdf.salt,
+          ),
+        );
+        expect(
+          () => unlockWithPassword(
+            password: 'x',
+            userId: userId,
+            keys: incompatible,
+            argon2id: _NeverArgon2id(),
+          ),
+          throwsA(isA<KdfUnsupported>()),
+        );
+      },
+    );
 
     test('changePasswordKeys permite desbloquear con la contraseña nueva y no con la vieja', () async {
       final created = await createAccountKeys(

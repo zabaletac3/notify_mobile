@@ -61,7 +61,12 @@ NotePayload decodeNotePayload(Uint8List bytes) {
       tags.any((tag) => tag is! String)) {
     throw const DecryptError();
   }
-  return NotePayload(title: title, content: content, tags: tags.cast<String>(), pinned: pinned);
+  return NotePayload(
+    title: title,
+    content: content,
+    tags: tags.cast<String>(),
+    pinned: pinned,
+  );
 }
 
 /// Serializa y rellena el nombre de una carpeta: JSON `{name}` rellenado a múltiplos de 256.
@@ -75,25 +80,40 @@ FolderPayload decodeFolderPayload(Uint8List bytes) {
   } on FormatException {
     throw const DecryptError();
   }
-  if (value is! Map<String, Object?> || value['name'] is! String) throw const DecryptError();
+  if (value is! Map<String, Object?> || value['name'] is! String)
+    throw const DecryptError();
   return FolderPayload(name: value['name']! as String);
 }
 
 /// Cifra el contenido de una nota con la clave del elemento ya repartida (ver [wrap]/[unwrap]
 /// para obtenerla a partir de la clave maestra).
-Future<Sealed> sealNotePayload(SecretKeyBytes itemKey, NotePayload payload, String aad) =>
-    seal(itemKey, encodeNotePayload(payload), aad);
+Future<Sealed> sealNotePayload(
+  SecretKeyBytes itemKey,
+  NotePayload payload,
+  String aad,
+) => seal(itemKey, encodeNotePayload(payload), aad);
 
 /// Lanza [DecryptError] o [CryptoFormatError] si la clave, el AAD o el texto no corresponden.
-Future<NotePayload> openNotePayload(SecretKeyBytes itemKey, Sealed payload, String aad) async {
+Future<NotePayload> openNotePayload(
+  SecretKeyBytes itemKey,
+  Sealed payload,
+  String aad,
+) async {
   final bytes = await open(itemKey, payload, aad);
   return decodeNotePayload(bytes);
 }
 
-Future<Sealed> sealFolderPayload(SecretKeyBytes itemKey, FolderPayload payload, String aad) =>
-    seal(itemKey, encodeFolderPayload(payload), aad);
+Future<Sealed> sealFolderPayload(
+  SecretKeyBytes itemKey,
+  FolderPayload payload,
+  String aad,
+) => seal(itemKey, encodeFolderPayload(payload), aad);
 
-Future<FolderPayload> openFolderPayload(SecretKeyBytes itemKey, Sealed payload, String aad) async {
+Future<FolderPayload> openFolderPayload(
+  SecretKeyBytes itemKey,
+  Sealed payload,
+  String aad,
+) async {
   final bytes = await open(itemKey, payload, aad);
   return decodeFolderPayload(bytes);
 }

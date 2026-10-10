@@ -33,10 +33,12 @@ String newSlug() => toB64u(randomBytes(slugBytes));
 String shareContentAad(String slug) => 'apunte/v1/share/$slug';
 
 /// Datos asociados de la clave del enlace, ligada a la cuenta y a la nota.
-String shareKeyAad(String userId, String noteId) => 'apunte/v1/sharekey/$userId/$noteId';
+String shareKeyAad(String userId, String noteId) =>
+    'apunte/v1/sharekey/$userId/$noteId';
 
-Uint8List encodeLinkPayload(LinkPayload payload) =>
-    pad(utf8Encode(jsonEncode({'title': payload.title, 'content': payload.content})));
+Uint8List encodeLinkPayload(LinkPayload payload) => pad(
+  utf8Encode(jsonEncode({'title': payload.title, 'content': payload.content})),
+);
 
 LinkPayload decodeLinkPayload(Uint8List bytes) {
   Object? value;
@@ -53,12 +55,19 @@ LinkPayload decodeLinkPayload(Uint8List bytes) {
 }
 
 /// Cifra la copia compartida (solo título y texto; ni etiquetas ni carpeta).
-Future<Sealed> sealLinkPayload(SecretKeyBytes shareKey, String slug, LinkPayload payload) =>
-    seal(shareKey, encodeLinkPayload(payload), shareContentAad(slug));
+Future<Sealed> sealLinkPayload(
+  SecretKeyBytes shareKey,
+  String slug,
+  LinkPayload payload,
+) => seal(shareKey, encodeLinkPayload(payload), shareContentAad(slug));
 
 /// Lanza [DecryptError] o [CryptoFormatError] si la clave no corresponde al enlace o el
 /// contenido no es válido.
-Future<LinkPayload> openLinkPayload(SecretKeyBytes shareKey, String slug, Sealed payload) async {
+Future<LinkPayload> openLinkPayload(
+  SecretKeyBytes shareKey,
+  String slug,
+  Sealed payload,
+) async {
   final bytes = await open(shareKey, payload, shareContentAad(slug));
   return decodeLinkPayload(bytes);
 }

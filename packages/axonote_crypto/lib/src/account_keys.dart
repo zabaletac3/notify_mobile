@@ -17,7 +17,8 @@ enum MasterKeyKind { password, recovery, device }
 
 /// Datos asociados (AAD) con los que se cifra la clave maestra, ligados a la cuenta y a quién la
 /// abre.
-String masterKeyAad(String userId, MasterKeyKind kind) => 'apunte/v1/mk/$userId/${kind.name}';
+String masterKeyAad(String userId, MasterKeyKind kind) =>
+    'apunte/v1/mk/$userId/${kind.name}';
 
 /// Lo que el servidor guarda de las claves de una cuenta. Nada de esto permite descifrar sin la
 /// contraseña o la clave de recuperación.
@@ -50,7 +51,8 @@ class KeyBundle {
   }) => KeyBundle(
     kdf: kdf ?? this.kdf,
     wrappedMasterKey: wrappedMasterKey ?? this.wrappedMasterKey,
-    recoveryWrappedMasterKey: recoveryWrappedMasterKey ?? this.recoveryWrappedMasterKey,
+    recoveryWrappedMasterKey:
+        recoveryWrappedMasterKey ?? this.recoveryWrappedMasterKey,
     keysVersion: keysVersion ?? this.keysVersion,
   );
 }
@@ -127,7 +129,11 @@ Future<NewAccountKeys> createAccountKeys({
 }
 
 /// Lo que el servidor necesita para comprobar la contraseña sin conocerla.
-Future<String> deriveAuthKey(String password, KdfParams kdf, Argon2idDeriver argon2id) async {
+Future<String> deriveAuthKey(
+  String password,
+  KdfParams kdf,
+  Argon2idDeriver argon2id,
+) async {
   final derived = await deriveFromPassword(password, kdf, argon2id);
   derived.kek.dispose();
   return derived.authKey;
@@ -202,7 +208,11 @@ Future<PasswordChangeKeys> changePasswordKeys({
       currentAuthKey: unlocked.authKey,
       newAuthKey: derived.authKey,
       masterKey: unlocked.masterKey,
-      keys: current.copyWith(kdf: kdf, wrappedMasterKey: wrappedMasterKey, keysVersion: current.keysVersion + 1),
+      keys: current.copyWith(
+        kdf: kdf,
+        wrappedMasterKey: wrappedMasterKey,
+        keysVersion: current.keysVersion + 1,
+      ),
     );
   } finally {
     derived.kek.dispose();

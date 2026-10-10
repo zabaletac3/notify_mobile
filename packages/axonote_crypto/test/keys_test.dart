@@ -26,7 +26,10 @@ void main() {
     test('rechaza un texto cifrado que no envuelve 32 bytes', () async {
       final wrapping = SecretKeyBytes(Uint8List(32));
       final sealed = await seal(wrapping, Uint8List(16), 'aad');
-      expect(() => unwrap(wrapping, sealed, 'aad'), throwsA(isA<CryptoFormatError>()));
+      expect(
+        () => unwrap(wrapping, sealed, 'aad'),
+        throwsA(isA<CryptoFormatError>()),
+      );
     });
   });
 
@@ -37,7 +40,10 @@ void main() {
     });
 
     test('rechaza una clave que no mide 32 bytes', () {
-      expect(() => importKeyRaw(toB64u(Uint8List(16))), throwsA(isA<CryptoFormatError>()));
+      expect(
+        () => importKeyRaw(toB64u(Uint8List(16))),
+        throwsA(isA<CryptoFormatError>()),
+      );
     });
   });
 }

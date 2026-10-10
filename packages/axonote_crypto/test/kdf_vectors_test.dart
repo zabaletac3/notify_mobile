@@ -21,12 +21,20 @@ void main() {
           parallelism: kdfJson['parallelism']! as int,
           salt: kdfJson['salt']! as String,
         );
-        final derived = await deriveFromPassword(case_['password']! as String, kdf, argon2id);
+        final derived = await deriveFromPassword(
+          case_['password']! as String,
+          kdf,
+          argon2id,
+        );
         try {
           expect(derived.authKey, case_['authKey']);
 
           final kekCheck = case_['kekCheck']! as Map<String, Object?>;
-          final opened = await open(derived.kek, kekCheck['sealed']! as String, kekCheck['aad']! as String);
+          final opened = await open(
+            derived.kek,
+            kekCheck['sealed']! as String,
+            kekCheck['aad']! as String,
+          );
           expect(opened, equals(fromB64u(kekCheck['masterKey']! as String)));
         } finally {
           derived.kek.dispose();

@@ -74,11 +74,17 @@ void main() {
       expect(opened.content, 'c');
     });
 
-    test('falla si se abre con un slug distinto (el AAD no coincide)', () async {
-      final key = SecretKeyBytes(Uint8List(32));
-      const payload = LinkPayload(title: 't', content: 'c');
-      final sealed = await sealLinkPayload(key, newSlug(), payload);
-      expect(() => openLinkPayload(key, newSlug(), sealed), throwsA(isA<DecryptError>()));
-    });
+    test(
+      'falla si se abre con un slug distinto (el AAD no coincide)',
+      () async {
+        final key = SecretKeyBytes(Uint8List(32));
+        const payload = LinkPayload(title: 't', content: 'c');
+        final sealed = await sealLinkPayload(key, newSlug(), payload);
+        expect(
+          () => openLinkPayload(key, newSlug(), sealed),
+          throwsA(isA<DecryptError>()),
+        );
+      },
+    );
   });
 }

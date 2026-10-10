@@ -89,18 +89,20 @@ class RecoveryDerivedKeys {
 final Uint8List _zeroSalt32 = Uint8List(32);
 
 Future<String> _hkdfBits(Uint8List ikm, String info) async {
-  final derived = await Hkdf(
-    hmac: Hmac.sha256(),
-    outputLength: 32,
-  ).deriveKey(secretKey: SecretKeyData(ikm), nonce: _zeroSalt32, info: utf8Encode(info));
+  final derived = await Hkdf(hmac: Hmac.sha256(), outputLength: 32).deriveKey(
+    secretKey: SecretKeyData(ikm),
+    nonce: _zeroSalt32,
+    info: utf8Encode(info),
+  );
   return toB64u(Uint8List.fromList(derived.bytes));
 }
 
 Future<SecretKeyBytes> _hkdfKeyBytes(Uint8List ikm, String info) async {
-  final derived = await Hkdf(
-    hmac: Hmac.sha256(),
-    outputLength: 32,
-  ).deriveKey(secretKey: SecretKeyData(ikm), nonce: _zeroSalt32, info: utf8Encode(info));
+  final derived = await Hkdf(hmac: Hmac.sha256(), outputLength: 32).deriveKey(
+    secretKey: SecretKeyData(ikm),
+    nonce: _zeroSalt32,
+    info: utf8Encode(info),
+  );
   return SecretKeyBytes(Uint8List.fromList(derived.bytes));
 }
 

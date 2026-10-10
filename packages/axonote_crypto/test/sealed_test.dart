@@ -49,7 +49,11 @@ void main() {
     });
 
     test('abrir con una clave distinta falla', () async {
-      final sealed = await seal(SecretKeyBytes(Uint8List(32)), utf8Encode('hola'), 'ctx');
+      final sealed = await seal(
+        SecretKeyBytes(Uint8List(32)),
+        utf8Encode('hola'),
+        'ctx',
+      );
       final otherKey = SecretKeyBytes(Uint8List.fromList(List.filled(32, 1)));
       expect(() => open(otherKey, sealed, 'ctx'), throwsA(isA<DecryptError>()));
     });
@@ -58,13 +62,20 @@ void main() {
       final key = SecretKeyBytes(Uint8List(32));
       final sealed = await seal(key, utf8Encode('hola'), 'ctx');
       final parts = sealed.split('.');
-      final altered = '${parts[0]}.${parts[1]}.${parts[2].substring(0, parts[2].length - 1)}${parts[2].endsWith('A') ? 'B' : 'A'}';
+      final altered =
+          '${parts[0]}.${parts[1]}.${parts[2].substring(0, parts[2].length - 1)}${parts[2].endsWith('A') ? 'B' : 'A'}';
       expect(() => open(key, altered, 'ctx'), throwsA(isA<DecryptError>()));
     });
 
-    test('abrir algo que no tiene el formato a1 falla con CryptoFormatError', () {
-      expect(() => open(SecretKeyBytes(Uint8List(32)), 'no-es-sealed', 'ctx'), throwsA(isA<CryptoFormatError>()));
-    });
+    test(
+      'abrir algo que no tiene el formato a1 falla con CryptoFormatError',
+      () {
+        expect(
+          () => open(SecretKeyBytes(Uint8List(32)), 'no-es-sealed', 'ctx'),
+          throwsA(isA<CryptoFormatError>()),
+        );
+      },
+    );
 
     test('cifrar con un texto vacío y abrirlo recupera texto vacío', () async {
       final key = SecretKeyBytes(Uint8List(32));

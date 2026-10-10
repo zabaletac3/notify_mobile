@@ -29,7 +29,10 @@ void main() {
         parallelism: 1,
         salt: toB64u(Uint8List(16)),
       );
-      expect(() => deriveFromPassword('x', kdf, _NeverArgon2id()), throwsA(isA<KdfUnsupported>()));
+      expect(
+        () => deriveFromPassword('x', kdf, _NeverArgon2id()),
+        throwsA(isA<KdfUnsupported>()),
+      );
     });
 
     test('rechaza un paralelismo distinto de 1 sin derivar', () {
@@ -40,7 +43,10 @@ void main() {
         parallelism: 4,
         salt: toB64u(Uint8List(16)),
       );
-      expect(() => deriveFromPassword('x', kdf, _NeverArgon2id()), throwsA(isA<KdfUnsupported>()));
+      expect(
+        () => deriveFromPassword('x', kdf, _NeverArgon2id()),
+        throwsA(isA<KdfUnsupported>()),
+      );
     });
   });
 
@@ -77,7 +83,9 @@ void main() {
 
     test('bytes distintos producen recoveryAuth distinto', () async {
       final a = await deriveFromRecoveryKey(Uint8List(32));
-      final b = await deriveFromRecoveryKey(Uint8List.fromList(List.filled(32, 1)));
+      final b = await deriveFromRecoveryKey(
+        Uint8List.fromList(List.filled(32, 1)),
+      );
       expect(a.recoveryAuth, isNot(b.recoveryAuth));
       a.rkWrap.dispose();
       b.rkWrap.dispose();

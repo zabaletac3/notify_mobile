@@ -41,20 +41,29 @@ void main() {
   group('timingSafeEqual', () {
     test('bytes iguales', () {
       expect(
-        timingSafeEqual(Uint8List.fromList([1, 2, 3]), Uint8List.fromList([1, 2, 3])),
+        timingSafeEqual(
+          Uint8List.fromList([1, 2, 3]),
+          Uint8List.fromList([1, 2, 3]),
+        ),
         isTrue,
       );
     });
 
     test('bytes distintos', () {
       expect(
-        timingSafeEqual(Uint8List.fromList([1, 2, 3]), Uint8List.fromList([1, 2, 4])),
+        timingSafeEqual(
+          Uint8List.fromList([1, 2, 3]),
+          Uint8List.fromList([1, 2, 4]),
+        ),
         isFalse,
       );
     });
 
     test('longitudes distintas', () {
-      expect(timingSafeEqual(Uint8List.fromList([1]), Uint8List.fromList([1, 2])), isFalse);
+      expect(
+        timingSafeEqual(Uint8List.fromList([1]), Uint8List.fromList([1, 2])),
+        isFalse,
+      );
     });
   });
 
@@ -91,7 +100,10 @@ void main() {
       final key = SecretKeyBytes(Uint8List.fromList([0xAB, 0xCD, 0xEF]));
       expect(key.toString(), isNot(contains('ab')));
       expect(key.toString(), isNot(contains('AB')));
-      expect(key.toString(), isNot(contains(toB64u(Uint8List.fromList([0xAB, 0xCD, 0xEF])))));
+      expect(
+        key.toString(),
+        isNot(contains(toB64u(Uint8List.fromList([0xAB, 0xCD, 0xEF])))),
+      );
     });
   });
 }

@@ -27,7 +27,8 @@ Uint8List randomBytes(int length) {
 Uint8List utf8Encode(String text) => Uint8List.fromList(utf8.encode(text));
 
 /// Decodifica UTF-8 estricto: lanza [FormatException] ante una secuencia inválida.
-String fromUtf8(Uint8List bytes) => const Utf8Decoder(allowMalformed: false).convert(bytes);
+String fromUtf8(Uint8List bytes) =>
+    const Utf8Decoder(allowMalformed: false).convert(bytes);
 
 /// Base64 URL-safe, sin relleno.
 String toB64u(Uint8List bytes) => base64Url.encode(bytes).replaceAll('=', '');

@@ -18,18 +18,26 @@ class DecryptError implements Exception {
   String toString() => 'DecryptError: $message';
 }
 
-final RegExp _sealedPattern = RegExp(r'^a1\.[A-Za-z0-9_-]{16}\.[A-Za-z0-9_-]+$');
+final RegExp _sealedPattern = RegExp(
+  r'^a1\.[A-Za-z0-9_-]{16}\.[A-Za-z0-9_-]+$',
+);
 const int _ivBytes = 12;
 const int _macBytes = 16;
 
 final AesGcm _aesGcm = AesGcm.with256bits(nonceLength: _ivBytes);
 
-bool isSealed(Object? value) => value is String && _sealedPattern.hasMatch(value);
+bool isSealed(Object? value) =>
+    value is String && _sealedPattern.hasMatch(value);
 
 /// Cifra con un IV **dado** de 12 bytes. Solo lo usan los vectores de prueba compartidos
 /// (`contract/vectors`) y las pruebas: permite cifrar de forma reproducible. La app usa [seal],
 /// que genera un IV nuevo. No se re-exporta desde el paquete público (`axonote_crypto.dart`).
-Future<Sealed> sealWithIv(SecretKeyBytes key, Uint8List plaintext, String aad, Uint8List iv) async {
+Future<Sealed> sealWithIv(
+  SecretKeyBytes key,
+  Uint8List plaintext,
+  String aad,
+  Uint8List iv,
+) async {
   if (iv.length != _ivBytes) throw const CryptoFormatError('IV inválido');
   final box = await _aesGcm.encrypt(
     plaintext,
