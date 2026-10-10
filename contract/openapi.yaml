@@ -1,0 +1,1837 @@
+openapi: 3.1.0
+info:
+  title: AxoNote API
+  version: 0.1.0-draft
+  summary: Borrador del contrato HTTP entre los clientes (web, escritorio, móvil) y el backend.
+  description: |
+    Derivado de los contratos de repositorio de la web (`src/lib/data/contracts.ts`) y de los tipos de
+    `src/lib/domain`. Cada operación indica a qué método del contrato corresponde (`x-contract`).
+
+    **Estado:** borrador, ya con el diseño de seguridad cerrado (ADR 0005). Lo marcado `x-status: draft`
+    depende de decisiones abiertas (ver `docs/api/decisions.md`): sesiones y renovación de token.
+
+    Convenciones:
+    - JSON en UTF-8. Fechas en ISO 8601 UTC.
+    - Los errores usan el esquema `Error` (mismo `kind` que `AppError` del cliente).
+    - Escrituras sobre notas: concurrencia optimista con `baseRevision`.
+
+    ## Cifrado de extremo a extremo
+
+    **El servidor nunca recibe la contraseña ni el texto de las notas.** Todo se cifra en el cliente
+    (AES-256-GCM; ver `docs/adr/0005-cifrado-extremo-a-extremo.md`):
+
+    - La contraseña se convierte en el cliente (Argon2id + HKDF) en una prueba, `authKey`, y en una clave
+      que no sale del cliente. El servidor guarda **solo un hash de `authKey`** (Argon2id) y los parámetros
+      de derivación (`KdfParams`), con los que `POST /auth/prelogin` responde.
+    - Cada cuenta tiene una clave maestra que el servidor guarda **cifrada dos veces**: con la contraseña
+      y con una clave de recuperación (`KeyBundle`). Sin la contraseña o la clave de recuperación no sirve.
+    - Cada nota y carpeta tiene su propia clave (`wrappedKey`, cifrada con la maestra) y un contenido
+      cifrado (`payload`). Los textos cifrados (`Sealed`) tienen la forma `a1.<iv>.<ct>` (base64url).
+    - El servidor ve solo metadatos: `id`, `folderId`, fechas, papelera (`deletedAt`), `revision`, y los
+      tamaños aproximados (el contenido se rellena a múltiplos de 256 bytes).
+    - **Todo lo que escribe el servidor sobre notas y carpetas pasa por `POST /sync`.** Las operaciones de
+      la interfaz (editar, mover a la papelera, restaurar, duplicar, borrar, vaciar la papelera) son locales;
+      al servidor llegan como cambios `upsert`/`delete`. Por eso no hay endpoints REST de escritura de notas.
+    - Los enlaces públicos llevan la clave en el fragmento de la URL (`#k=…`), que el navegador no envía.
+
+    ### Notas para quien implemente el servidor
+
+    - Valida la forma de `Sealed` (`^a1\.[A-Za-z0-9_-]{16}\.[A-Za-z0-9_-]+$`) en todo campo cifrado; no
+      intentes descifrar nada.
+    - `POST /auth/prelogin` debe responder **siempre** (parámetros falsos y estables para correos que no
+      existen, derivados de un secreto del servidor) y con límite de intentos.
+    - Limita intentos en `login`, `prelogin`, restablecimiento y cambio de contraseña; tras 5 fallos, `429`.
+    - Al cambiar la contraseña o restablecerla, cierra las demás sesiones. Si un dispositivo se elimina,
+      sus siguientes peticiones deben recibir `401` con `kind: device-revoked`.
+    - Respuestas de `/public/notes/{slug}`: `Cache-Control: no-store` y `Referrer-Policy: no-referrer`.
+    - Sube `keysVersion` en cada cambio de contraseña o de clave de recuperación (lo fija el servidor).
+    - Restablecer sin la clave de recuperación (`mode: wipe`) borra todas las notas, carpetas, enlaces y
+      lápidas de la cuenta y deja las claves nuevas.
+servers:
+  - url: https://api.apunte.app/v1
+    description: Producción (provisional)
+  - url: http://localhost:8080/v1
+    description: Desarrollo local
+security:
+  - bearerAuth: []
+tags:
+  - { name: auth, description: 'Cuenta, sesión y recuperación de contraseña' }
+  - { name: account, description: Perfil y credenciales de la cuenta actual }
+  - { name: keys, description: Claves cifradas de la cuenta y clave de recuperación }
+  - { name: notes, description: Lectura de notas cifradas }
+  - { name: folders, description: Lectura de carpetas cifradas }
+  - { name: sync, description: Sincronización (única vía de escritura de notas y carpetas) }
+  - { name: share, description: 'Enlaces públicos de solo lectura, cifrados de extremo a extremo' }
+  - { name: devices, description: Dispositivos y sesiones activas }
+  - { name: mfa, description: 'Verificación en dos pasos (TOTP y códigos de respaldo)' }
+  - {
+      name: google,
+      description: 'Acceso con Google (solo identidad; la contraseña sigue siendo necesaria)'
+    }
+  - {
+      name: trustedDevices,
+      description: 'Dispositivos de confianza (entrar con Google sin contraseña)'
+    }
+  - { name: settings, description: Preferencias }
+  - { name: storage, description: Cuota y uso }
+paths:
+  /auth/prelogin:
+    post:
+      operationId: postAuthPrelogin
+      tags: [auth]
+      summary: Parámetros de derivación de la contraseña de una cuenta
+      description: |
+        El cliente los necesita para derivar `authKey` antes de iniciar sesión. Para un correo que no
+        existe responde con parámetros falsos y estables (misma forma, misma sal cada vez), de modo que
+        no se pueda saber qué cuentas existen.
+      x-contract: AuthRepository.prelogin
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email]
+              properties:
+                email: { type: string, format: email }
+      responses:
+        '200':
+          description: Parámetros de Argon2id y sal
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [kdf]
+                properties:
+                  kdf: { $ref: '#/components/schemas/KdfParams' }
+        '429': { $ref: '#/components/responses/RateLimited' }
+  /auth/register:
+    post:
+      operationId: postAuthRegister
+      tags: [auth]
+      summary: Crea la cuenta (sin verificar) y envía el código al correo
+      description: |
+        La contraseña no viaja. El cliente genera el `userId` (UUID v7), deriva `authKey` y
+        `recoveryAuth`, y envía las claves ya cifradas (`keys`). El servidor guarda hashes de las dos
+        pruebas y el paquete de claves tal cual.
+      x-contract: AuthRepository.register
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/RegisterRequest' }
+      responses:
+        '201':
+          description: Cuenta creada; falta verificar el correo
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [email]
+                properties:
+                  email: { type: string, format: email }
+        '422': { $ref: '#/components/responses/ValidationError' }
+        '429': { $ref: '#/components/responses/RateLimited' }
+  /auth/verify-email:
+    post:
+      operationId: postAuthVerifyEmail
+      tags: [auth]
+      summary: Verifica el correo con el código de 6 dígitos e inicia sesión
+      description: |
+        Con `X-AxoNote-Session: cookie` el token de renovación llega solo como cookie `HttpOnly`
+        (no en `refreshToken`); sin la cabecera, la respuesta es la de siempre.
+      x-contract: AuthRepository.verifyEmail
+      security: []
+      parameters:
+        - { $ref: '#/components/parameters/SessionMode' }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email, code]
+              properties:
+                email: { type: string, format: email }
+                code: { type: string, pattern: '^\d{6}$' }
+      responses:
+        '200':
+          description: Correo verificado; sesión iniciada
+          headers:
+            Set-Cookie: { $ref: '#/components/headers/SetRefreshCookie' }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Session' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '422': { $ref: '#/components/responses/ValidationError' }
+  /auth/resend-code:
+    post:
+      operationId: postAuthResendCode
+      tags: [auth]
+      summary: Reenvía el código de verificación (máx. 1 cada 60 s)
+      x-contract: AuthRepository.resendVerificationCode
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email]
+              properties:
+                email: { type: string, format: email }
+      responses:
+        '204': { description: Código reenviado }
+        '429': { $ref: '#/components/responses/RateLimited' }
+  /auth/login:
+    post:
+      operationId: postAuthLogin
+      tags: [auth]
+      summary: Inicia sesión con la prueba de la contraseña
+      description: |
+        Se envía `authKey` (derivada de la contraseña con los parámetros de `prelogin`), nunca la
+        contraseña. La respuesta incluye las claves cifradas de la cuenta (`keys`).
+        Mismo error (`unauthorized`) para correo inexistente y contraseña incorrecta.
+        `403 forbidden/email-not-verified` si falta verificar el correo.
+        Bloqueo temporal tras 5 intentos fallidos (`429`).
+        Con `X-AxoNote-Session: cookie` el token de renovación llega solo como cookie `HttpOnly`
+        (no en `refreshToken`); sin la cabecera, la respuesta es la de siempre.
+      x-contract: AuthRepository.login
+      security: []
+      parameters:
+        - { $ref: '#/components/parameters/SessionMode' }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/LoginInput' }
+      responses:
+        '200':
+          description: |
+            Sesión iniciada con las claves cifradas de la cuenta, o un reto de segundo paso (`MfaChallenge`)
+            si la cuenta tiene la verificación en dos pasos activa. **Con reto no se entrega sesión,
+            `keys`, tokens ni cookie.**
+          headers:
+            Set-Cookie: { $ref: '#/components/headers/SetRefreshCookie' }
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - { $ref: '#/components/schemas/LoginResult' }
+                  - { $ref: '#/components/schemas/MfaChallenge' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '429': { $ref: '#/components/responses/RateLimited' }
+  /auth/login/mfa:
+    post:
+      operationId: postAuthLoginMfa
+      tags: [auth]
+      summary: Segundo paso del login (código TOTP o de respaldo)
+      description: |
+        Completa un login que devolvió `MfaChallenge`. El servidor distingue por forma: 6 dígitos =
+        TOTP; `XXXXX-XXXXX` = código de respaldo. Límite de intentos por cuenta aunque cambie la IP,
+        más el tope de intentos del propio ticket. El ticket es de un solo uso y caduca a los 5 minutos.
+        Con `X-AxoNote-Session: cookie` la sesión de éxito entrega el token de renovación solo como
+        cookie `HttpOnly`.
+      x-contract: AuthRepository.loginMfa
+      security: []
+      parameters:
+        - { $ref: '#/components/parameters/SessionMode' }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/LoginMfaRequest' }
+      responses:
+        '200':
+          description: Sesión iniciada, con las claves cifradas de la cuenta
+          headers:
+            Set-Cookie: { $ref: '#/components/headers/SetRefreshCookie' }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/LoginResult' }
+        '422':
+          description: 'Código o ticket inválidos (`fields.code = invalid-code`, `fields.mfaToken = invalid-token`)'
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+        '429': { $ref: '#/components/responses/RateLimited' }
+  /auth/refresh:
+    post:
+      operationId: postAuthRefresh
+      tags: [auth]
+      summary: Renueva el token de acceso con el de renovación
+      description: |
+        Dos modos:
+        - Sin `X-AxoNote-Session`, el `refreshToken` viaja en el cuerpo como hasta ahora (escritorio,
+          móvil y bundles web antiguos no cambian).
+        - Con `X-AxoNote-Session: cookie` la petición no lleva cuerpo: el servidor lee la cookie
+          `axonote_rt`, la rota (nueva `Set-Cookie`) y devuelve el nuevo token de acceso en el cuerpo.
+        La rotación y la detección de reutilización no cambian: reutilizar una cookie ya usada revoca
+        la familia y el dispositivo, con el mismo error que hoy.
+        En modo cookie la cabecera es obligatoria (fuerza el preflight CORS) y, si la petición trae
+        `Origin`, debe estar en `ALLOWED_ORIGINS`; si no, `403` con `kind: forbidden` (anti-CSRF).
+      x-status: draft
+      x-contract: Session (renovación gestionada por la capa de datos)
+      security: []
+      parameters:
+        - { $ref: '#/components/parameters/SessionMode' }
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [refreshToken]
+              properties:
+                refreshToken:
+                  {
+                    type: string,
+                    description: 'Solo en modo cuerpo (sin la cookie `X-AxoNote-Session: cookie`)'
+                  }
+      responses:
+        '200':
+          description: Nuevo token de acceso; en modo cookie rota la cookie de renovación
+          headers:
+            Set-Cookie: { $ref: '#/components/headers/SetRefreshCookie' }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Session' }
+        '401': { $ref: '#/components/responses/SessionExpired' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+  /auth/logout:
+    post:
+      operationId: postAuthLogout
+      tags: [auth]
+      summary: Cierra la sesión de este dispositivo
+      description: |
+        En modo cookie (`X-AxoNote-Session: cookie`) se acepta aunque el token de acceso haya vencido:
+        la sesión se revoca con la cookie de renovación y **siempre** se responde borrándola
+        (`Set-Cookie` con `Max-Age=0`). En modo cookie la cabecera es obligatoria y un `Origin`
+        presente debe estar en `ALLOWED_ORIGINS`; si no, `403` con `kind: forbidden` (anti-CSRF).
+      x-contract: AuthRepository.logout
+      security:
+        - bearerAuth: []
+        - refreshCookie: []
+      parameters:
+        - { $ref: '#/components/parameters/SessionMode' }
+      responses:
+        '204':
+          description: Sesión cerrada; en modo cookie se borra la cookie de renovación
+          headers:
+            Set-Cookie: { $ref: '#/components/headers/ClearRefreshCookie' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+  /auth/session:
+    get:
+      operationId: getAuthSession
+      tags: [auth]
+      summary: Sesión vigente
+      x-contract: AuthRepository.currentSession
+      responses:
+        '200':
+          description: Sesión vigente
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Session' }
+        '401': { $ref: '#/components/responses/SessionExpired' }
+  /auth/password/forgot:
+    post:
+      operationId: postAuthPasswordForgot
+      tags: [auth]
+      summary: Pide el enlace de recuperación
+      description: Siempre responde igual, exista o no la cuenta (no revela qué correos están registrados).
+      x-contract: AuthRepository.requestPasswordReset
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email]
+              properties:
+                email: { type: string, format: email }
+      responses:
+        '202': { description: 'Si la cuenta existe, se envió el enlace' }
+        '429': { $ref: '#/components/responses/RateLimited' }
+  /auth/password/reset/bundle:
+    post:
+      operationId: postAuthPasswordResetBundle
+      tags: [auth]
+      summary: Con el token del correo, lo necesario para restablecer conservando las notas
+      description: |
+        Devuelve la clave maestra cifrada con la clave de recuperación, los parámetros de derivación y
+        `mfaEnabled` (para que la web sepa si debe pedir el código). El token va en el cuerpo (no en la
+        URL) para que no quede en registros de acceso.
+      x-contract: AuthRepository.passwordResetBundle
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [token]
+              properties:
+                token: { type: string }
+      responses:
+        '200':
+          description: Paquete para restablecer
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/PasswordResetBundle' }
+        '422': { $ref: '#/components/responses/ValidationError' }
+        '429': { $ref: '#/components/responses/RateLimited' }
+  /auth/password/reset:
+    post:
+      operationId: postAuthPasswordReset
+      tags: [auth]
+      summary: Crea una contraseña nueva con el token del enlace
+      description: |
+        `mode: keep` conserva las notas: exige `recoveryAuth` (prueba de la clave de recuperación vigente;
+        si no coincide, `422` con `recoveryKey: invalid-recovery-key`) y deja la misma clave maestra
+        cifrada con la contraseña nueva. `mode: wipe` empieza de cero: borra todas las notas, carpetas,
+        enlaces y lápidas de la cuenta y guarda las claves nuevas. En ambos casos se cierran las demás sesiones.
+
+        Con la verificación en dos pasos activa:
+        - `mode: wipe` **exige** `mfaCode` (TOTP o código de respaldo); sin él `422 mfaCode: required` y no
+          se borra nada. `disableMfa` no se admite en este modo (`422 disableMfa: invalid-payload`).
+        - `mode: keep` no exige código; si `disableMfa` es `true`, además se desactiva la verificación en dos
+          pasos (`mfa-disable-recovery`).
+      x-contract: AuthRepository.resetPassword
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/PasswordResetRequest' }
+      responses:
+        '204': { description: Contraseña actualizada }
+        '422': { $ref: '#/components/responses/ValidationError' }
+        '429': { $ref: '#/components/responses/RateLimited' }
+  /auth/google/start:
+    post:
+      operationId: postAuthGoogleStart
+      tags: [google]
+      summary: Inicia el flujo OAuth con Google (redirección, PKCE)
+      description: |
+        La web genera un `challenge` (base64url de 43 caracteres de SHA-256 de su `verifier`) y lo envía.
+        El servidor crea un ticket de estado y devuelve la URL de autorización de Google. **No hay
+        ventanas emergentes ni scripts de Google** en la web.
+      x-contract: AuthRepository.googleStart
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [challenge]
+              properties:
+                challenge: { type: string, pattern: '^[A-Za-z0-9_-]{43}$' }
+      responses:
+        '200':
+          description: URL de autorización de Google
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [url]
+                properties:
+                  url: { type: string, format: uri }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '422': { $ref: '#/components/responses/ValidationError' }
+        '429': { $ref: '#/components/responses/RateLimited' }
+  /auth/google/callback:
+    get:
+      operationId: getAuthGoogleCallback
+      tags: [google]
+      summary: Retorno de Google (redirección del navegador)
+      description: |
+        Google redirige aquí con `code` y `state`. El servidor canjea el código (con `client_secret` y
+        PKCE propios) y responde **siempre** con un `302` a `WEB_BASE_URL/auth/google#code=…` o
+        `#error=<código corto>` (el fragmento no viaja al servidor de la web). No emite cookies.
+      security: []
+      parameters:
+        - { name: code, in: query, schema: { type: string } }
+        - { name: state, in: query, schema: { type: string } }
+        - { name: error, in: query, schema: { type: string } }
+      responses:
+        '302': { description: 'Redirección a la web con `#code=` o `#error=`' }
+  /auth/google/exchange:
+    post:
+      operationId: postAuthGoogleExchange
+      tags: [google]
+      summary: Canjea el resultado de Google (ata el `verifier` del navegador)
+      description: |
+        La web lee el `code` del fragmento, recupera su `verifier` y lo envía aquí. El servidor comprueba
+        en tiempo constante que `b64url(SHA-256(verifier))` coincide con el `challenge` guardado (ata el
+        resultado al navegador que empezó el flujo). Devuelve una unión discriminada por `status`.
+      x-contract: AuthRepository.googleExchange
+      security: []
+      parameters:
+        - { $ref: '#/components/parameters/SessionMode' }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [code, verifier]
+              properties:
+                code: { type: string }
+                verifier: { type: string, pattern: '^[A-Za-z0-9_-]{43}$' }
+                device:
+                  type: object
+                  properties:
+                    name: { type: string }
+                    platform: { $ref: '#/components/schemas/DevicePlatform' }
+      responses:
+        '200':
+          description: 'Resultado, unión por `status`'
+          headers:
+            Set-Cookie: { $ref: '#/components/headers/SetRefreshCookie' }
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - { $ref: '#/components/schemas/GoogleAuthenticated' }
+                  - { $ref: '#/components/schemas/GoogleMfaRequired' }
+                  - { $ref: '#/components/schemas/GoogleLinkRequired' }
+                  - { $ref: '#/components/schemas/GoogleSignupRequired' }
+                discriminator: { propertyName: status }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '422': { $ref: '#/components/responses/ValidationError' }
+  /auth/google/link:
+    post:
+      operationId: postAuthGoogleLink
+      tags: [google]
+      summary: Vincula Google con una cuenta existente (exige la contraseña de AxoNote)
+      description: 'Es, a efectos de seguridad, un login con contraseña: mismos límites y mismo error. Vincula por `sub`, nunca por correo.'
+      x-contract: AuthRepository.googleLink
+      security: []
+      parameters:
+        - { $ref: '#/components/parameters/SessionMode' }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [linkToken, authKey]
+              properties:
+                linkToken: { type: string }
+                authKey: { type: string, description: Prueba de la contraseña de AxoNote }
+                device:
+                  type: object
+                  properties:
+                    name: { type: string }
+                    platform: { $ref: '#/components/schemas/DevicePlatform' }
+      responses:
+        '200':
+          description: 'Sesión o reto de segundo paso'
+          headers:
+            Set-Cookie: { $ref: '#/components/headers/SetRefreshCookie' }
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - { $ref: '#/components/schemas/LoginResult' }
+                  - { $ref: '#/components/schemas/MfaChallenge' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '422': { $ref: '#/components/responses/ValidationError' }
+        '429': { $ref: '#/components/responses/RateLimited' }
+  /auth/google/register:
+    post:
+      operationId: postAuthGoogleRegister
+      tags: [google]
+      summary: Crea la cuenta con Google (correo ya verificado)
+      description: 'La persona crea su contraseña de AxoNote (una vez en la vida); se guarda la identidad y se abre sesión. Cuenta nueva: sin MFA.'
+      x-contract: AuthRepository.googleRegister
+      security: []
+      parameters:
+        - { $ref: '#/components/parameters/SessionMode' }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/GoogleRegisterRequest' }
+      responses:
+        '200':
+          description: Cuenta creada; sesión iniciada
+          headers:
+            Set-Cookie: { $ref: '#/components/headers/SetRefreshCookie' }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/LoginResult' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '422': { $ref: '#/components/responses/ValidationError' }
+        '429': { $ref: '#/components/responses/RateLimited' }
+  /me/identities/google:
+    delete:
+      operationId: deleteMeIdentitiesGoogle
+      tags: [google]
+      summary: Desvincula Google de la cuenta (exige la contraseña)
+      description: 'Borra la identidad de Google. Después, entrar con Google lleva a `link-required`. Mismo error y límite que las demás operaciones que exigen la contraseña.'
+      x-contract: AuthRepository.unlinkGoogle
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [authKey]
+              properties:
+                authKey: { type: string, description: Prueba de la contraseña }
+      responses:
+        '204': { description: Google desvinculado }
+        '422': { $ref: '#/components/responses/ValidationError' }
+        '429': { $ref: '#/components/responses/RateLimited' }
+  /me:
+    get:
+      operationId: getMe
+      tags: [account]
+      summary: Perfil de la cuenta actual
+      responses:
+        '200':
+          description: Perfil
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/User' }
+    patch:
+      operationId: patchMe
+      tags: [account]
+      summary: Cambia el nombre visible
+      x-contract: AuthRepository.updateProfile
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [fullName]
+              properties:
+                fullName: { type: string, minLength: 2, maxLength: 80 }
+      responses:
+        '200':
+          description: Perfil actualizado
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/User' }
+        '422': { $ref: '#/components/responses/ValidationError' }
+    delete:
+      operationId: deleteMe
+      tags: [account]
+      summary: Elimina la cuenta
+      deprecated: true
+      description: 'OBSOLETO: se retira 14 días después del despliegue que introduce POST /me/delete (cabeceras Deprecation y Sunset). Usar POST /me/delete.'
+      responses:
+        '202': { description: Eliminación programada }
+  /me/delete:
+    post:
+      operationId: postMeDelete
+      tags: [account]
+      summary: Elimina la cuenta (exige la prueba de la contraseña actual)
+      description: Los datos se conservan 30 días antes del borrado definitivo y se cierran todas las sesiones. Se usa POST y no DELETE porque algunos clientes y proxies descartan el cuerpo de DELETE.
+      x-contract: AuthRepository.deleteAccount
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [authKey]
+              properties:
+                authKey:
+                  { type: string, description: Prueba de la contraseña actual (no la contraseña) }
+      responses:
+        '202': { description: Eliminación programada }
+        '422': { $ref: '#/components/responses/ValidationError' }
+        '429': { $ref: '#/components/responses/RateLimited' }
+  /me/email-change:
+    post:
+      operationId: postMeEmailChange
+      tags: [account]
+      summary: Pide cambiar el correo (exige la prueba de la contraseña actual)
+      description: Envía un código al correo nuevo. El cambio no se aplica hasta confirmarlo.
+      x-contract: AuthRepository.requestEmailChange
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [newEmail, authKey]
+              properties:
+                newEmail: { type: string, format: email }
+                authKey:
+                  { type: string, description: Prueba de la contraseña actual (no la contraseña) }
+      responses:
+        '202':
+          description: Código enviado al correo nuevo
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [email]
+                properties:
+                  email: { type: string, format: email }
+        '422': { $ref: '#/components/responses/ValidationError' }
+        '429': { $ref: '#/components/responses/RateLimited' }
+  /me/email-change/confirm:
+    post:
+      operationId: postMeEmailChangeConfirm
+      tags: [account]
+      summary: Confirma el correo nuevo con el código
+      x-contract: AuthRepository.confirmEmailChange
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email, code]
+              properties:
+                email: { type: string, format: email }
+                code: { type: string, pattern: '^\d{6}$' }
+      responses:
+        '200':
+          description: Correo actualizado
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/User' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '422': { $ref: '#/components/responses/ValidationError' }
+  /me/password:
+    post:
+      operationId: postMePassword
+      tags: [account]
+      summary: Cambia la contraseña (exige la prueba de la actual)
+      description: |
+        La clave maestra no cambia: solo se cifra con la clave derivada de la contraseña nueva, así que
+        las notas no se vuelven a cifrar. Cierra las demás sesiones.
+      x-contract: AuthRepository.changePassword
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/PasswordChangeRequest' }
+      responses:
+        '204': { description: Contraseña actualizada }
+        '422': { $ref: '#/components/responses/ValidationError' }
+        '429': { $ref: '#/components/responses/RateLimited' }
+  /keys:
+    get:
+      operationId: getKeys
+      tags: [keys]
+      summary: Claves cifradas de la cuenta
+      description: Para desbloquear la app sin volver a iniciar sesión (el paquete no sirve sin la contraseña).
+      x-contract: AuthRepository.keys
+      responses:
+        '200':
+          description: Paquete de claves
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/KeyBundle' }
+  /keys/recovery:
+    put:
+      operationId: putKeysRecovery
+      tags: [keys]
+      summary: Cambia la clave de recuperación (la anterior deja de servir)
+      description: Exige la prueba de la contraseña (`authKey`). Sube `keysVersion`.
+      x-contract: AuthRepository.rotateRecoveryKey
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/RecoveryKeyRotation' }
+      responses:
+        '204': { description: Clave de recuperación actualizada }
+        '422': { $ref: '#/components/responses/ValidationError' }
+        '429': { $ref: '#/components/responses/RateLimited' }
+  /notes:
+    get:
+      operationId: getNotes
+      tags: [notes]
+      summary: Lista las notas cifradas
+      description: |
+        Devuelve las filas tal como las guarda el servidor (metadatos y textos cifrados). El filtrado,
+        el orden y la búsqueda se hacen en el cliente, que es el único que puede leer el contenido.
+        La escritura va solo por `POST /sync`. Paginación por cursor; `updatedSince` baja solo lo cambiado.
+      x-status: optional
+      x-contract: ninguno (el cliente descarga todo con POST /sync)
+      parameters:
+        - name: trashed
+          in: query
+          description: '`true` solo la papelera, `false` solo las activas; sin valor, todas'
+          schema: { type: boolean }
+        - name: updatedSince
+          in: query
+          schema: { type: string, format: date-time }
+        - { $ref: '#/components/parameters/Cursor' }
+        - { $ref: '#/components/parameters/Limit' }
+      responses:
+        '200':
+          description: Página de notas cifradas
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items]
+                properties:
+                  items:
+                    type: array
+                    items: { $ref: '#/components/schemas/EncryptedNote' }
+                  nextCursor: { type: [string, 'null'] }
+  /notes/{noteId}:
+    parameters:
+      - { $ref: '#/components/parameters/NoteId' }
+    get:
+      operationId: getNotesNoteId
+      tags: [notes]
+      summary: Obtiene una nota cifrada
+      x-status: optional
+      x-contract: ninguno (el cliente descarga todo con POST /sync)
+      responses:
+        '200':
+          description: Nota cifrada
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/EncryptedNote' }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /folders:
+    get:
+      operationId: getFolders
+      tags: [folders]
+      summary: Lista las carpetas cifradas
+      description: El nombre va cifrado. La escritura va solo por `POST /sync`.
+      x-status: optional
+      x-contract: ninguno (el cliente descarga todo con POST /sync)
+      responses:
+        '200':
+          description: Carpetas cifradas
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/EncryptedFolder' }
+  /sync:
+    post:
+      operationId: postSync
+      tags: [sync]
+      summary: Sube cambios locales y baja los remotos
+      description: |
+        El cliente envía su cola de cambios y el último `cursor`; el servidor responde con lo aplicado,
+        los cambios remotos desde ese cursor y los conflictos. Ver `docs/adr/0004-sincronizacion.md`.
+        Un `baseRevision` distinto en una nota es conflicto (no se aplica, no es un error HTTP);
+        las carpetas son «gana el último». **Los conflictos se resuelven en el cliente**, que es el único
+        que puede leer ambas versiones: elige `local`, `remote` o `both` y vuelve a subir lo que decida.
+        El servidor valida que `payload` y `wrappedKey` tengan la forma de un texto cifrado
+        (`422` con `payload: invalid-payload`) y nada más; nunca descifra.
+      x-contract: SyncRepository.syncNow
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/SyncRequest' }
+      responses:
+        '200':
+          description: Resultado de la sincronización
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/SyncResponse' }
+  /notes/{noteId}/share:
+    parameters:
+      - { $ref: '#/components/parameters/NoteId' }
+    get:
+      operationId: getNotesNoteIdShare
+      tags: [share]
+      summary: Enlace público actual (si existe)
+      description: Incluye la clave del enlace cifrada con la clave maestra, para reconstruir la URL en otro dispositivo.
+      x-contract: ShareRepository.getLink
+      responses:
+        '200':
+          description: Enlace, o `null` si no hay
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - { $ref: '#/components/schemas/SharedNote' }
+                  - { type: 'null' }
+    put:
+      operationId: putNotesNoteIdShare
+      tags: [share]
+      summary: Crea el enlace público de solo lectura (o devuelve el existente)
+      description: |
+        El cliente cifra una copia de la nota (título y texto) con una clave propia del enlace y elige el
+        `slug`. La clave del enlace va en el fragmento de la URL (`#k=…`) y nunca llega al servidor.
+        Si la nota ya tiene enlace se devuelve el existente y se ignora lo enviado. La nota debe estar en
+        el servidor (sincronizada) y no estar en la papelera (`404` si no). `422` si el `slug` está mal
+        formado o repetido, o los textos no tienen forma de texto cifrado.
+      x-contract: ShareRepository.createLink
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ShareInput' }
+      responses:
+        '200':
+          description: Enlace
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/SharedNote' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '422': { $ref: '#/components/responses/ValidationError' }
+    delete:
+      operationId: deleteNotesNoteIdShare
+      tags: [share]
+      summary: Revoca el enlace
+      description: Borra el enlace y su copia cifrada. Volver a compartir crea clave y `slug` nuevos.
+      x-contract: ShareRepository.revokeLink
+      responses:
+        '204': { description: Revocado }
+  /notes/{noteId}/share/payload:
+    parameters:
+      - { $ref: '#/components/parameters/NoteId' }
+    put:
+      operationId: putNotesNoteIdSharePayload
+      tags: [share]
+      summary: Actualiza la copia cifrada del enlace (al editar la nota)
+      x-contract: ShareRepository.updateLinkPayload
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [payload]
+              properties:
+                payload: { $ref: '#/components/schemas/Sealed' }
+      responses:
+        '204': { description: Copia actualizada }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '422': { $ref: '#/components/responses/ValidationError' }
+  /public/notes/{slug}:
+    get:
+      operationId: getPublicNotesSlug
+      tags: [share]
+      summary: Copia cifrada de una nota compartida
+      description: |
+        Sin sesión. Solo lectura. El servidor devuelve texto cifrado; quien abre el enlace lo descifra
+        con la clave del fragmento de la URL. `404` si el enlace no existe o fue revocado (mismo
+        resultado en ambos casos). Debe responder con `Cache-Control: no-store` y `Referrer-Policy: no-referrer`.
+      x-contract: ShareRepository.readPublic
+      security: []
+      parameters:
+        - name: slug
+          in: path
+          required: true
+          schema: { type: string, pattern: '^[A-Za-z0-9_-]{22}$' }
+      responses:
+        '200':
+          description: Copia cifrada
+          headers:
+            Cache-Control:
+              schema: { type: string, const: no-store }
+            Referrer-Policy:
+              schema: { type: string, const: no-referrer }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/PublicNote' }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /devices:
+    get:
+      operationId: getDevices
+      tags: [devices]
+      summary: Dispositivos con sesión activa
+      x-contract: DeviceRepository.list
+      responses:
+        '200':
+          description: Dispositivos
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/Device' }
+  /devices/{deviceId}:
+    delete:
+      operationId: deleteDevicesDeviceId
+      tags: [devices]
+      summary: Cierra la sesión de otro dispositivo
+      description: No se puede quitar el dispositivo actual (`422`, campo `device`).
+      x-contract: DeviceRepository.remove
+      parameters:
+        - name: deviceId
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        '204': { description: Dispositivo quitado }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '422': { $ref: '#/components/responses/ValidationError' }
+  /trusted-devices:
+    get:
+      operationId: getTrustedDevices
+      tags: [trustedDevices]
+      summary: Dispositivos de confianza vigentes
+      description: 'Solo para cuentas con Google vinculado. Cada uno guarda en el servidor la clave maestra cifrada con una clave propia del navegador.'
+      x-contract: TrustedDeviceRepository.list
+      responses:
+        '200':
+          description: Dispositivos de confianza
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/TrustedDevice' }
+    post:
+      operationId: postTrustedDevices
+      tags: [trustedDevices]
+      summary: Da de alta este dispositivo (tras desbloquear con la contraseña)
+      description: 'La clave maestra llega ya cifrada con la clave propia del navegador (`a1.…`). Exige Google vinculado (`403 google-not-linked`) y un máximo de 10 vigentes (`403 limit-reached`).'
+      x-contract: TrustedDeviceRepository.add
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/TrustedDeviceInput' }
+      responses:
+        '201': { description: Dispositivo de confianza creado }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '422': { $ref: '#/components/responses/ValidationError' }
+  /trusted-devices/{id}:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema: { type: string }
+    get:
+      operationId: getTrustedDevicesId
+      tags: [trustedDevices]
+      summary: Clave maestra cifrada de un dispositivo de confianza
+      description: 'Actualiza `lastUsedAt`. Sin la clave propia del navegador no sirve. Exige una sesión completa (un `mfaToken` no vale como Bearer).'
+      x-contract: TrustedDeviceRepository.get
+      responses:
+        '200':
+          description: Clave maestra cifrada con la clave del dispositivo
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [wrappedMasterKey]
+                properties:
+                  wrappedMasterKey: { $ref: '#/components/schemas/Sealed' }
+        '404': { $ref: '#/components/responses/NotFound' }
+    delete:
+      operationId: deleteTrustedDevicesId
+      tags: [trustedDevices]
+      summary: Revoca un dispositivo de confianza
+      x-contract: TrustedDeviceRepository.remove
+      responses:
+        '204': { description: Revocado }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /mfa:
+    get:
+      operationId: getMfa
+      tags: [mfa]
+      summary: Estado de la verificación en dos pasos
+      x-contract: AuthRepository.mfaStatus
+      responses:
+        '200':
+          description: Estado del segundo factor
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/MfaStatus' }
+  /mfa/totp/setup:
+    post:
+      operationId: postMfaTotpSetup
+      tags: [mfa]
+      summary: Genera (o sustituye) un secreto TOTP pendiente de confirmar
+      description: |
+        Exige la prueba de la contraseña (`authKey`, con el mismo límite `sensitive:<userId>`). Devuelve
+        el secreto en base32 y la URI `otpauth://` para el QR. Un segundo `setup` sustituye el pendiente.
+        Si la verificación ya está activa, `409 conflict/mfa-already-enabled`.
+      x-contract: AuthRepository.mfaSetup
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [authKey]
+              properties:
+                authKey: { type: string, description: Prueba de la contraseña }
+      responses:
+        '200':
+          description: Secreto y URI para el autenticador
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/MfaSetupResult' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '422': { $ref: '#/components/responses/ValidationError' }
+        '429': { $ref: '#/components/responses/RateLimited' }
+  /mfa/totp/enable:
+    post:
+      operationId: postMfaTotpEnable
+      tags: [mfa]
+      summary: Confirma el código TOTP y activa la verificación en dos pasos
+      description: |
+        Genera los 10 códigos de respaldo (se devuelven en claro **una sola vez**) y cierra las demás
+        sesiones. Si no hay un `setup` pendiente, `409 conflict/mfa-not-pending`.
+      x-contract: AuthRepository.mfaEnable
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [code]
+              properties:
+                code: { type: string, pattern: '^\d{6}$' }
+      responses:
+        '200':
+          description: MFA activado; códigos de respaldo en claro (única vez)
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/MfaRecoveryCodes' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '422': { $ref: '#/components/responses/ValidationError' }
+        '429': { $ref: '#/components/responses/RateLimited' }
+  /mfa/totp/disable:
+    post:
+      operationId: postMfaTotpDisable
+      tags: [mfa]
+      summary: Desactiva la verificación en dos pasos
+      description: 'Exige la prueba de la contraseña **y** un código vigente. Si no está activa, `409 conflict/mfa-not-enabled`.'
+      x-contract: AuthRepository.mfaDisable
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [authKey, code]
+              properties:
+                authKey: { type: string, description: Prueba de la contraseña }
+                code:
+                  {
+                    type: string,
+                    description: 'Código TOTP de 6 dígitos o código de respaldo XXXXX-XXXXX'
+                  }
+      responses:
+        '204': { description: MFA desactivado }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '422': { $ref: '#/components/responses/ValidationError' }
+        '429': { $ref: '#/components/responses/RateLimited' }
+  /mfa/recovery-codes:
+    post:
+      operationId: postMfaRecoveryCodes
+      tags: [mfa]
+      summary: Regenera los códigos de respaldo
+      description: 'Exige la prueba de la contraseña **y** un código vigente. Sustituye los 10 anteriores (los nuevos se devuelven en claro una sola vez).'
+      x-contract: AuthRepository.mfaRegenerateCodes
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [authKey, code]
+              properties:
+                authKey: { type: string, description: Prueba de la contraseña }
+                code:
+                  {
+                    type: string,
+                    description: 'Código TOTP de 6 dígitos o código de respaldo XXXXX-XXXXX'
+                  }
+      responses:
+        '200':
+          description: Códigos nuevos
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/MfaRecoveryCodes' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '422': { $ref: '#/components/responses/ValidationError' }
+        '429': { $ref: '#/components/responses/RateLimited' }
+  /settings:
+    get:
+      operationId: getSettings
+      tags: [settings]
+      summary: Preferencias
+      x-contract: SettingsRepository.get
+      responses:
+        '200':
+          description: Preferencias
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AppSettings' }
+    patch:
+      operationId: patchSettings
+      tags: [settings]
+      summary: Cambia preferencias
+      description: '`twoFactor` es de solo lectura: se gestiona con `/mfa`; enviarlo da `422` (`fields.twoFactor = invalid-payload`).'
+      x-contract: SettingsRepository.update
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/AppSettingsPatch' }
+      responses:
+        '200':
+          description: Preferencias resultantes
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AppSettings' }
+        '422': { $ref: '#/components/responses/ValidationError' }
+  /storage/usage:
+    get:
+      operationId: getStorageUsage
+      tags: [storage]
+      summary: Espacio usado frente a la cuota
+      x-contract: StorageRepository.usage
+      responses:
+        '200':
+          description: Uso
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/StorageUsage' }
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: Token de acceso de corta duración (ver decisión D2).
+    refreshCookie:
+      type: apiKey
+      in: cookie
+      name: axonote_rt
+      description: |
+        Cookie `HttpOnly` con el token de renovación (modo cookie, cabecera
+        `X-AxoNote-Session: cookie`). En `POST /auth/logout` permite cerrar la sesión aunque el token
+        de acceso haya vencido.
+  parameters:
+    SessionMode:
+      name: X-AxoNote-Session
+      in: header
+      required: false
+      description: |
+        Modo cookie de la sesión. Si vale `cookie`, el servidor entrega el token de renovación solo
+        como cookie `HttpOnly` (`axonote_rt`) y omite `refreshToken` del cuerpo; sin esta cabecera todo
+        funciona como hasta ahora, con el `refreshToken` en el cuerpo (escritorio, móvil y bundles web
+        antiguos). En modo cookie la cabecera es obligatoria y exige un `Origin` permitido (anti-CSRF).
+      schema: { type: string, enum: [cookie] }
+    NoteId:
+      name: noteId
+      in: path
+      required: true
+      schema: { type: string }
+    Cursor:
+      name: cursor
+      in: query
+      schema: { type: string }
+    Limit:
+      name: limit
+      in: query
+      schema: { type: integer, minimum: 1, maximum: 200, default: 50 }
+  headers:
+    SetRefreshCookie:
+      description: |
+        Solo en modo cookie: token de renovación como cookie `HttpOnly`, con la forma
+        `axonote_rt=<valor>; HttpOnly; Secure; SameSite=Strict; Path=/v1/auth; Max-Age=<segundos>`
+        (sin `Domain` por defecto).
+      schema: { type: string }
+    ClearRefreshCookie:
+      description: |
+        Solo en modo cookie: borra la cookie de renovación con
+        `axonote_rt=; Max-Age=0; Path=/v1/auth; HttpOnly; Secure; SameSite=Strict`.
+      schema: { type: string }
+  responses:
+    ValidationError:
+      description: Datos inválidos. `fields` mapea campo → código de validación.
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+    Unauthorized:
+      description: Credenciales incorrectas
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+    Forbidden:
+      description: 'Acción no permitida (`kind: forbidden`): correo sin verificar, o CSRF en modo cookie (cabecera ausente u `Origin` fuera de `ALLOWED_ORIGINS`)'
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+    SessionExpired:
+      description: 'La sesión venció (`kind: session-expired`)'
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+    NotFound:
+      description: No existe
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+    Conflict:
+      description: 'Conflicto (`kind: conflict`): p. ej. `mfa-already-enabled`, `mfa-not-pending`, `mfa-not-enabled`'
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+    RateLimited:
+      description: Demasiados intentos
+      headers:
+        Retry-After:
+          schema: { type: integer }
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+  schemas:
+    Error:
+      type: object
+      description: Equivale a `AppError` de `domain/errors.ts`.
+      required: [kind]
+      properties:
+        kind:
+          type: string
+          enum:
+            - server
+            - unauthorized
+            - forbidden
+            - session-expired
+            - device-revoked
+            - not-found
+            - validation
+            - conflict
+            - rate-limited
+            - unknown
+        code: { type: string, description: 'Ej.: invalid-credentials, email-not-verified' }
+        fields:
+          type: object
+          additionalProperties: { $ref: '#/components/schemas/ValidationCode' }
+        entity: { type: string }
+        noteId: { type: string }
+        retryAfterSec: { type: integer }
+        remote:
+          description: En un `conflict`, la versión actual del servidor (cifrada)
+          allOf:
+            - { $ref: '#/components/schemas/EncryptedNote' }
+    ValidationCode:
+      type: string
+      enum:
+        - required
+        - invalid-email
+        - password-too-short
+        - passwords-dont-match
+        - terms-required
+        - name-too-short
+        - name-too-long
+        - name-taken
+        - invalid-code
+        - invalid-token
+        - email-taken
+        - wrong-password
+        - same-password
+        - invalid-recovery-key
+        - invalid-slug
+        - slug-taken
+        - invalid-payload
+    User:
+      type: object
+      required: [id, email, fullName, emailVerified, createdAt, hasGoogle]
+      properties:
+        id: { type: string }
+        email: { type: string, format: email }
+        fullName: { type: string }
+        emailVerified: { type: boolean }
+        createdAt: { type: string, format: date-time }
+        hasGoogle: { type: boolean, description: La cuenta tiene una identidad de Google vinculada }
+    Session:
+      type: object
+      required: [user, expiresAt]
+      properties:
+        user: { $ref: '#/components/schemas/User' }
+        expiresAt: { type: string, format: date-time }
+        accessToken: { type: string }
+        refreshToken:
+          {
+            type: string,
+            description: 'Ausente en modo cookie (cabecera X-AxoNote-Session: cookie): llega como cookie HttpOnly'
+          }
+    Sealed:
+      type: string
+      description: |
+        Texto cifrado con AES-256-GCM: `a1.<iv>.<ct>` (base64url sin relleno; `ct` incluye la etiqueta
+        de 16 bytes). Cada uno se cifra con datos asociados que lo ligan a su cuenta, tipo e id: si el
+        servidor lo mueve a otro sitio, no se puede descifrar. El servidor solo comprueba su forma.
+      pattern: '^a1\.[A-Za-z0-9_-]{16}\.[A-Za-z0-9_-]+$'
+    KdfParams:
+      type: object
+      description: Parámetros de derivación de la contraseña (Argon2id). Se guardan para poder subirlos en el futuro.
+      required: [alg, memoryKiB, iterations, parallelism, salt]
+      properties:
+        alg: { type: string, const: argon2id }
+        memoryKiB: { type: integer, minimum: 1024 }
+        iterations: { type: integer, minimum: 1 }
+        parallelism: { type: integer, minimum: 1 }
+        salt:
+          { type: string, description: '16 bytes aleatorios en base64url (no dependen del correo)' }
+    KeyBundle:
+      type: object
+      description: |
+        Lo que el servidor guarda de las claves de una cuenta. Sin la contraseña o la clave de recuperación
+        no permite descifrar nada.
+      required: [kdf, wrappedMasterKey, recoveryWrappedMasterKey, keysVersion]
+      properties:
+        kdf: { $ref: '#/components/schemas/KdfParams' }
+        wrappedMasterKey:
+          allOf: [{ $ref: '#/components/schemas/Sealed' }]
+          description: Clave maestra cifrada con la clave derivada de la contraseña
+        recoveryWrappedMasterKey:
+          allOf: [{ $ref: '#/components/schemas/Sealed' }]
+          description: La misma clave maestra, cifrada con la clave de recuperación
+        keysVersion:
+          {
+            type: integer,
+            minimum: 0,
+            description: Lo fija el servidor; sube en cada cambio de claves
+          }
+    RegisterRequest:
+      type: object
+      required: [userId, fullName, email, acceptedTerms, authKey, recoveryAuth, keys]
+      properties:
+        userId:
+          {
+            type: string,
+            description: UUID v7 generado por el cliente (los datos asociados lo necesitan antes de que exista la cuenta)
+          }
+        fullName: { type: string, minLength: 2 }
+        email: { type: string, format: email }
+        acceptedTerms: { type: boolean, const: true }
+        authKey: { type: string, description: Prueba derivada de la contraseña (base64url) }
+        recoveryAuth:
+          { type: string, description: Prueba derivada de la clave de recuperación (base64url) }
+        keys: { $ref: '#/components/schemas/KeyBundle' }
+    LoginInput:
+      type: object
+      required: [email, authKey]
+      properties:
+        email: { type: string, format: email }
+        authKey: { type: string, description: Prueba derivada de la contraseña (no la contraseña) }
+        device:
+          type: object
+          description: Datos del dispositivo que inicia sesión (para la lista de dispositivos)
+          properties:
+            name: { type: string }
+            platform: { $ref: '#/components/schemas/DevicePlatform' }
+    LoginResult:
+      allOf:
+        - { $ref: '#/components/schemas/Session' }
+        - type: object
+          required: [keys]
+          properties:
+            keys: { $ref: '#/components/schemas/KeyBundle' }
+    MfaChallenge:
+      type: object
+      description: |
+        Reto de segundo paso. No es una sesión: no trae `accessToken`, `refreshToken`, `keys` ni cookie.
+        Se completa con `POST /auth/login/mfa` usando `mfaToken` y el código.
+      required: [mfaRequired, mfaToken, expiresAt]
+      properties:
+        mfaRequired: { type: boolean, const: true }
+        mfaToken: { type: string, description: Ticket de un solo uso y corta vida (5 minutos) }
+        expiresAt: { type: string, format: date-time }
+    LoginMfaRequest:
+      type: object
+      required: [mfaToken, code]
+      properties:
+        mfaToken: { type: string }
+        code:
+          {
+            type: string,
+            description: 'Código TOTP de 6 dígitos o código de respaldo con la forma XXXXX-XXXXX'
+          }
+    MfaStatus:
+      type: object
+      required: [enabled, recoveryCodesLeft]
+      properties:
+        enabled: { type: boolean }
+        enabledAt:
+          {
+            type: [string, 'null'],
+            format: date-time,
+            description: Cuándo se activó (null si no está activa)
+          }
+        recoveryCodesLeft:
+          { type: integer, minimum: 0, maximum: 10, description: Códigos de respaldo sin usar }
+    MfaSetupResult:
+      type: object
+      description: Solo para configurar el autenticador; el secreto no vuelve a salir.
+      required: [secret, otpauthUri]
+      properties:
+        secret: { type: string, description: Secreto en base32 sin relleno }
+        otpauthUri:
+          { type: string, description: 'URI otpauth://totp/... para generar el QR en el cliente' }
+    MfaRecoveryCodes:
+      type: object
+      required: [recoveryCodes]
+      properties:
+        recoveryCodes:
+          type: array
+          minItems: 10
+          maxItems: 10
+          items: { type: string, pattern: '^[A-Z2-9]{5}-[A-Z2-9]{5}$' }
+    GoogleAuthenticated:
+      type: object
+      required: [status, session]
+      properties:
+        status: { type: string, const: authenticated }
+        session: { $ref: '#/components/schemas/LoginResult' }
+    GoogleMfaRequired:
+      type: object
+      required: [status, mfaToken, expiresAt]
+      properties:
+        status: { type: string, const: mfa-required }
+        mfaToken: { type: string }
+        expiresAt: { type: string, format: date-time }
+    GoogleLinkRequired:
+      type: object
+      description: 'Sin identidad, pero existe una cuenta verificada con ese correo: se pide la contraseña para vincular (G4).'
+      required: [status, linkToken, email, kdf]
+      properties:
+        status: { type: string, const: link-required }
+        linkToken: { type: string }
+        email: { type: string, format: email }
+        kdf: { $ref: '#/components/schemas/KdfParams' }
+    GoogleSignupRequired:
+      type: object
+      required: [status, signupToken, email, fullName]
+      properties:
+        status: { type: string, const: signup-required }
+        signupToken: { type: string }
+        email: { type: string, format: email }
+        fullName: { type: string }
+    GoogleRegisterRequest:
+      type: object
+      required: [signupToken, userId, fullName, acceptedTerms, authKey, recoveryAuth, keys]
+      properties:
+        signupToken: { type: string }
+        userId: { type: string, description: UUID v7 generado por el cliente }
+        fullName: { type: string, minLength: 2 }
+        acceptedTerms: { type: boolean, const: true }
+        authKey: { type: string }
+        recoveryAuth: { type: string }
+        keys: { $ref: '#/components/schemas/KeyBundle' }
+        device:
+          type: object
+          properties:
+            name: { type: string }
+            platform: { $ref: '#/components/schemas/DevicePlatform' }
+    PasswordChangeRequest:
+      type: object
+      required: [currentAuthKey, newAuthKey, keys]
+      properties:
+        currentAuthKey: { type: string, description: Prueba de la contraseña actual }
+        newAuthKey: { type: string }
+        keys:
+          allOf: [{ $ref: '#/components/schemas/KeyBundle' }]
+          description: La misma clave maestra, cifrada con la contraseña nueva
+    PasswordResetBundle:
+      type: object
+      required: [userId, recoveryWrappedMasterKey, kdf, mfaEnabled]
+      properties:
+        userId: { type: string }
+        recoveryWrappedMasterKey: { $ref: '#/components/schemas/Sealed' }
+        kdf: { $ref: '#/components/schemas/KdfParams' }
+        mfaEnabled:
+          { type: boolean, description: Si la cuenta tiene activada la verificación en dos pasos }
+    PasswordResetRequest:
+      type: object
+      required: [token, mode, newAuthKey, recoveryAuth, keys]
+      properties:
+        token: { type: string }
+        mode: { type: string, enum: [keep, wipe] }
+        newAuthKey: { type: string }
+        recoveryAuth:
+          type: string
+          description: '`keep`: prueba de la clave de recuperación vigente. `wipe`: prueba de la clave nueva.'
+        keys: { $ref: '#/components/schemas/KeyBundle' }
+        mfaCode:
+          {
+            type: string,
+            description: 'Obligatorio en `mode: wipe` con MFA activo: código TOTP o de respaldo'
+          }
+        disableMfa:
+          {
+            type: boolean,
+            description: 'Solo en `mode: keep`: desactivar además la verificación en dos pasos'
+          }
+    RecoveryKeyRotation:
+      type: object
+      required: [authKey, recoveryAuth, recoveryWrappedMasterKey]
+      properties:
+        authKey: { type: string, description: Prueba de la contraseña }
+        recoveryAuth: { type: string, description: Prueba de la clave de recuperación nueva }
+        recoveryWrappedMasterKey: { $ref: '#/components/schemas/Sealed' }
+    EncryptedNote:
+      type: object
+      description: |
+        Una nota tal como la guarda el servidor: metadatos que necesita (carpeta, fechas, papelera,
+        revisión) y dos textos cifrados. El título, el texto y las etiquetas solo existen cifrados.
+      required:
+        [
+          id,
+          folderId,
+          createdAt,
+          updatedAt,
+          deletedAt,
+          revision,
+          lastEditedDeviceId,
+          wrappedKey,
+          payload
+        ]
+      properties:
+        id: { type: string }
+        folderId: { type: [string, 'null'] }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+        deletedAt: { type: [string, 'null'], format: date-time }
+        revision: { type: integer, minimum: 0 }
+        lastEditedDeviceId: { type: string }
+        wrappedKey:
+          allOf: [{ $ref: '#/components/schemas/Sealed' }]
+          description: Clave de la nota, cifrada con la clave maestra
+        payload:
+          allOf: [{ $ref: '#/components/schemas/Sealed' }]
+          description: JSON `{ title, content, tags, pinned }` rellenado a múltiplos de 256 bytes y cifrado con la clave de la nota
+    EncryptedNoteFields:
+      type: object
+      description: Lo que el cliente sube de una nota en un `upsert` (el resto lo pone el servidor).
+      required: [folderId, createdAt, updatedAt, deletedAt, wrappedKey, payload]
+      properties:
+        folderId: { type: [string, 'null'] }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+        deletedAt: { type: [string, 'null'], format: date-time }
+        wrappedKey: { $ref: '#/components/schemas/Sealed' }
+        payload: { $ref: '#/components/schemas/Sealed' }
+    EncryptedFolder:
+      type: object
+      required: [id, createdAt, updatedAt, revision, wrappedKey, payload]
+      properties:
+        id: { type: string }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+        revision: { type: integer, minimum: 0 }
+        wrappedKey: { $ref: '#/components/schemas/Sealed' }
+        payload:
+          allOf: [{ $ref: '#/components/schemas/Sealed' }]
+          description: JSON `{ name }` rellenado y cifrado (nombre de 1 a 30 caracteres, único; lo comprueba el cliente)
+    EncryptedFolderFields:
+      type: object
+      required: [createdAt, updatedAt, wrappedKey, payload]
+      properties:
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+        wrappedKey: { $ref: '#/components/schemas/Sealed' }
+        payload: { $ref: '#/components/schemas/Sealed' }
+    DevicePlatform:
+      type: string
+      enum: [linux, windows, android, web]
+    Device:
+      type: object
+      required: [id, name, platform, lastActiveAt, current]
+      properties:
+        id: { type: string }
+        name: { type: string }
+        platform: { $ref: '#/components/schemas/DevicePlatform' }
+        lastActiveAt: { type: string, format: date-time }
+        current: { type: boolean }
+    TrustedDevice:
+      type: object
+      description: 'Un navegador de confianza: el servidor guarda la clave maestra cifrada con la clave propia del dispositivo; ninguna mitad sirve sola.'
+      required: [id, name, platform, createdAt, lastUsedAt]
+      properties:
+        id: { type: string }
+        name: { type: string }
+        platform: { $ref: '#/components/schemas/DevicePlatform' }
+        createdAt: { type: string, format: date-time }
+        lastUsedAt: { type: string, format: date-time }
+    TrustedDeviceInput:
+      type: object
+      required: [id, name, platform, wrappedMasterKey]
+      properties:
+        id: { type: string, description: UUID v7 generado por el cliente }
+        name: { type: string, maxLength: 100 }
+        platform: { $ref: '#/components/schemas/DevicePlatform' }
+        wrappedMasterKey:
+          allOf: [{ $ref: '#/components/schemas/Sealed' }]
+          description: 'Clave maestra cifrada con la clave no exportable del navegador (datos asociados `apunte/v1/mk/<userId>/trusted/<trustId>`)'
+    SharedNote:
+      type: object
+      description: Lo que guarda el servidor de un enlace público.
+      required: [id, noteId, slug, wrappedShareKey, payload, createdAt, updatedAt]
+      properties:
+        id: { type: string }
+        noteId: { type: string }
+        slug:
+          type: string
+          pattern: '^[A-Za-z0-9_-]{22}$'
+          description: Parte pública de la URL. La elige el cliente (16 bytes aleatorios en base64url) y es única.
+        wrappedShareKey:
+          allOf: [{ $ref: '#/components/schemas/Sealed' }]
+          description: Clave del enlace, cifrada con la clave maestra del dueño
+        payload:
+          allOf: [{ $ref: '#/components/schemas/Sealed' }]
+          description: JSON `{ title, content }` rellenado y cifrado con la clave del enlace; sus datos asociados incluyen el `slug`
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+    ShareInput:
+      type: object
+      required: [slug, wrappedShareKey, payload]
+      properties:
+        slug: { type: string, pattern: '^[A-Za-z0-9_-]{22}$' }
+        wrappedShareKey: { $ref: '#/components/schemas/Sealed' }
+        payload: { $ref: '#/components/schemas/Sealed' }
+    PublicNote:
+      type: object
+      required: [payload, updatedAt]
+      properties:
+        payload: { $ref: '#/components/schemas/Sealed' }
+        updatedAt: { type: string, format: date-time }
+    AppSettings:
+      type: object
+      required:
+        - theme
+        - textSize
+        - noteOrder
+        - openWithNewNote
+        - showPreview
+        - language
+        - autoSync
+        - wifiOnly
+        - biometricLock
+        - lockOnExit
+        - lockTimeout
+        - twoFactor
+      properties:
+        theme: { type: string, enum: [system, light, dark] }
+        textSize: { type: string, enum: [small, medium, large] }
+        noteOrder: { type: string, enum: [updated, created, title] }
+        openWithNewNote: { type: boolean }
+        showPreview: { type: boolean }
+        language: { type: string, enum: [es] }
+        autoSync: { type: boolean }
+        wifiOnly: { type: boolean }
+        biometricLock: { type: boolean }
+        lockOnExit: { type: boolean }
+        lockTimeout: { type: string, enum: [immediately, 1m, 5m, 15m, never] }
+        twoFactor: { type: boolean }
+    AppSettingsPatch:
+      type: object
+      description: Cualquier subconjunto de `AppSettings`.
+      minProperties: 1
+      additionalProperties: false
+      properties:
+        theme: { type: string, enum: [system, light, dark] }
+        textSize: { type: string, enum: [small, medium, large] }
+        noteOrder: { type: string, enum: [updated, created, title] }
+        openWithNewNote: { type: boolean }
+        showPreview: { type: boolean }
+        language: { type: string, enum: [es] }
+        autoSync: { type: boolean }
+        wifiOnly: { type: boolean }
+        biometricLock: { type: boolean }
+        lockOnExit: { type: boolean }
+        lockTimeout: { type: string, enum: [immediately, 1m, 5m, 15m, never] }
+        twoFactor:
+          {
+            type: boolean,
+            readOnly: true,
+            description: 'De solo lectura: se gestiona con `/mfa`. Enviarlo da `422` (`twoFactor: invalid-payload`).'
+          }
+    StorageUsage:
+      type: object
+      required: [usedBytes, quotaBytes, notesBytes, imagesBytes, trashBytes]
+      properties:
+        usedBytes: { type: integer, minimum: 0 }
+        quotaBytes: { type: integer, minimum: 0 }
+        notesBytes: { type: integer, minimum: 0 }
+        imagesBytes: { type: integer, minimum: 0 }
+        trashBytes: { type: integer, minimum: 0 }
+    SyncChange:
+      type: object
+      description: |
+        Un cambio de nota o carpeta hecho en el cliente (cola de cambios, una entrada por entidad).
+        Mover a la papelera y restaurar son `upsert` (llevan `deletedAt`); `delete` es borrado definitivo.
+      required: [entity, id, op, baseRevision]
+      properties:
+        entity: { type: string, enum: [note, folder] }
+        id: { type: string, description: UUID v7 generado por el cliente }
+        op: { type: string, enum: [upsert, delete] }
+        baseRevision:
+          {
+            type: integer,
+            minimum: 0,
+            description: 'Revisión que el cliente conocía (0 si la creó sin conexión)'
+          }
+        data:
+          description: 'Campos cifrados de la nota o carpeta, según `entity` (solo en `upsert`)'
+          anyOf:
+            - { $ref: '#/components/schemas/EncryptedNoteFields' }
+            - { $ref: '#/components/schemas/EncryptedFolderFields' }
+    SyncRequest:
+      type: object
+      required: [deviceId, deviceName, cursor, changes]
+      properties:
+        deviceId: { type: string }
+        deviceName: { type: string }
+        cursor:
+          { type: [string, 'null'], description: 'Último cursor recibido; null descarga todo' }
+        changes:
+          type: array
+          items: { $ref: '#/components/schemas/SyncChange' }
+    SyncApplied:
+      type: object
+      required: [entity, id, revision]
+      properties:
+        entity: { type: string, enum: [note, folder] }
+        id: { type: string }
+        revision: { type: integer }
+    SyncRemoteChange:
+      type: object
+      description: Algo que cambió en el servidor desde el cursor. `deleted` es una lápida (borrado definitivo).
+      required: [entity, id, deleted, revision]
+      properties:
+        entity: { type: string, enum: [note, folder] }
+        id: { type: string }
+        deleted: { type: boolean }
+        revision: { type: integer }
+        note: { $ref: '#/components/schemas/EncryptedNote' }
+        folder: { $ref: '#/components/schemas/EncryptedFolder' }
+    SyncConflictReport:
+      type: object
+      description: Una nota cuyo `baseRevision` no coincide. El servidor no la modifica.
+      required: [noteId, remote, remoteDeviceName]
+      properties:
+        noteId: { type: string }
+        remote: { $ref: '#/components/schemas/EncryptedNote' }
+        remoteDeviceName: { type: string }
+    SyncResponse:
+      type: object
+      required: [cursor, applied, remoteChanges, conflicts]
+      properties:
+        cursor: { type: string }
+        hasMore:
+          type: boolean
+          description: Hay más cambios remotos por bajar. El cliente repite `POST /sync` (sin cambios propios) con el `cursor` recibido hasta que sea `false`/ausente.
+        applied:
+          type: array
+          items: { $ref: '#/components/schemas/SyncApplied' }
+        remoteChanges:
+          type: array
+          items: { $ref: '#/components/schemas/SyncRemoteChange' }
+        conflicts:
+          type: array
+          items: { $ref: '#/components/schemas/SyncConflictReport' }
