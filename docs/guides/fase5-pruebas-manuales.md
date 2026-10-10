@@ -85,6 +85,26 @@ flutter test integration_test/axonote_platform_test.dart \
 5. **Después de esta prueba**, si quieres dejar el teléfono como estaba, borra en Ajustes la
    huella nueva que registraste en el paso 2.
 
+## Paso a paso 4 · Cancelar un re-guardado conserva la clave anterior
+
+Prueba: `cancelar al re-guardar conserva la clave anterior intacta · guardar con auth y cancelar
+un segundo guardado no deja la cuenta inservible: la clave anterior sigue intacta`. Comprueba que
+guardar es atómico: si cancelas un segundo `storeMasterKey` (p. ej. al cambiar de contraseña), la
+clave que ya hubiera guardada sigue sirviendo, no queda a medias.
+
+```
+flutter test integration_test/axonote_platform_test.dart \
+  -d LZ0V50COPBC002769 \
+  --dart-define=AXONOTE_MANUAL_BIOMETRIC_TESTS=true \
+  --plain-name "cancelar al re-guardar conserva"
+```
+
+1. Aparecerá un primer cuadro de huella para guardar la clave «ORIGINAL»: pon el dedo registrado.
+2. Aparecerá un segundo cuadro con el texto «TOCA "CANCELAR"...»: cancélalo (no pongas el dedo).
+3. Aparecerá un tercer cuadro pidiendo confirmar para **cargar**: pon el dedo. La prueba comprueba
+   que lo cargado es la clave «ORIGINAL» del paso 1, no un fallo ni «no hay nada guardado».
+4. La terminal debe terminar en verde.
+
 ## Si algo no sale como se describe
 
 Si cualquier paso se comporta distinto de lo escrito aquí (por ejemplo: el cuadro de biometría no

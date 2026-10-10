@@ -202,4 +202,47 @@ void main() {
       );
     },
   );
+
+  group(
+    'cancelar al re-guardar conserva la clave anterior intacta '
+    '(PASO A PASO 4 de la guía — atomicidad)',
+    () {
+      const userId = 'fase5-atomico';
+
+      tearDown(() => cleanUp(userId));
+
+      testWidgets(
+        'guardar con auth y cancelar un segundo guardado no deja la cuenta '
+        'inservible: la clave anterior sigue intacta',
+        (tester) async {
+          final original = Uint8List.fromList(List.generate(32, (i) => i));
+          await platform.storeMasterKey(
+            userId: userId,
+            bytes: original,
+            requireAuth: true,
+            prompt: 'Prueba Fase 5 (atomicidad): confirma tu huella para guardar la ORIGINAL',
+          );
+          // Segundo intento de guardar (p. ej. al cambiar de contraseña): cancélalo.
+          await expectLater(
+            platform.storeMasterKey(
+              userId: userId,
+              bytes: Uint8List.fromList(List.filled(32, 9)),
+              requireAuth: true,
+              prompt:
+                  'Prueba Fase 5 (atomicidad): TOCA "CANCELAR" O EL BOTÓN ATRÁS AHORA '
+                  '(NO pongas el dedo)',
+            ),
+            throwsA(isA<AuthCancelled>()),
+          );
+          // La cuenta sigue teniendo la clave ORIGINAL, no `no_stored_key` ni un fallo genérico.
+          final loaded = await platform.loadMasterKey(
+            userId: userId,
+            prompt: 'Prueba Fase 5 (atomicidad): confirma tu huella para cargar',
+          );
+          expect(loaded, original);
+        },
+        skip: _runManual ? false : _manualSkipReason,
+      );
+    },
+  );
 }
