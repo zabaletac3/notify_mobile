@@ -1,59 +1,42 @@
 # Extracción de la base visual desde Penpot — progreso
 
-Decisión D16: **manda Penpot**. En la fase 2 los valores salieron de `notify_web` porque Penpot se
-congeló; hay que rehacerlos con lo que diga el archivo de Penpot («Apunte – App de notas», página
-**App Mobile**, 41 tableros de 412×915). Penpot es de solo lectura: no se modifica nada.
+Decisión D16: **manda Penpot**. Archivo «Apunte – App de notas», página **App Mobile**, 41 tableros de
+412×915. Penpot es de solo lectura: no se modifica nada.
 
-Estado: **HECHO.** Base visual reextraída de Penpot (manda D16). Medidas en
-[`penpot-measurements.md`](penpot-measurements.md), crudo en [`penpot-extract.json`](penpot-extract.json) y
-**los 41 PNG de los tableros** en [`boards/`](boards/README.md).
+Estado: **base visual reextraída de Penpot (hecho).** Queda **un** punto abierto: re-renderizar los PNG de
+los tableros con un renderizador fiel (ver «Pendiente»).
 
-Datos crudos ya extraídos y guardados: [`docs/design/penpot-extract.json`](penpot-extract.json).
+- Medidas de componentes, tipografía, radios e iconos → [`penpot-measurements.md`](penpot-measurements.md).
+- Datos crudos (tokens, colores, tamaños, ids) → [`penpot-extract.json`](penpot-extract.json).
+- PNG de los tableros → [`boards/`](boards/README.md).
+- Diferencias frente a lo que había (web) → `docs/decisions.md`.
 
-## Pausas (regla de conexión)
+## Qué se extrajo
 
-1. **Suspendido por el navegador** (`no heartbeat for 3828s`); dos reintentos fallaron.
-2. Reconectado: se extrajeron los **tokens de color** y se empezó la agregación; al lanzar **6 consultas
-   en paralelo** la 1.ª fue bien y las otras 5 dieron timeout, y una consulta mínima después también →
-   cancelar. **Lección:** el plugin atiende **de una en una**; no paralelizar.
-3. Reanudado: se procesaron los **41 tableros** de uno en uno (bien) y se volcó el acumulador (bien).
-   Después, `export_shape` del tablero «Lista de notas» dio **dos timeouts seguidos** → cancelar.
+- **Colores:** los 17+17 tokens (claro/oscuro) coinciden **exactamente** con `tokens.dart`. Colores usados
+  no-token: `#b7791f` (resplandor decorativo de las pantallas de auth) y `#4285f4` (logo de Google).
+- **Tipografía (Inter):** roles con sus usos y conteos → tabla en `penpot-measurements.md`. Conviven
+  tamaños/interlineados distintos por contexto (p. ej. título de auth 28 y título de pantalla 22–24;
+  cuerpo de lectura 15/22 y texto de interfaz 15/1.2).
+- **Radios, sombras, espaciados** y **10 componentes** medidos (tabla en `penpot-measurements.md`).
+- **Iconos:** Lucide con trazo **1,75**; tamaños 11–24 por contexto.
+- **Editores:** «Android — Editor» = solo el chasis; «3 · Notas — Android — Editor» = editor completo (lo
+  usado). Comparado y anotado.
 
-## Hecho
+## Pausas por la regla de conexión (histórico)
 
-### Área 1 · Colores — HECHO
-- Los **17+17 tokens** de color (claro/oscuro) leídos con valor. **Idénticos** a `app/lib/ui/tokens.dart`
-  (tomados de `notify_web`): en colores **no hay diferencias** con Penpot. Tabla en `penpot-extract.json`.
-- **Colores usados que NO son token**: `#b7791f` (ámbar antiguo, 3×) y `#4285f4` (azul del logo de Google, 3×).
-
-### Áreas 2 y 3 (parcial) · Tipografía, radios, sombras — AGREGADO (41 tableros)
-- **Fuentes:** Inter (953 textos) y `sourcesanspro` (2). 
-- **Sombras:** 56 shapes con sombra.
-- **Radios** (distribución) y **escala tipográfica** (tamaño|peso|interlineado|letterSpacing y conteos) en
-  `penpot-extract.json`. Observaciones:
-  - `title` 28/34 (1.214) y `body` 15/22 (1.467) **sí** casan con la web; `label` 13/18 (1.385) también.
-  - El resto usa mayoritariamente interlineado **1.2** (p. ej. 18|600 → 21.6, no 24; 12|400 → 14.4, no 16):
-    **difiere** de la escala de la web.
-  - Los títulos llevan **letterSpacing negativo** (p. ej. 22|700 → -0.44; 28|700 → -0.56).
-  - Aparecen muchos tamaños (11,12,13,14,15,16,18,20,22,24,28,30,…), más que la escala de 5 pasos de la web.
-- **Ids de los 41 tableros** en `penpot-extract.json` (para exportar/comparar).
+1. MCP suspendido por el navegador; dos reintentos de `getPages` fallaron.
+2. Reanudado; se extrajeron los colores, pero **6 consultas en paralelo** saturaron el plugin (5 timeouts)
+   → cancelar. **Lección:** el plugin atiende **de una en una**.
+3. Reanudado; se procesaron los 41 tableros de uno en uno y se volcó el acumulador.
+4. Reanudado; se recogieron las medidas de componentes y los SVG de los 41 tableros (vía servidor local) y
+   se convirtieron a PNG.
 
 ## Pendiente
 
-1. (Área 1) Dónde aparece `#b7791f` (tablero).
-2. (Área 4) **Los 10 componentes base** medidos en sus apariciones reales (alto, ancho, relleno, radio,
-   borde, sombra, tipografía, colores por estado, tamaño de icono). Sin medir todavía.
-3. (Área 5) **Iconos:** lista, tamaño y trazo.
-4. (Área 6) **PNGs de los 41 tableros** en `docs/design/boards/<nombre>.png` (`export_shape`):
-   **bloqueado** (2 timeouts seguidos con «Lista de notas»). Reintentar con exportaciones más ligeras
-   (¿uno a uno, sin prisa?) o desde el navegador.
-5. (Área 6) Estructura de cada tablero en `docs/screens.md`.
-6. (Área 7) Comparar «3 · Notas — Android — Editor» con «Android — Editor».
-7. **Código:** tokens.dart (tipografía/radios/espaciado), los 10 componentes, galería `/dev/components`
-   (mover «Ver componentes (dev)» y «Entrar (demo)» al centro), regenerar golden y tabla en `decisions.md`.
-
-## Al reanudar
-
-Consultas **secuenciales** (nunca en paralelo), un tablero por llamada. `storage.acc` y `storage.boards`
-ya están poblados en la sesión del plugin; si se pierden, re-construir desde `penpot-extract.json` (ids).
-Empezar por los **PNGs** (o medir los componentes), y terminar con las actualizaciones de código.
+- **Re-renderizar los 41 PNG con Chromium sin cabeza** (los actuales se hicieron con ImageMagick, que
+  añade un lienzo grande y no dibuja bien desenfoques/resplandores). Renderizar a 824×1830 (2x), recortar
+  al tablero y revisar los 41. **Bloqueado:** la pestaña de Penpot volvió a dar timeouts al reexportar los
+  SVG (regla: dos timeouts seguidos = cancelar). Al reconectar, reexportar los SVG (servidor local +
+  `generateMarkup`) y renderizarlos con Chromium del Playwright
+  (`~/.cache/ms-playwright/chromium-*/chrome-linux64/chrome`).

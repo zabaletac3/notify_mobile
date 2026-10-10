@@ -44,3 +44,29 @@ diálogo, toast, casilla OTP) · 10 (tarjeta de nota, chip, casilla) · 8 · 4 �
   (etiquetas, checklist, viñetas, títulos, párrafo, título de nota y fecha) + **Component 2/Format bar row**
   (barra de formato).
 - Es decir, el nuevo añade el contenido y la barra de formato; el antiguo era solo el chasis. Se usa el nuevo.
+
+## Tipografía: rol → tamaño/peso/interlineado/espaciado → dónde aparece → n.º de usos
+
+Conteos de `penpot-extract.json` (`tipografia.estilos`). El diseño **convive** tamaños e interlineados
+distintos por contexto; no se borra ningún rol que use.
+
+| Rol (`AxoType`) | Tamaño / peso / interlineado / ls | Dónde | Usos |
+| --- | --- | --- | --- |
+| `title` | 28 / 700 / 34 (1.214) / -0.56 | Título de autenticación grande («Verifica tu correo») | 14 |
+| `screenTitle` | 24 / 700 / 1.2 / 0 | Título de pantalla («Crea tu cuenta») | 10 |
+| `topTitle` | 22 / 700 / 1.2 / -0.44 | Selector de carpeta / título superior de la lista | 19 |
+| `dialogTitle` | 20 / 700 / 1.2 / 0 | Título de diálogo | 13 |
+| `sheetTitle` | 17 / 600 / 1.2 / 0 | Título de hoja inferior | 3 |
+| `heading` | 18 / 600 / 1.2 / 0 | Encabezados de sección | 9 |
+| `noteTitle` | 14 / 600 / 1.2 / 0 | Título de nota en la lista | 153 |
+| `body` | 15 / 400 / 22 (1.467) / 0 | Texto de lectura (editor; subtítulo de auth) | 9 |
+| `bodyUi` | 15 / 400 / 1.2 / 0 | Texto de interfaz (campos, botones, opciones) | 16 |
+| `label` | 13 / 500 / 1.2 / 0 | Etiquetas de campo | 32 |
+| `caption` | 12 / 400 / 1.2 / 0 | Pie, ayuda, metadatos | 78 |
+
+Otros estilos presentes que **no** se han creado como rol propio (pesos/conteos): `16/600` (label de botón
+primario, 20), `13/600` (encabezado de grupo, 39), `11/500` (etiqueta de carpeta y de carpeta en tarjeta,
+66+3), `12/500` (fecha, 80), `15/500` (label de menú/opción, 48), `13/400` (16), `20/400` (texto de ajustes,
+21), y los tamaños menores de la ficha de tienda (reducida). `sourcesanspro` aparece 2× (probablemente en
+la ficha de tienda): a revisar, no se usa.
+
