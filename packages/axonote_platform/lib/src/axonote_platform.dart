@@ -50,7 +50,10 @@ abstract class AxonotePlatform {
   /// (biometría nueva desde que se guardó, o el texto cifrado ya no corresponde a la clave: en
   /// ambos casos ya se borró en el Keystore), [AuthCancelled], [AuthNotEnrolled],
   /// [AuthLockedOut] o [AxonotePlatformFailure].
-  Future<Uint8List> loadMasterKey({required String userId, required String prompt});
+  Future<Uint8List> loadMasterKey({
+    required String userId,
+    required String prompt,
+  });
 
   /// Borra la clave de Keystore y lo guardado de `userId`. No lanza si no había nada.
   Future<void> deleteMasterKey({required String userId});

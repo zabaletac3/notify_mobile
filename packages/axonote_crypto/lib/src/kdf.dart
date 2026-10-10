@@ -147,5 +147,7 @@ Future<RecoveryDerivedKeys> deriveFromRecoveryKey(Uint8List recoveryKey) async {
 /// `HKDF-SHA256(MK, sal = 32 ceros, info = "apunte/v1/local-db/<userId>", 32 B)`. La etiqueta es
 /// solo local: nunca viaja al servidor. Sin clave maestra no se puede derivar, así que esta
 /// función no abre nada por sí misma: solo calcula la clave que usa quien abre la base (fase 6).
-Future<SecretKeyBytes> deriveLocalDbKey(SecretKeyBytes masterKey, String userId) =>
-    _hkdfKeyBytes(masterKey.bytes, 'apunte/v1/local-db/$userId');
+Future<SecretKeyBytes> deriveLocalDbKey(
+  SecretKeyBytes masterKey,
+  String userId,
+) => _hkdfKeyBytes(masterKey.bytes, 'apunte/v1/local-db/$userId');

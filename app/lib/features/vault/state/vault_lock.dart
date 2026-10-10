@@ -105,7 +105,10 @@ class VaultLockController {
 
   /// Guarda, sustituye o borra lo guardado en `axonote_platform` según [_rememberPolicy] y
   /// [_allowRemember]. No lanza por sí misma más que lo que lance `axonote_platform`.
-  Future<void> _applyRememberPolicy(String userId, SecretKeyBytes masterKey) async {
+  Future<void> _applyRememberPolicy(
+    String userId,
+    SecretKeyBytes masterKey,
+  ) async {
     if (!_allowRemember) {
       await _platform.deleteMasterKey(userId: userId);
       return;
@@ -205,7 +208,8 @@ class VaultLockController {
   void appBackgrounded() {
     _inBackground = true;
     if (!_isUnlocked) return;
-    if (_settings.lockOnExit || _settings.lockTimeout == LockTimeout.immediately) {
+    if (_settings.lockOnExit ||
+        _settings.lockTimeout == LockTimeout.immediately) {
       lock();
       return;
     }

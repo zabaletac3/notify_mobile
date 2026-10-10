@@ -36,14 +36,8 @@ void main() {
 
   test('dataAad y keyAad ligan el AAD a la cuenta, el tipo y el id', () {
     final vault = Vault(userId: userId);
-    expect(
-      vault.dataAad(ItemEntity.note, 'n1'),
-      'apunte/v1/data/u1/note/n1',
-    );
-    expect(
-      vault.keyAad(ItemEntity.folder, 'f1'),
-      'apunte/v1/key/u1/folder/f1',
-    );
+    expect(vault.dataAad(ItemEntity.note, 'n1'), 'apunte/v1/data/u1/note/n1');
+    expect(vault.keyAad(ItemEntity.folder, 'f1'), 'apunte/v1/key/u1/folder/f1');
   });
 
   test('localDbKey lanza VaultLockedError si está bloqueado', () {
@@ -87,18 +81,25 @@ void main() {
     test('itemKey reutiliza la caché en vez de desenvolver de nuevo', () async {
       final created = await vault.newItemKey(ItemEntity.note, 'n1');
       final first = await vault.itemKey(ItemEntity.note, 'n1', created.wrapped);
-      final second = await vault.itemKey(ItemEntity.note, 'n1', created.wrapped);
+      final second = await vault.itemKey(
+        ItemEntity.note,
+        'n1',
+        created.wrapped,
+      );
       expect(identical(first, second), isTrue);
     });
 
-    test('itemKey con un wrapped de otra cuenta no corresponde (DecryptError)', () async {
-      final created = await vault.newItemKey(ItemEntity.note, 'n1');
-      final other = Vault(userId: 'otra-cuenta')..unlockWith(_key());
-      await expectLater(
-        other.itemKey(ItemEntity.note, 'n1', created.wrapped),
-        throwsA(isA<DecryptError>()),
-      );
-    });
+    test(
+      'itemKey con un wrapped de otra cuenta no corresponde (DecryptError)',
+      () async {
+        final created = await vault.newItemKey(ItemEntity.note, 'n1');
+        final other = Vault(userId: 'otra-cuenta')..unlockWith(_key());
+        await expectLater(
+          other.itemKey(ItemEntity.note, 'n1', created.wrapped),
+          throwsA(isA<DecryptError>()),
+        );
+      },
+    );
 
     test('rotateItemKey da una clave distinta de la anterior', () async {
       final first = await vault.newItemKey(ItemEntity.note, 'n1');
@@ -107,19 +108,16 @@ void main() {
       expect(rotated.key.bytes, isNot(equals(first.key.bytes)));
     });
 
-    test(
-      'newItemKey.key es la misma instancia que queda en caché (no se debe '
-      'hacer dispose aparte: ver doc de newItemKey)',
-      () async {
-        final created = await vault.newItemKey(ItemEntity.note, 'n1');
-        final cached = await vault.itemKey(
-          ItemEntity.note,
-          'n1',
-          created.wrapped,
-        );
-        expect(identical(created.key, cached), isTrue);
-      },
-    );
+    test('newItemKey.key es la misma instancia que queda en caché (no se debe '
+        'hacer dispose aparte: ver doc de newItemKey)', () async {
+      final created = await vault.newItemKey(ItemEntity.note, 'n1');
+      final cached = await vault.itemKey(
+        ItemEntity.note,
+        'n1',
+        created.wrapped,
+      );
+      expect(identical(created.key, cached), isTrue);
+    });
 
     test('lock() también borra las claves de elemento en caché', () async {
       final created = await vault.newItemKey(ItemEntity.note, 'n1');

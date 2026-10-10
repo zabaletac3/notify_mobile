@@ -60,10 +60,9 @@ class FakeTimerFactory implements TimerFactory {
   void advance(Duration by) {
     clock.advance(by);
     // Copia la lista: un callback puede programar otro temporizador nuevo durante el bucle.
-    final due =
-        _pending
-            .where((t) => !t.cancelled && !t.fired && !clock.now().isBefore(t.at))
-            .toList();
+    final due = _pending
+        .where((t) => !t.cancelled && !t.fired && !clock.now().isBefore(t.at))
+        .toList();
     for (final entry in due) {
       if (entry.cancelled || entry.fired) continue;
       entry.fired = true;
@@ -73,7 +72,8 @@ class FakeTimerFactory implements TimerFactory {
   }
 
   /// Cuántos temporizadores siguen pendientes (ni disparados ni cancelados). Solo para pruebas.
-  int get pendingCount => _pending.where((t) => !t.cancelled && !t.fired).length;
+  int get pendingCount =>
+      _pending.where((t) => !t.cancelled && !t.fired).length;
 }
 
 class _FakeCancelableTimer implements CancelableTimer {

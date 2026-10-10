@@ -47,7 +47,10 @@ void main() {
         keyBundleJson: '{}',
       ),
     );
-    await account.updateTokens(accessToken: 'access-2', refreshToken: 'refresh-2');
+    await account.updateTokens(
+      accessToken: 'access-2',
+      refreshToken: 'refresh-2',
+    );
     expect(await account.readAccessToken(), 'access-2');
     expect(await account.readRefreshToken(), 'refresh-2');
     expect(await account.readUserId(), 'u1');
@@ -68,57 +71,81 @@ void main() {
     expect(await account.readAccessToken(), 'access-1');
   });
 
-  test('clearSession borra la sesión pero no las preferencias de bloqueo', () async {
-    await account.saveSession(
-      const SessionData(
-        userId: 'u1',
-        email: 'persona@example.com',
-        accessToken: 'access-1',
-        refreshToken: 'refresh-1',
-        keyBundleJson: '{}',
-      ),
-    );
-    await account.writeLockSettings('u1', const LockSettings(lockOnExit: true));
-    await account.clearSession();
-    expect(await account.readUserId(), isNull);
-    expect(await account.readAccessToken(), isNull);
-    final prefs = await account.readLockSettings('u1');
-    expect(prefs.lockOnExit, isTrue);
-  });
+  test(
+    'clearSession borra la sesión pero no las preferencias de bloqueo',
+    () async {
+      await account.saveSession(
+        const SessionData(
+          userId: 'u1',
+          email: 'persona@example.com',
+          accessToken: 'access-1',
+          refreshToken: 'refresh-1',
+          keyBundleJson: '{}',
+        ),
+      );
+      await account.writeLockSettings(
+        'u1',
+        const LockSettings(lockOnExit: true),
+      );
+      await account.clearSession();
+      expect(await account.readUserId(), isNull);
+      expect(await account.readAccessToken(), isNull);
+      final prefs = await account.readLockSettings('u1');
+      expect(prefs.lockOnExit, isTrue);
+    },
+  );
 
-  test('forgetAccount borra también las preferencias de bloqueo de esa cuenta', () async {
-    await account.writeLockSettings('u1', const LockSettings(lockOnExit: true));
-    await account.forgetAccount('u1');
-    final prefs = await account.readLockSettings('u1');
-    expect(prefs, const LockSettings());
-  });
+  test(
+    'forgetAccount borra también las preferencias de bloqueo de esa cuenta',
+    () async {
+      await account.writeLockSettings(
+        'u1',
+        const LockSettings(lockOnExit: true),
+      );
+      await account.forgetAccount('u1');
+      final prefs = await account.readLockSettings('u1');
+      expect(prefs, const LockSettings());
+    },
+  );
 
   group('preferencias de bloqueo', () {
     test('sin nada guardado, da los valores por defecto', () async {
       expect(await account.readLockSettings('u1'), const LockSettings());
     });
 
-    test('writeLockSettings → readLockSettings conserva los tres campos', () async {
-      const settings = LockSettings(
-        biometricLock: false,
-        lockOnExit: true,
-        lockTimeout: LockTimeout.fiveMinutes,
-      );
-      await account.writeLockSettings('u1', settings);
-      expect(await account.readLockSettings('u1'), settings);
-    });
+    test(
+      'writeLockSettings → readLockSettings conserva los tres campos',
+      () async {
+        const settings = LockSettings(
+          biometricLock: false,
+          lockOnExit: true,
+          lockTimeout: LockTimeout.fiveMinutes,
+        );
+        await account.writeLockSettings('u1', settings);
+        expect(await account.readLockSettings('u1'), settings);
+      },
+    );
 
     test('son por cuenta: no se mezclan entre userId distintos', () async {
-      await account.writeLockSettings('u1', const LockSettings(lockOnExit: true));
-      await account.writeLockSettings('u2', const LockSettings(lockOnExit: false));
+      await account.writeLockSettings(
+        'u1',
+        const LockSettings(lockOnExit: true),
+      );
+      await account.writeLockSettings(
+        'u2',
+        const LockSettings(lockOnExit: false),
+      );
       expect((await account.readLockSettings('u1')).lockOnExit, isTrue);
       expect((await account.readLockSettings('u2')).lockOnExit, isFalse);
     });
 
-    test('un valor guardado con otro formato se trata como si no hubiera nada', () async {
-      await store.write('lockPrefs.u1', 'no es json');
-      expect(await account.readLockSettings('u1'), const LockSettings());
-    });
+    test(
+      'un valor guardado con otro formato se trata como si no hubiera nada',
+      () async {
+        await store.write('lockPrefs.u1', 'no es json');
+        expect(await account.readLockSettings('u1'), const LockSettings());
+      },
+    );
 
     test('un campo con un tipo distinto del esperado también cae al valor por defecto', () async {
       await store.write('lockPrefs.u1', '{"biometricLock":"sí"}');

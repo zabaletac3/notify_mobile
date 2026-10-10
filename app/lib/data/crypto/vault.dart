@@ -84,7 +84,11 @@ class Vault {
   ///
   /// Igual que en [newItemKey]: el [SecretKeyBytes] devuelto es el de la caché, no una copia; no
   /// se debe llamar a `dispose()` sobre él. Se borra solo al bloquear ([lock]).
-  Future<SecretKeyBytes> itemKey(ItemEntity entity, String id, Sealed wrapped) async {
+  Future<SecretKeyBytes> itemKey(
+    ItemEntity entity,
+    String id,
+    Sealed wrapped,
+  ) async {
     final master = requireKey();
     final cacheKey = _cacheKey(entity, id, wrapped);
     final cached = _cache[cacheKey];

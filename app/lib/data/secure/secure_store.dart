@@ -23,7 +23,8 @@ abstract class SecureStore {
 /// desde la v11 el paquete siempre cifra con Keystore, con o sin ese nombre de parámetro.
 class FlutterSecureStore implements SecureStore {
   FlutterSecureStore([FlutterSecureStorage? storage])
-    : _storage = storage ?? const FlutterSecureStorage(aOptions: AndroidOptions());
+    : _storage =
+          storage ?? const FlutterSecureStorage(aOptions: AndroidOptions());
 
   final FlutterSecureStorage _storage;
 
