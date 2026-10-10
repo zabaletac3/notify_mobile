@@ -13,16 +13,17 @@ abstract class SecureStore {
   Future<void> deleteWhere(bool Function(String key) test);
 }
 
-/// Implementación real: `flutter_secure_storage` sobre Android Keystore (`EncryptedSharedPreferences`
-/// cuando el dispositivo lo admite). Nada de lo que pasa por aquí se registra ni se expone en
-/// `toString()`.
+/// Implementación real: `flutter_secure_storage` sobre Android Keystore. Nada de lo que pasa por
+/// aquí se registra ni se expone en `toString()`.
+///
+/// `AndroidOptions()` por defecto (sin `.biometric()`): cifra con una clave de Keystore sin pedir
+/// autenticación, que es justo lo que pide el plan (§5.1: "Keystore, sin autenticación") para
+/// tokens, identidad y `KeyBundle`. No se usa `AndroidOptions(encryptedSharedPreferences: true)`:
+/// ese parámetro ya no existe en `flutter_secure_storage` 11.x (ver `docs/decisions.md`, Fase 5);
+/// desde la v11 el paquete siempre cifra con Keystore, con o sin ese nombre de parámetro.
 class FlutterSecureStore implements SecureStore {
   FlutterSecureStore([FlutterSecureStorage? storage])
-    : _storage =
-          storage ??
-          const FlutterSecureStorage(
-            aOptions: AndroidOptions(encryptedSharedPreferences: true),
-          );
+    : _storage = storage ?? const FlutterSecureStorage(aOptions: AndroidOptions());
 
   final FlutterSecureStorage _storage;
 
