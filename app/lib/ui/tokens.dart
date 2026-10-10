@@ -6,11 +6,12 @@
 /// - Radios y medidas: del sistema validado en `notify_web/docs/components.md`.
 library;
 
-import 'package:flutter/widgets.dart';
+import 'package:flutter/material.dart';
 
-/// Colores del tema, en claro y oscuro.
+/// Colores del tema, en claro y oscuro. Se expone como `ThemeExtension` para poder leerlo desde los
+/// componentes con `Theme.of(context).extension<AxoColors>()`.
 @immutable
-class AxoColors {
+class AxoColors extends ThemeExtension<AxoColors> {
   const AxoColors({
     required this.bgEditor,
     required this.bgApp,
@@ -88,6 +89,72 @@ class AxoColors {
     statusDangerBg: Color(0xFF3B2421),
     statusSuccess: Color(0xFF6CC79C),
   );
+
+  @override
+  AxoColors copyWith({
+    Color? bgEditor,
+    Color? bgApp,
+    Color? bgSidebar,
+    Color? bgSelected,
+    Color? bgHover,
+    Color? bgInput,
+    Color? borderDefault,
+    Color? textPrimary,
+    Color? textSecondary,
+    Color? textTertiary,
+    Color? accentDefault,
+    Color? accentOn,
+    Color? tagAmber,
+    Color? tagPlum,
+    Color? statusDanger,
+    Color? statusDangerBg,
+    Color? statusSuccess,
+  }) {
+    return AxoColors(
+      bgEditor: bgEditor ?? this.bgEditor,
+      bgApp: bgApp ?? this.bgApp,
+      bgSidebar: bgSidebar ?? this.bgSidebar,
+      bgSelected: bgSelected ?? this.bgSelected,
+      bgHover: bgHover ?? this.bgHover,
+      bgInput: bgInput ?? this.bgInput,
+      borderDefault: borderDefault ?? this.borderDefault,
+      textPrimary: textPrimary ?? this.textPrimary,
+      textSecondary: textSecondary ?? this.textSecondary,
+      textTertiary: textTertiary ?? this.textTertiary,
+      accentDefault: accentDefault ?? this.accentDefault,
+      accentOn: accentOn ?? this.accentOn,
+      tagAmber: tagAmber ?? this.tagAmber,
+      tagPlum: tagPlum ?? this.tagPlum,
+      statusDanger: statusDanger ?? this.statusDanger,
+      statusDangerBg: statusDangerBg ?? this.statusDangerBg,
+      statusSuccess: statusSuccess ?? this.statusSuccess,
+    );
+  }
+
+  @override
+  AxoColors lerp(AxoColors? other, double t) {
+    if (other == null) return this;
+    Color c(Color a, Color b) => Color.lerp(a, b, t)!;
+    return AxoColors(
+      bgEditor: c(bgEditor, other.bgEditor),
+      bgApp: c(bgApp, other.bgApp),
+      bgSidebar: c(bgSidebar, other.bgSidebar),
+      bgSelected: c(bgSelected, other.bgSelected),
+      bgHover: c(bgHover, other.bgHover),
+      bgInput: c(bgInput, other.bgInput),
+      borderDefault: c(borderDefault, other.borderDefault),
+      textPrimary: c(textPrimary, other.textPrimary),
+      textSecondary: c(textSecondary, other.textSecondary),
+      textTertiary: c(textTertiary, other.textTertiary),
+      accentDefault: c(accentDefault, other.accentDefault),
+      accentOn: c(accentOn, other.accentOn),
+      tagAmber: c(tagAmber, other.tagAmber),
+      tagPlum: c(tagPlum, other.tagPlum),
+      statusDanger: c(statusDanger, other.statusDanger),
+      statusDangerBg: c(statusDangerBg, other.statusDangerBg),
+      statusSuccess: c(statusSuccess, other.statusSuccess),
+    );
+  }
 }
 
 /// Escala tipográfica (Inter). Los tamaños son punto/interlínea del diseño.
