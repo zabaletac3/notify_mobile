@@ -65,7 +65,16 @@ Widget _app(ProviderContainer container, Widget home, ThemeData theme) =>
         theme: theme,
         localizationsDelegates: AppLocalizations.localizationsDelegates,
         supportedLocales: AppLocalizations.supportedLocales,
-        home: home,
+        home: MediaQuery(
+          // Emula el chasis del tablero (412×915): barra de estado (39) y barra de gestos (26),
+          // para que las pantallas se comparen como el diseño.
+          data: const MediaQueryData(
+            size: Size(412, 915),
+            padding: EdgeInsets.only(top: 39, bottom: 26),
+            viewPadding: EdgeInsets.only(top: 39, bottom: 26),
+          ),
+          child: home,
+        ),
       ),
     );
 
