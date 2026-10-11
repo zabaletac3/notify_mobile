@@ -57,14 +57,6 @@ Future<HttpClient> _httpClientWith(FakeAdapter adapter) async {
   );
 }
 
-Map<String, Object?> _emptySyncResponse({String cursor = '1'}) => {
-  'cursor': cursor,
-  'hasMore': false,
-  'applied': <Object?>[],
-  'conflicts': <Object?>[],
-  'remoteChanges': <Object?>[],
-};
-
 void main() {
   late ProviderContainer container;
   late Directory dir;
@@ -94,45 +86,81 @@ void main() {
     dir.deleteSync(recursive: true);
   });
 
-  test('open monta la base, el motor, el controlador y los disparadores; close lo suelta todo', () async {
-    final adapter = FakeAdapter(
-      (options) async => jsonResponse(200, _emptySyncResponse()),
-    );
-    final http = await _httpClientWith(adapter);
-    var sessionExpired = false;
-    var deviceRevoked = false;
+  test(
+    'open monta la base, el motor, el controlador y los disparadores; close lo suelta todo',
+    () async {
+      // El servidor falso confirma cada cambio que reciba (como haría uno real), en vez de
+      // devolver siempre `applied: []`: si no, el motor hace bien su trabajo —la entrada sigue
+      // pendiente porque de verdad nadie la aceptó— y la prueba pide algo que no puede pasar.
+      final adapter = FakeAdapter((options) async {
+        final body = options.data! as Map<String, Object?>;
+        final changes = (body['changes']! as List).cast<Map<String, Object?>>();
+        return jsonResponse(200, {
+          'cursor': '1',
+          'hasMore': false,
+          'applied': [
+            for (final c in changes)
+              {'entity': c['entity'], 'id': c['id'], 'revision': 1},
+          ],
+          'conflicts': <Object?>[],
+          'remoteChanges': <Object?>[],
+        });
+      });
+      final http = await _httpClientWith(adapter);
+      var sessionExpired = false;
+      var deviceRevoked = false;
 
-    final session = await SyncSession.open(
-      ref: container.read(_refProvider),
-      vault: vault,
-      userId: userId,
-      directory: dir,
-      http: http,
-      deviceId: 'd1',
-      deviceName: 'Móvil de prueba',
-      onSessionExpired: () => sessionExpired = true,
-      onDeviceRevoked: () => deviceRevoked = true,
-    );
+      final session = await SyncSession.open(
+        ref: container.read(_refProvider),
+        vault: vault,
+        userId: userId,
+        directory: dir,
+        http: http,
+        deviceId: 'd1',
+        deviceName: 'Móvil de prueba',
+        onSessionExpired: () => sessionExpired = true,
+        onDeviceRevoked: () => deviceRevoked = true,
+      );
 
-    // Los disparadores están montados sobre el `SyncStore` de la base recién abierta.
-    expect(container.read(syncTriggersProvider).isRunning, isTrue);
+      // Los disparadores están montados sobre el `SyncStore` de la base recién abierta.
+      expect(container.read(syncTriggersProvider).isRunning, isTrue);
 
-    // El controlador ya tiene el motor (attach lo adjunta y refresca el snapshot).
-    await session.local.notes.create(const NoteDraft(title: 'x'));
-    await container.read(syncControllerProvider.notifier).syncNow();
-    final state = container.read(syncControllerProvider);
-    expect(state.lastError, isNull);
-    expect(state.pendingCount, 0);
+      // Deja que se asiente el ciclo de sincronización que start() ya disparó solo (sin nada
+      // pendiente): si no, podría seguir en vuelo cuando se llame a syncNow() más abajo y esa
+      // llamada se limitaría a esperar ESE resultado (de antes de crear la nota).
+      await pumpEventQueue();
 
-    // onSessionExpired/onDeviceRevoked quedan conectados a los que pasó quien llamó a open().
-    final controller = container.read(syncControllerProvider.notifier);
-    controller.onSessionExpired!();
-    controller.onDeviceRevoked!();
-    expect(sessionExpired, isTrue);
-    expect(deviceRevoked, isTrue);
+      // El controlador ya tiene el motor (attach lo adjunta y refresca el snapshot).
+      await session.local.notes.create(const NoteDraft(title: 'x'));
+      await container.read(syncControllerProvider.notifier).syncNow();
+      final state = container.read(syncControllerProvider);
+      expect(state.lastError, isNull);
+      expect(state.pendingCount, 0);
 
-    await session.close();
-    expect(container.read(syncTriggersProvider).isRunning, isFalse);
-    expect(container.read(syncControllerProvider), SyncUiState.empty);
-  });
+      // La petición que subió la nota llevó exactamente un upsert, con el deviceId/deviceName de
+      // esta sesión (y no, p. ej., los de una sincronización vacía anterior).
+      final noteRequest = adapter.requests.firstWhere(
+        (r) =>
+            ((r.data! as Map<String, Object?>)['changes']! as List).isNotEmpty,
+      );
+      final body = noteRequest.data! as Map<String, Object?>;
+      expect(body['deviceId'], 'd1');
+      expect(body['deviceName'], 'Móvil de prueba');
+      final changes = (body['changes']! as List).cast<Map<String, Object?>>();
+      expect(changes, hasLength(1));
+      expect(changes.single['entity'], 'note');
+      expect(changes.single['op'], 'upsert');
+
+      // onSessionExpired/onDeviceRevoked quedan conectados a los que pasó quien llamó a open().
+      final controller = container.read(syncControllerProvider.notifier);
+      controller.onSessionExpired!();
+      controller.onDeviceRevoked!();
+      expect(sessionExpired, isTrue);
+      expect(deviceRevoked, isTrue);
+
+      await session.close();
+      expect(container.read(syncTriggersProvider).isRunning, isFalse);
+      expect(container.read(syncControllerProvider), SyncUiState.empty);
+    },
+  );
 }
