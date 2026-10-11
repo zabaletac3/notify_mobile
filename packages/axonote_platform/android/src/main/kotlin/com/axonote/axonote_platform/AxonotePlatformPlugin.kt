@@ -67,11 +67,27 @@ class AxonotePlatformPlugin : FlutterPlugin, MethodCallHandler, ActivityAware {
             "storeMasterKey" -> storeMasterKey(call, result)
             "loadMasterKey" -> loadMasterKey(call, result)
             "deleteMasterKey" -> deleteMasterKey(call, result)
+            "hasStoredMasterKey" -> hasStoredMasterKey(call, result)
             "authAvailability" -> result.success(AuthAvailabilityChecker.compute(appContext))
             "setSecure" -> setSecure(call, result)
             "copySensitive" -> copySensitive(call, result)
+            "deviceModel" -> result.success(deviceModel())
             else -> result.notImplemented()
         }
+    }
+
+    /** Nombre legible del modelo, para la lista de dispositivos al iniciar sesión. */
+    private fun deviceModel(): String {
+        val manufacturer = Build.MANUFACTURER?.trim().orEmpty()
+        val model = Build.MODEL?.trim().orEmpty()
+        val name =
+            when {
+                manufacturer.isEmpty() -> model
+                model.isEmpty() -> manufacturer
+                model.startsWith(manufacturer, ignoreCase = true) -> model
+                else -> "$manufacturer $model"
+            }
+        return name.ifEmpty { "Android" }
     }
 
     private fun requireFragmentActivity(result: Result): FragmentActivity? {
@@ -202,6 +218,17 @@ class AxonotePlatformPlugin : FlutterPlugin, MethodCallHandler, ActivityAware {
         }
         masterKeyStore.delete(userId)
         result.success(null)
+    }
+
+    private fun hasStoredMasterKey(call: MethodCall, result: Result) {
+        val userId = call.argument<String>("userId")
+        val requireAuth = call.argument<Boolean>("requireAuth") ?: false
+        if (userId == null) {
+            result.error("platform_failure", "argumentos incompletos", null)
+            return
+        }
+        val matches = masterKeyStore.hasStoredKey(userId) && masterKeyStore.requiresAuth(userId) == requireAuth
+        result.success(matches)
     }
 
     private fun setSecure(call: MethodCall, result: Result) {
