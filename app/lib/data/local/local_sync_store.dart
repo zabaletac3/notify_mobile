@@ -256,7 +256,7 @@ class LocalSyncStore implements SyncStore {
           final mine = localRow.toNote();
           copy = await _d.codec.noteRow(
             mine.copyWith(
-              id: newId(_d.now().millisecondsSinceEpoch),
+              id: _d.newId(_d.now().millisecondsSinceEpoch),
               title: '${mine.title} (conflicto)',
               pinned: false,
               createdAt: now,

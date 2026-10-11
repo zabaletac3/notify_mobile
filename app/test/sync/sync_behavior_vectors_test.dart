@@ -21,6 +21,27 @@ import 'vectors.dart';
 
 const _fixedNow = '2026-03-04T10:00:00.000Z';
 
+/// Entrega, en orden, los ids que la prueba programa antes de cada paso que crea algo
+/// (`createNote`, `createFolder`, la copia «(conflicto)» de `resolveConflict('both')`): el
+/// vector se generó «con reloj e ids fijos» (`notify_web/.../sync-behavior-vectors.ts`), así que
+/// aquí no se reproduce ese generador aleatorio, se inyecta directamente el id que el vector ya
+/// grabó como resultado. Si algo crea un id sin que la prueba lo haya programado, es una llamada
+/// que esta prueba no esperaba: mejor que falle alto que devolver un id al azar que tape un bug.
+class _ScriptedIds {
+  String? _next;
+
+  void queue(String id) => _next = id;
+
+  Id call([int? timestampMs]) {
+    final id = _next;
+    if (id == null) {
+      throw StateError('se generó un id sin que la prueba lo programara');
+    }
+    _next = null;
+    return id;
+  }
+}
+
 void main() {
   final vector = loadVector('sync-behavior');
   final scenarios = (vector['scenarios']! as List)
@@ -59,11 +80,13 @@ Future<void> _runScenario(Map<String, Object?> scenario) async {
   );
 
   final masterKey = generateKeyBytes();
+  final ids = _ScriptedIds();
   final h = LocalHarness(
     master: masterKey,
     deviceId: 'd_a',
     deviceName: 'A',
     now: () => DateTime.utc(2026, 3, 4, 10),
+    newId: ids.call,
   );
   addTearDown(h.close);
   final shadow = ShadowSealer(masterKey);
@@ -73,6 +96,7 @@ Future<void> _runScenario(Map<String, Object?> scenario) async {
   for (var i = 0; i < steps.length; i++) {
     final step = steps[i];
     if (step['device'] != 'a') continue; // solo se observa el dispositivo `a`.
+    _queueCreatedId(ids, step, i == 0 ? initial : expected[i - 1], expected[i]);
     await _applyStep(h, shadow, step);
     expect(
       await logicalState(h),
@@ -81,6 +105,37 @@ Future<void> _runScenario(Map<String, Object?> scenario) async {
     );
   }
 }
+
+/// Programa en [ids] el id que el paso va a crear, antes de ejecutarlo:
+/// - `createNote`/`createFolder` lo llevan en el propio paso (`step['id']`).
+/// - `resolveConflict('both')` crea además una copia «(conflicto)» cuyo id no viene en el paso;
+///   se obtiene comparando los ids de nota de [previous] (el estado antes de este paso) con los
+///   de [next] (el estado esperado tras él, que ya viene en el vector): el único id nuevo es el
+///   de la copia.
+void _queueCreatedId(
+  _ScriptedIds ids,
+  Map<String, Object?> step,
+  Map<String, Object?> previous,
+  Map<String, Object?> next,
+) {
+  switch (step['op']) {
+    case 'createNote':
+    case 'createFolder':
+      ids.queue(step['id']! as String);
+    case 'resolveConflict':
+      final before = _noteIds(previous);
+      final after = _noteIds(next);
+      final created = after.difference(before);
+      if (created.isNotEmpty) {
+        ids.queue(created.single);
+      }
+  }
+}
+
+Set<String> _noteIds(Map<String, Object?> state) => (state['notes']! as List)
+    .cast<Map>()
+    .map((n) => n['id']! as String)
+    .toSet();
 
 Future<void> _applyStep(
   LocalHarness h,

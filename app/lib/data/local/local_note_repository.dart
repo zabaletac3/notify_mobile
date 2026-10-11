@@ -136,7 +136,7 @@ class LocalNoteRepository implements NoteRepository {
         final now = _iso();
         return _save(
           Note(
-            id: newId(_d.now().millisecondsSinceEpoch),
+            id: _d.newId(_d.now().millisecondsSinceEpoch),
             folderId: draft.folderId,
             title: draft.title ?? '',
             content: draft.content ?? '',
@@ -191,7 +191,7 @@ class LocalNoteRepository implements NoteRepository {
     // La copia es otra nota: sin `wrappedKey`, para que lleve su propia clave.
     return _save(
       src.copyWith(
-        id: newId(_d.now().millisecondsSinceEpoch),
+        id: _d.newId(_d.now().millisecondsSinceEpoch),
         title: '${src.title} (copia)',
         pinned: false,
         createdAt: now,

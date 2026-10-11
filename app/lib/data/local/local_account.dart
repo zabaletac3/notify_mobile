@@ -16,6 +16,10 @@ import 'local_sync_store.dart';
 import 'mutex.dart';
 import 'schema.dart';
 
+/// El generador real (`newId` de `axonote_domain`), para cuando `open`/`memory` no reciben uno:
+/// nombrarlo distinto evita que el parámetro homónimo de esos métodos lo tape.
+Id _defaultNewId([int? timestampMs]) => newId(timestampMs);
+
 /// Composición de la capa de datos local: abre la base cifrada de una cuenta y reparte los
 /// repositorios. Es lo único que conoce `drift` fuera de este directorio.
 class LocalDatabase {
@@ -41,6 +45,7 @@ class LocalDatabase {
     required String deviceId,
     String? deviceName,
     DateTime Function()? now,
+    Id Function([int?])? newId,
   }) async {
     final key = await _localKey(vault);
     try {
@@ -65,6 +70,7 @@ class LocalDatabase {
           now: now ?? DateTime.now,
           deviceId: deviceId,
           deviceName: deviceName ?? deviceId,
+          newId: newId ?? _defaultNewId,
         ),
       );
     } finally {
@@ -78,6 +84,7 @@ class LocalDatabase {
     required String deviceId,
     String? deviceName,
     DateTime Function()? now,
+    Id Function([int?])? newId,
   }) {
     return LocalDatabase._(
       LocalDeps(
@@ -88,6 +95,7 @@ class LocalDatabase {
         now: now ?? DateTime.now,
         deviceId: deviceId,
         deviceName: deviceName ?? deviceId,
+        newId: newId ?? _defaultNewId,
       ),
     );
   }

@@ -93,7 +93,7 @@ class LocalFolderRepository implements FolderRepository {
     if (check is Invalid) failValidation(check.errors);
     final now = _iso();
     final folder = Folder(
-      id: newId(_d.now().millisecondsSinceEpoch),
+      id: _d.newId(_d.now().millisecondsSinceEpoch),
       name: name.trim(),
       createdAt: now,
       updatedAt: now,
