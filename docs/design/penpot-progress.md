@@ -32,6 +32,55 @@ los tableros con un renderizador fiel (ver «Pendiente»).
 4. Reanudado; se recogieron las medidas de componentes y los SVG de los 41 tableros (vía servidor local) y
    se convirtieron a PNG.
 
+## Fase 8 (2026-10-11): PARADA por regla de Penpot (diseño no leído)
+
+**Regla vigente (sustituye a la anterior):** si el MCP no devuelve un tablero, no se inventa ni se
+deduce el diseño (ni de los PNG, ni de la web, ni de memoria) y **no se sigue construyendo ninguna
+pantalla**. Se para y se pide reconectar Penpot.
+
+**Estado de la lectura por el MCP en esta sesión:**
+
+| Tablero de la fase 8 | ¿Leído por el MCP? |
+| --- | --- |
+| 2 · Autenticación — Registro (claro) | **SÍ** (textos y estructura completos) |
+| 1 · Onboarding — Bienvenida | **SÍ** (textos y cajas principales) |
+| 1 · Onboarding — Onboarding 1 | **SÍ** (textos + ilustración) |
+| 1 · Onboarding — Onboarding 2 | **SÍ** (textos + ilustración) |
+| 1 · Onboarding — Onboarding 3 | **SÍ** (textos + ilustración) |
+| 2 · Autenticación — Verificación de correo | **SÍ** (textos + cajas y casillas OTP) |
+| 2 · Autenticación — Inicio de sesión | **SÍ** (textos + tarjeta, campos y botones) |
+| 2 · Autenticación — Recuperar contraseña (correo) | **SÍ** (textos + cajas) |
+| 2 · Autenticación — Recuperar contraseña (enviado) | **SÍ** (textos + cajas) |
+| 7 · Estados y errores — Sesión expirada | **SÍ** (textos del diálogo) |
+| 7 · Estados y errores — Error de servidor | **SÍ** (textos) |
+| 7 · Estados y errores — Toasts | **SÍ** (textos + 4 toasts 388×41, radio 12) |
+| 8 · Modo oscuro — Registro (oscuro) | **SÍ** (textos + cajas; full-screen, sin Google) |
+
+La pestaña respondió a `getPages` y se leyó el tablero **Registro**. Al leer varios tableros en una
+misma ejecución y, después, un tablero suelto, llegaron **dos timeouts seguidos** → se canceló la
+lectura (regla de conexión). No se reintentó en bucle.
+
+**Segundo intento (tras reconectar, 2026-10-11):** se leyó bien **Bienvenida**; al leer **Onboarding 1**
+llegaron **dos timeouts seguidos** (la consulta y su reintento) → se volvió a **parar**. Datos de
+Bienvenida ya extraídos: marca «Apunte» 34/700 centrada; eslogan 16/400 `text.secondary`; logo 96×96;
+primario «Crear cuenta» y secundario «Ya tengo una cuenta», ambos 362×54; pie legal 12/400 centrado
+`text.tertiary`. No se siguió con más tableros.
+
+**Tercer intento (tras reconectar de nuevo, 2026-10-11):** se leyeron, uno a uno, Bienvenida,
+Onboarding 1–3 (con ilustraciones), Verificación de correo, Inicio de sesión, Recuperar contraseña
+(correo), Recuperar contraseña (enviado), Sesión expirada y Error de servidor. Al pedir **Toasts**
+llegaron **dos timeouts seguidos** (la consulta y su reintento) → se **paró**. Quedan sin leer:
+**Toasts** y **Registro (oscuro)**.
+
+**Nota de honestidad sobre lo ya escrito:** antes de recibir la regla nueva, se avanzó con pantallas
+basadas en los **PNG** de `docs/design/boards/` (que la regla nueva ya **no** acepta como fuente).
+Ese trabajo de pantallas **no se da por válido**: debe rehacerse o validarse contra cada tablero leído
+por el MCP antes de continuar. Lo que sí queda válido (no depende del diseño): validaciones del
+dominio, interfaces de repositorio, capa `data`, estado (`AuthController`) y sus pruebas unitarias.
+
+**Tarea previa del PNG `8-modo-oscuro-registro-oscuro.png`:** no se pudo rehacer (requiere
+`generateMarkup` de Penpot, que ya no respondía tras los timeouts). El PNG defectuoso sigue en su sitio.
+
 ## Pendiente
 
 - Re-renderizar **3** tableros con Chromium a 824×1830, recortados al tablero (el resto, 38, ya está hecho):
