@@ -16,11 +16,16 @@ dependencies:
   axonote_crypto: ^0.1.0
   axonote_domain: ^0.1.0
   axonote_platform: ^0.1.0
+  drift: ^2.35.2
   flutter_riverpod: ^3.4.3
   flutter_secure_storage: ^11.2.0
   flutter_svg: ^2.2.0
   go_router: ^18.0.2
   intl: ^0.20.2
+  meta: ^1.16.0
+  path: ^1.9.1
+  path_provider: ^2.1.6
+  sqlite3: ^3.7.0
 
 dev_dependencies:
   flutter_test:
