@@ -85,22 +85,29 @@ Future<void> _golden(
   required ProviderContainer Function() make,
   Future<void> Function(ProviderContainer container)? seed,
 }) async {
-  tester.view.devicePixelRatio = 1.0;
-  tester.view.physicalSize = const Size(412, 915);
+  tester.view.devicePixelRatio = 2.0;
+  tester.view.physicalSize = const Size(824, 1830);
   addTearDown(tester.view.reset);
-
-  for (final (mode, theme) in [
-    ('light', AxoTheme.light()),
-    ('dark', AxoTheme.dark()),
-  ]) {
-    final container = make();
-    if (seed != null) await seed(container);
-    await tester.pumpWidget(_app(container, home(), theme));
-    await tester.pumpAndSettle();
-    await expectLater(
-      find.byType(MaterialApp),
-      matchesGoldenFile('goldens/screens-$name-$mode.png'),
-    );
+  // Los goldens deben mostrar el difuminado real de las sombras; flutter_test las dibuja sólidas
+  // por defecto (`debugDisableShadows`), así que se activan y se restauran dentro del propio test.
+  final shadows = debugDisableShadows;
+  debugDisableShadows = false;
+  try {
+    for (final (mode, theme) in [
+      ('light', AxoTheme.light()),
+      ('dark', AxoTheme.dark()),
+    ]) {
+      final container = make();
+      if (seed != null) await seed(container);
+      await tester.pumpWidget(_app(container, home(), theme));
+      await tester.pumpAndSettle();
+      await expectLater(
+        find.byType(MaterialApp),
+        matchesGoldenFile('goldens/screens-$name-$mode.png'),
+      );
+    }
+  } finally {
+    debugDisableShadows = shadows;
   }
 }
 
