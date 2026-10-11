@@ -27,10 +27,13 @@ private const val SLOT_A = "a"
 private const val SLOT_B = "b"
 
 /**
- * La clave guardada ya no se puede recuperar: biometría nueva desde que se guardó
- * ([KeyPermanentlyInvalidatedException]), la entrada de Keystore desapareció o no se puede abrir
- * ([UnrecoverableKeyException], [InvalidKeyException] en algunos fabricantes), o el texto cifrado
- * no corresponde a la clave ([javax.crypto.AEADBadTagException] al descifrar). En los tres casos
+ * La clave guardada ya no se puede recuperar: se quitó el bloqueo de pantalla seguro del
+ * dispositivo, o —solo en API 26-29, donde la clave es puramente biométrica— se registró una
+ * biometría nueva ([KeyPermanentlyInvalidatedException]; en API ≥ 30, con biometría o credencial
+ * combinadas, una huella nueva NO lanza esto: ver la decisión de 2026-10-11 en
+ * `docs/decisions.md`); la entrada de Keystore desapareció o no se puede abrir
+ * ([UnrecoverableKeyException], [InvalidKeyException] en algunos fabricantes); o el texto cifrado
+ * no corresponde a la clave ([javax.crypto.AEADBadTagException] al descifrar). En todos los casos
  * lo correcto es lo mismo: borrar y pedir la contraseña.
  */
 class MasterKeyInvalidatedException(message: String) : Exception(message)
@@ -147,7 +150,8 @@ class MasterKeyStore(context: Context) {
     /**
      * [Cipher] en modo descifrado para `userId`, listo para usar directamente o para el
      * `CryptoObject`. Lanza [MasterKeyInvalidatedException] si no hay slot activo, si la entrada
-     * de Keystore no se puede recuperar, o si quedó invalidada por una biometría nueva.
+     * de Keystore no se puede recuperar, o si quedó invalidada (ver ahí las causas exactas: no
+     * siempre es una biometría nueva, ver la decisión de 2026-10-11 en `docs/decisions.md`).
      */
     fun prepareDecryptCipher(userId: String): Cipher {
         val slot =
@@ -169,7 +173,9 @@ class MasterKeyStore(context: Context) {
         try {
             cipher.init(Cipher.DECRYPT_MODE, key, GCMParameterSpec(GCM_TAG_BITS, iv))
         } catch (e: KeyPermanentlyInvalidatedException) {
-            throw MasterKeyInvalidatedException("biometría nueva desde que se guardó")
+            throw MasterKeyInvalidatedException(
+                "bloqueo de pantalla seguro quitado, o (solo en API 26-29) biometría nueva registrada"
+            )
         }
         return cipher
     }
@@ -205,8 +211,18 @@ class MasterKeyStore(context: Context) {
 
     /**
      * Clave AES-256-GCM en Android Keystore. Con `requireAuth`: exige biometría o (API ≥ 30)
-     * también la credencial del dispositivo, para cada uso, y se invalida si se registra una
-     * biometría nueva (plan §5.2). Usa StrongBox si el dispositivo lo ofrece; si no, TEE.
+     * también la credencial del dispositivo, para cada uso. Usa StrongBox si el dispositivo lo
+     * ofrece; si no, TEE.
+     *
+     * `setInvalidatedByBiometricEnrollment(true)` se deja puesto para todo `requireAuth`, pero en
+     * API ≥ 30 no tiene ningún efecto real: al combinar `AUTH_BIOMETRIC_STRONG` con
+     * `AUTH_DEVICE_CREDENTIAL`, Android ata la clave al SID raíz de la credencial del dispositivo,
+     * no solo al biométrico, así que una huella nueva no la invalida (decisión de 2026-10-11,
+     * `docs/decisions.md`: se acepta, no se corrige). En API 26-29 (rama de abajo, sin
+     * `setUserAuthenticationParameters`) la clave sigue siendo puramente biométrica, y ahí sí
+     * surte efecto: una huella nueva la invalida. No hay contradicción con lo que ofrece el cuadro
+     * de biometría en esa misma rama: `BiometricGate.authenticate` tampoco ofrece la credencial
+     * del dispositivo como alternativa por debajo de API 30, solo biometría.
      *
      * Solo reintenta sin StrongBox ante [StrongBoxUnavailableException]: cualquier otra excepción
      * se propaga (en particular, [InvalidAlgorithmParameterException] se convierte en
