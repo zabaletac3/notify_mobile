@@ -172,12 +172,17 @@ class LocalCodec {
   }
 
   /// Cifra una nota desde su fila actual, para subirla. Si es ilegible, devuelve su texto cifrado
-  /// original (no se vuelve a subir contenido, A6).
+  /// original (no se vuelve a subir contenido, A6). Una fila ilegible sin `raw_payload` es un estado
+  /// inconsistente: nunca debe subirse un payload vacío (pisaría el dato en el servidor).
   Future<({String wrappedKey, String payload})> sealNoteForUpload(
     NoteRow row,
   ) async {
     if (row.unreadable) {
-      return (wrappedKey: row.wrappedKey, payload: row.rawPayload ?? '');
+      final raw = row.rawPayload;
+      if (raw == null || raw.isEmpty) {
+        throw StateError('fila ilegible sin raw_payload (nota ${row.id})');
+      }
+      return (wrappedKey: row.wrappedKey, payload: raw);
     }
     final key = await _itemKey(ItemEntity.note, row.id, row.wrappedKey);
     final payload = await crypto.sealNotePayload(
@@ -193,12 +198,17 @@ class LocalCodec {
     return (wrappedKey: row.wrappedKey, payload: payload);
   }
 
-  /// Cifra una carpeta desde su fila actual, para subirla.
+  /// Cifra una carpeta desde su fila actual, para subirla. Igual que [sealNoteForUpload], una fila
+  /// ilegible sin `raw_payload` es un error.
   Future<({String wrappedKey, String payload})> sealFolderForUpload(
     FolderRow row,
   ) async {
     if (row.unreadable) {
-      return (wrappedKey: row.wrappedKey, payload: row.rawPayload ?? '');
+      final raw = row.rawPayload;
+      if (raw == null || raw.isEmpty) {
+        throw StateError('fila ilegible sin raw_payload (carpeta ${row.id})');
+      }
+      return (wrappedKey: row.wrappedKey, payload: raw);
     }
     final key = await _itemKey(ItemEntity.folder, row.id, row.wrappedKey);
     final payload = await crypto.sealFolderPayload(
