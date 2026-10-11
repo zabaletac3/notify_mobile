@@ -512,3 +512,147 @@ nombre. Se usa `AndroidOptions()` (valores por defecto), que ya cumple lo que pe
 - **Prueba de rendimiento con la base cifrada real** (archivo en el directorio de la app, clave del
   Vault), en frío y en caliente, junto con una prueba de cifrado **en dispositivo** (ZTE). Ver
   `docs/benchmarks.md`.
+
+## Fase 7
+
+### 2026-10-11 · El `SyncStore` de la fase 6 basta sin ampliarlo
+
+- **Lo que anticipaba el plan:** el ALCANCE de la fase decía que, si `SyncStore` no bastaba para
+  leer «la fila actual a cifrar», había que ampliarlo.
+- **Por qué no hizo falta:** esa lectura la hace `ItemCodec` (interfaz nueva del motor), no
+  `SyncStore`. `ItemCodec.sealNote(id)`/`sealFolder(id)` solo reciben el `Id`; quien los implementa
+  (`LocalItemCodec`, en `app/lib/data`) es quien lee la fila de drift y le pide a `LocalCodec` que
+  la cifre. El motor nunca ve la fila, así que `SyncStore` no necesita un método para dársela.
+  `applyResult` ya recibía exactamente los campos que necesita (`sent`, `applied`, `conflicts`,
+  `remoteChanges`, `cursor`, `now`); no se le añadió nada.
+
+### 2026-10-11 · `OutboxEntry` es el tipo de «cambio a enviar»; no hay un `SyncChange` nuevo
+
+- **Decisión:** `SyncRequest.changes` (en `axonote_sync`) es `List<OutboxEntry>`. El motor toma lo
+  que da `SyncStore.pending()` y, para cada `upsert`, construye una copia con `noteData`/
+  `folderData` ya rellenos (los demás campos — `seq`, `version`, `changedAt` — no salen a la red,
+  pero reutilizar el tipo evita duplicar uno nuevo solo para esto).
+- **Motivo:** `axonote_domain` (fase 6) ya define `OutboxEntry` con `noteData`/`folderData`
+  opcionales pensados exactamente para esto (A4: la cola guarda referencias; el cifrado se añade
+  al enviar). Duplicar un `SyncChange` habría sido la misma forma con otro nombre.
+
+### 2026-10-11 · El motor hace un solo intento; los reintentos son política de `app`, no del motor
+
+- **Lo que dice el plan §7:** «reintentos con espera exponencial (2 s → 60 s) ante `network` y
+  `server`; `rate-limited` respeta `retryAfterSec`».
+- **Dónde se puso:** en `app/lib/features/sync/state` (que todavía no implementa el backoff en sí:
+  solo expone `lastError`/`phase` para que quien reintente decida), no en `SyncEngine.syncNow()`.
+- **Motivo:** la referencia web (`LocalSyncRepository.syncNow()` y `SyncState.syncNow()`) tampoco
+  reintenta sola: un intento, y si falla, se registra el error y se calla. Un reintento con espera
+  *dentro* de `syncNow()` habría dejado la llamada colgada minutos si la red no vuelve, sin forma
+  de cancelarla desde fuera; y el ALCANCE de la fase pide explícitamente que el motor no use
+  `Timer` ni `DateTime.now()` directos, lo que ya apunta a que esa política (que necesita
+  temporizadores) vive fuera. `SyncController` (el envoltorio de app sobre `SyncEngine`, con el
+  mismo papel que `SyncState` en la web) traduce cada `AppError` en `phase`/`lastError`:
+  `session-expired`/`device-revoked` no quedan como aviso persistente (disparan
+  `onSessionExpired`/`onDeviceRevoked`, que la fase 8 debe conectar a cerrar sesión y a borrar la
+  copia local); el resto sí. **Pendiente, anotado para no perderlo:** el backoff en sí
+  (2 s → 60 s) y el respeto a `retryAfterSec` todavía no están implementados en `SyncTriggers`; hoy
+  el disparador de 60 s simplemente vuelve a intentarlo en su siguiente vuelta normal. Si eso
+  resulta demasiado lento para recuperarse de un fallo transitorio, hace falta añadir ese backoff
+  en `SyncTriggers` (con `TimerFactory`, igual que el resto).
+
+### 2026-10-11 · Sin isolate propio para el descifrado por lotes de la primera descarga
+
+- **Lo que pide el plan §4.4:** «descifrado por lotes (primera sincronización, páginas de 500): en
+  un isolate de trabajo de larga vida, por páginas, con inserción por lotes en una transacción por
+  página».
+- **Por qué no se hizo tal cual (alternativa mínima, ALCANCE punto 5):** repartir el descifrado en
+  un isolate propio exige pasarle la clave maestra (o las de cada elemento) como bytes, y
+  reconstruir allí algo equivalente a `LocalCodec`/`Vault` — que son de `app/lib/data` y dependen
+  de `axonote_crypto` con estado (caché de claves). Hacerlo bien exige rehacer cómo `LocalSyncStore
+  .applyResult` (fase 6) descifra las filas remotas, y esa fase ya tomó su propia decisión sobre
+  esto («`applyResult` descifra los cambios remotos antes de la transacción», más arriba): mover
+  ese descifrado a otro isolate sin romper esa lógica (y sin romper los 19 escenarios de
+  `sync-behavior.json`, que corren sobre esa misma ruta) se salía del alcance de esta fase.
+- **Por qué pesa menos de lo que parece:** D12 ya usa `cryptography_flutter`, que ejecuta el
+  AES-GCM de cada nota fuera del isolate de Dart (vía su canal nativo); lo que queda en el isolate
+  principal es JSON y relleno, barato por elemento. Repartir eso en otro isolate habría añadido la
+  complejidad (pasar bytes de clave, ponerlos a cero al terminar, reconstruir el códec) sin el
+  beneficio principal que motivaba el isolate.
+- **Lo que sí se hizo:** `SyncEngine` gana `onProgress` (`SyncProgress`): se llama tras aplicar cada
+  página con el número de página, si el cursor era `null` al empezar (primera sincronización) y el
+  total de `remoteChanges` aplicados hasta ahora. Con eso la interfaz puede mostrar «descargando…
+  (1500)» en vez de parecer colgada, que es la parte observable del requisito. La fase 8/9, que
+  construye la pantalla, es quien debe pintar ese progreso (todavía no hay interfaz).
+- **Si el presupuesto de rendimiento (§11, 2000 notas en 15 s sin bloquear la interfaz) no se
+  cumple en el ZTE:** medirlo en la fase 12 (`docs/benchmarks.md`, igual que las demás fases) y, si
+  falla, retomar esta decisión con la alternativa completa (isolate de trabajo de verdad).
+
+### 2026-10-11 · Ajustes `autoSync`/`wifiOnly` en la tabla `meta`, sin pantalla todavía
+
+- **Decisión:** `SyncSettings` (`autoSync: true`, `wifiOnly: false` por defecto, igual que
+  `DEFAULT_SETTINGS` de la web) se lee y escribe con `SyncStore.readMeta`/`writeMeta` (la tabla
+  `meta` ya estaba pensada para «ajustes en caché», plan §6). No hay pantalla de ajustes todavía
+  (llega en la fase 11): cuando la haya, solo tiene que llamar a `writeSyncSettings` desde su
+  interruptor; no hace falta otro almacén ni migrar nada.
+
+### 2026-10-11 · `ConnectivityProbe`: envoltorio propio de `connectivity_plus`
+
+- **Decisión:** `SyncTriggers` no depende de `package:connectivity_plus` directamente, sino de una
+  interfaz propia (`ConnectivityProbe`, dos métodos: `onChanged` y `check()`) que
+  `PluginConnectivityProbe` implementa sobre `Connectivity()`.
+- **Motivo:** así se puede probar `SyncTriggers` con una versión falsa de verdad (un
+  `StreamController` normal), sin necesitar el binario de pruebas de plugins de Flutter ni montar
+  un canal de método falso solo para esto.
+- **Pendiente de verificar cuando se instale el paquete:** la forma exacta de la API de
+  `connectivity_plus` 7.3.2 (`Connectivity().onConnectivityChanged` como
+  `Stream<List<ConnectivityResult>>` y `checkConnectivity()` como
+  `Future<List<ConnectivityResult>>`, con soporte de varias conexiones a la vez) se tomó de la
+  documentación pública del paquete, no se pudo comprobar contra el código fuente instalado (no se
+  ha corrido `flutter pub get` en este worktree). Si la forma real difiere, solo hay que ajustar
+  `PluginConnectivityProbe`; `ConnectivityProbe` y `SyncTriggers` no cambian.
+
+### 2026-10-11 · `SyncController` con `attach`/`detach`, igual que `VaultLockController`
+
+- **Decisión:** `SyncController` (el `Notifier` que expone `SyncUiState` a la interfaz) no crea su
+  propio `SyncEngine`: empieza vacío (`SyncUiState.empty`) y espera a que alguien le entregue uno
+  ya montado con `attach(engine)`; `detach()` lo suelta y vacía el estado.
+- **Motivo:** el `SyncEngine` necesita un `SyncStore`/`SyncTransport`/`ItemCodec` reales, que solo
+  existen tras abrir la base local de una cuenta (con sesión y clave maestra) — y eso todavía no
+  existe como flujo completo (llega en la fase 8, que construye el arranque y el inicio de
+  sesión). Es exactamente el mismo problema que ya resolvió `VaultLockController` en la fase 5
+  (empieza sin `Vault` y lo recibe en `unlock()`), así que se repite el mismo patrón en vez de
+  inventar uno nuevo. Igual que allí, **queda pendiente para la fase 8**: llamar a
+  `SyncController.attach(...)` y a `SyncTriggers.start(...)` justo después de desbloquear (abrir la
+  base, montar el `SyncEngine` con `RemoteSyncTransport`/`LocalItemCodec`/`LocalSyncStore`), y a
+  `SyncController.detach()`/`SyncTriggers.stop()` al bloquear y al cerrar sesión.
+
+### 2026-10-11 · Arnés de los vectores de comportamiento: misma `masterKey`, sin un segundo dispositivo real
+
+- **Contexto:** `sync-behavior.json` describe sus 19 escenarios en **campos lógicos** (sin bytes
+  cifrados, ver `contract/vectors/README.md`) y con dos dispositivos (`a`, el observado, y `b`).
+  Reproducirlo tal cual habría significado montar un servidor simulado en Dart.
+- **Decisión:** el arnés (`app/test/sync`) solo monta el dispositivo `a` de verdad
+  (`LocalDatabase.memory`). Los pasos de `b` se ignoran (nunca tocaron el estado de `a`: solo
+  existían para que el generador produjera las respuestas que ya vienen grabadas en
+  `exchanges[]`). Cuando una respuesta trae una nota o carpeta remota, `ShadowSealer` la cifra de
+  verdad con la **misma `masterKey`** que tiene `a` (generada una vez por escenario y pasada a los
+  dos), usando `LocalCodec` con un `Vault` propio: como el AAD de `axonote_crypto` solo depende de
+  `userId` (fijo, `u_test`, igual que `LocalHarness`), entidad e id —nunca del dispositivo que
+  cifró—, lo que cifra `ShadowSealer` lo puede descifrar el `Vault` real de `a` sin diferencia.
+- **Dato que lo hace posible:** se comprobó sobre los 19 escenarios que **todo** conflicto de una
+  respuesta trae su `remoteChanges` acompañante con el mismo id en la misma respuesta (aunque
+  `conflicts[].remote` del vector solo guarde título y texto): de ahí se completan
+  `folderId`/`revision`/`deletedAt` para construir el `EncryptedNote` entero que pide
+  `ConflictReport.remote`. `createdAt`/`updatedAt` de lo remoto se fijan a un instante constante
+  (`shadowFixedInstant`): ningún escenario los compara.
+- **`sync.json`** (el vector con bytes cifrados de verdad y una `masterKey` fija) se prueba aparte,
+  en `sync_vector_test.dart`: la forma exacta de la petición que manda `RemoteSyncTransport` contra
+  el vector real, y que sus `wrappedKey`/`payload` se descifran con esa `masterKey`.
+
+### 2026-10-11 · CI: `packages/axonote_sync/test` se añade a la lista de formato
+
+- `packages/axonote_sync/test` no existía antes de esta fase. Se añadió a la lista de `dart format`
+  de `.github/workflows/ci.yml` (regla general, plan §2 ALCANCE). **Nota al margen, no de esta
+  fase:** `packages/axonote_api/test` no está en esa lista a pesar de que la decisión de la fase 4
+  («Formato: se sigue la lista de la CI, sin tocar `third_party`») dice que sí debería estarlo;
+  parece una discrepancia de una fase anterior. No se corrige aquí para no ensanchar el cambio de
+  esta fase sin que opencode pueda confirmar primero que `dart format` no tiene nada pendiente que
+  reportar en ese directorio (si lo tuviera, añadirlo ahora generaría un commit de formato ajeno a
+  la fase 7).

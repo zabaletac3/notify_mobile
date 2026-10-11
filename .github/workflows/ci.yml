@@ -39,7 +39,8 @@ jobs:
           app/lib app/test app/integration_test app/test_driver tool
           packages/axonote_domain/lib packages/axonote_crypto/lib
           packages/axonote_markdown/lib packages/axonote_api/lib
-          packages/axonote_sync/lib packages/axonote_platform/lib
+          packages/axonote_sync/lib packages/axonote_sync/test
+          packages/axonote_platform/lib
 
       - name: Análisis
         run: flutter analyze
