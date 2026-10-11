@@ -100,8 +100,17 @@ class SyncController extends Notifier<SyncUiState> {
   }
 
   /// Sincroniza ahora. No lanza: el fallo (si lo hay) queda en `state.lastError`, salvo
-  /// `session-expired`/`device-revoked`, que disparan sus avisos y no se muestran como aviso
-  /// persistente (ya los atiende quien cierra la sesión).
+  /// `session-expired`/`device-revoked` (disparan su aviso y no se muestran como aviso
+  /// persistente: ya los atiende quien cierra la sesión) y `locked` (A3: si el cofre se bloquea a
+  /// mitad de la sincronización, se descarta en silencio, sin aviso ni reintento — bloquear ya
+  /// para los disparadores por su cuenta).
+  ///
+  /// Cualquier fallo que no sea `AppFailure` (p. ej. un `StateError` de un dato interno
+  /// inconsistente, o cualquier otra excepción no prevista) se convierte en un `UnknownError`
+  /// genérico: nunca se expone el mensaje de la excepción a la interfaz ni a un registro, porque
+  /// podría llevar datos de la persona. Por el mismo motivo se protege también el `snapshot()`
+  /// posterior: si leer el almacén fallara, la fase pasa a `error` igualmente en vez de quedarse
+  /// en `syncing` para siempre.
   Future<void> syncNow() async {
     final engine = _engine;
     if (engine == null) return;
@@ -109,19 +118,31 @@ class SyncController extends Notifier<SyncUiState> {
     AppError? error;
     try {
       await engine.syncNow();
-    } on AppFailure catch (failure) {
-      error = failure.error;
+      // ignore: avoid_catches_without_on_clauses
+    } catch (failure) {
+      error = failure is AppFailure ? failure.error : const UnknownError();
       if (error is SessionExpiredError) {
         error = null;
         onSessionExpired?.call();
       } else if (error is DeviceRevokedError) {
         error = null;
         onDeviceRevoked?.call();
+      } else if (error is LockedError) {
+        error = null;
       }
     }
     final engineAfter = _engine;
     if (engineAfter == null) return; // se cerró sesión durante la sincronización.
-    state = _toUiState(await engineAfter.snapshot(), error);
+    SyncSnapshot? snapshot;
+    try {
+      snapshot = await engineAfter.snapshot();
+      // ignore: avoid_catches_without_on_clauses
+    } catch (_) {
+      error ??= const UnknownError();
+    }
+    state = snapshot == null
+        ? state.copyWith(phase: SyncPhase.error, lastError: error)
+        : _toUiState(snapshot, error);
   }
 
   /// Resuelve un conflicto (`local`, `remote` o `both`) y refresca el estado.
