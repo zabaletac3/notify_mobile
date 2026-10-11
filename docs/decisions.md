@@ -352,6 +352,47 @@ en la v11: desde entonces el paquete siempre cifra con una clave de Keystore, co
 nombre. Se usa `AndroidOptions()` (valores por defecto), que ya cumple lo que pedía el plan
 (Keystore, sin autenticación) sin ningún parámetro extra.
 
+### 2026-10-11 · Registrar una huella nueva NO invalida la clave maestra (enmienda al plan §5.2)
+
+- **Comprobación manual que lo encontró:** 2026-10-10, **TECNO CM6** (Android 16, API 36), guía
+  `docs/guides/fase5-pruebas-manuales.md` paso a paso 3. Tras guardar la clave con `requireAuth:
+  true` y registrar una huella nueva en Ajustes del sistema, `loadMasterKey` siguió devolviendo
+  los bytes guardados en vez de lanzar `KeyInvalidated`: la clave de Keystore no se invalidó.
+- **Causa técnica:** `MasterKeyStore.generateKey` pide, con `requireAuth` y API ≥ 30,
+  `AUTH_BIOMETRIC_STRONG or AUTH_DEVICE_CREDENTIAL` a la vez (`setUserAuthenticationParameters`).
+  Android ata esas claves combinadas al **SID raíz de la credencial del dispositivo**, no solo al
+  SID biométrico; `setInvalidatedByBiometricEnrollment(true)` únicamente invalida claves
+  **exclusivamente biométricas**, así que no tiene efecto aquí. El plan §5.2 pedía ambas cosas —
+  biometría o credencial, y además invalidación por huella nueva — y son incompatibles con la API
+  de Android tal y como existe: no hay forma de pedir "biometría o PIN" en una clave y que además
+  una huella nueva (sin tocar el PIN) la invalide.
+- **Decisión (opción A, de las alternativas que se valoraron):** se mantiene «biometría o
+  credencial del dispositivo» tal cual, y se acepta que una huella nueva **no** invalida la clave
+  guardada. Razones: (1) para registrar una huella hay que conocer antes el PIN/patrón/contraseña
+  del dispositivo, y ese PIN ya abre la clave igual (combinado), así que la huella nueva no abre
+  ninguna puerta que el PIN no abriera ya; (2) así sigue funcionando en teléfonos sin sensor de
+  huella (el ZTE de referencia, que solo tiene PIN/patrón).
+- **Qué SÍ sigue invalidando la clave (camino `key_invalidated` intacto, sin cambios de código):**
+  quitar o cambiar el bloqueo de pantalla seguro del dispositivo (desactivar el PIN/patrón, o
+  cambiarlo por «ninguno») invalida **todas** las claves de Keystore ligadas a autenticación, con o
+  sin biometría — eso Android lo hace incondicionalmente, ligado al SID raíz. También sigue
+  invalidando `KeyPermanentlyInvalidatedException` por cualquier otra causa que la lance, y los
+  casos ya cubiertos en la revisión de código anterior (entrada de Keystore irrecuperable, texto
+  cifrado que no corresponde a la clave). En todos esos casos se borra y se pide la contraseña,
+  sin cambios.
+- **Diferencia conocida entre niveles de API (sin cambiar nada, solo para que no se pierda):** en
+  API 26-29 (`MasterKeyStore.kt`, rama `setUserAuthenticationValidityDurationSeconds(-1)`) la clave
+  no pide `setUserAuthenticationParameters` con autenticadores combinados, así que sigue siendo
+  **puramente biométrica**; ahí `setInvalidatedByBiometricEnrollment(true)` sí surte efecto y una
+  huella nueva sí invalida la clave. No hay contradicción con el cuadro de biometría: en esa misma
+  rama, `BiometricGate.authenticate` (`allowDeviceCredential = SDK_INT >= R`) tampoco ofrece la
+  credencial del dispositivo como alternativa, solo biometría — cuadro y clave piden lo mismo. No
+  se pudo verificar en un dispositivo real API 26-29 (ni el TECNO CM6 ni el ZTE llegan a esa
+  franja); queda como lectura de la documentación de Android, igual que el hallazgo D de la
+  revisión de código anterior.
+- **`docs/plan.md` §5.2 y el «Hecho cuando» de la Fase 5** se corrigen como enmienda, con remisión
+  a esta decisión.
+
 **Pendiente para la fase 8** (aceptado como fuera de alcance de esta fase; que no se pierda):
 
 - El arranque en frío: decidir con qué cuenta intentar `unlockWithStoredKey` (ya existe
@@ -367,4 +408,8 @@ nombre. Se usa `AndroidOptions()` (valores por defecto), que ya cumple lo que pe
   clave guardada para esa cuenta con la misma política (mismo `requireAuth`): ahorraría ese cuadro
   de biometría redundante, a costa de tener que comparar el estado guardado antes de decidir. No
   se cambia en esta fase.
+- Verificar en el ZTE (sin sensor de huella) el desbloqueo con PIN/patrón del dispositivo: la
+  decisión de 2026-10-11 de más arriba depende de que la credencial del dispositivo funcione como
+  alternativa real en un teléfono sin biometría, y esa fase es quien construye la pantalla donde se
+  podría comprobar de punta a punta.
 
