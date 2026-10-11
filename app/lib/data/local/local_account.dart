@@ -27,32 +27,53 @@ class LocalDatabase {
 
   /// Abre la base cifrada de la cuenta [userId] en [directory]. La clave se deriva de la clave
   /// maestra del [vault] (A1/A2); con el cofre bloqueado esto lanza un `AppFailure(locked)`.
+  ///
+  /// Tras abrir se hace una lectura de comprobación: si la clave no corresponde al archivo, falla
+  /// aquí con un `AppFailure(decrypt)` tipado (no en la primera consulta de un repositorio). La
+  /// clave derivada se borra de memoria en cuanto la base queda abierta (o en el camino de error).
   static Future<LocalDatabase> open({
     required Directory directory,
     required String userId,
     required Vault vault,
     required String deviceId,
+    String? deviceName,
     DateTime Function()? now,
   }) async {
     final key = await _localKey(vault);
-    final file = File('${directory.path}/${databaseFileName(userId)}');
-    final db = AppDatabase.openEncrypted(file: file, key: key.bytes);
-    return LocalDatabase._(
-      LocalDeps(
-        db: db,
-        codec: LocalCodec(vault),
-        vault: vault,
-        lock: Mutex(),
-        now: now ?? DateTime.now,
-        deviceId: deviceId,
-      ),
-    );
+    try {
+      final file = File('${directory.path}/${databaseFileName(userId)}');
+      final db = AppDatabase.openEncrypted(file: file, key: key.bytes);
+      try {
+        // Fuerza la apertura (y las migraciones) aquí, para que una clave incorrecta falle al
+        // abrir con un error de la aplicación y no más tarde.
+        await db.customSelect('SELECT count(*) FROM sqlite_master').get();
+      } catch (_) {
+        try {
+          await db.close();
+        } catch (_) {}
+        failDecrypt();
+      }
+      return LocalDatabase._(
+        LocalDeps(
+          db: db,
+          codec: LocalCodec(vault),
+          vault: vault,
+          lock: Mutex(),
+          now: now ?? DateTime.now,
+          deviceId: deviceId,
+          deviceName: deviceName ?? deviceId,
+        ),
+      );
+    } finally {
+      key.dispose();
+    }
   }
 
   /// Variante en memoria (pruebas y datos de ejemplo): no cifra.
   static LocalDatabase memory({
     required Vault vault,
     required String deviceId,
+    String? deviceName,
     DateTime Function()? now,
   }) {
     return LocalDatabase._(
@@ -63,6 +84,7 @@ class LocalDatabase {
         lock: Mutex(),
         now: now ?? DateTime.now,
         deviceId: deviceId,
+        deviceName: deviceName ?? deviceId,
       ),
     );
   }

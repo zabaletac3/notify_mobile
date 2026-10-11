@@ -27,6 +27,11 @@ class AppDatabase extends GeneratedDatabase {
   /// Abre (o crea) la base cifrada de una cuenta en [file]. [key] son los 32 bytes de
   /// `Vault.localDbKey()`; se pasan a SQLite3MultipleCiphers como clave cruda. La clave **nunca**
   /// se escribe en logs ni en disco.
+  ///
+  /// En el `setup` (antes de cualquier migración) se comprueba que la librería enlazada sea de
+  /// verdad SQLite3MultipleCiphers: `PRAGMA cipher` debe devolver un nombre de cifrado. Si no,
+  /// se lanza un error y **no se abre** la base: un `sqlite3` sin cifrado ignoraría `PRAGMA key` en
+  /// silencio y la base quedaría en claro.
   static AppDatabase openEncrypted({
     required File file,
     required Uint8List key,
@@ -37,10 +42,25 @@ class AppDatabase extends GeneratedDatabase {
         file,
         setup: (Database db) {
           db.execute('PRAGMA key = "x\'$hex\'"');
+          final rows = db.select('PRAGMA cipher');
+          final cipher = rows.isEmpty || rows.first.values.isEmpty
+              ? null
+              : rows.first.values.first;
+          if (!cipherConfigured(cipher)) {
+            throw StateError(
+              'SQLite3MultipleCiphers no está disponible: la base quedaría sin cifrar',
+            );
+          }
         },
       ),
     );
   }
+
+  /// `true` si `PRAGMA cipher` devolvió un nombre de cifrado no vacío. Expuesto para probar la
+  /// comprobación sin depender de que la librería falte (no se puede simular en el dispositivo).
+  @visibleForTesting
+  static bool cipherConfigured(Object? value) =>
+      value is String && value.isNotEmpty;
 
   @override
   int get schemaVersion => 1;
@@ -56,9 +76,10 @@ class AppDatabase extends GeneratedDatabase {
       onUpgrade: (m, from, to) => _migrate(from, to),
       beforeOpen: (details) async {
         await customStatement('PRAGMA foreign_keys = ON');
-        if (!details.wasCreated) {
-          await customStatement('PRAGMA journal_mode = WAL');
-        }
+        // WAL siempre: en un archivo da escrituras concurrentes y en memoria es inocuo (responde
+        // 'memory'). No se condiciona a `wasCreated` para que las bases recién creadas también lo
+        // tengan.
+        await customStatement('PRAGMA journal_mode = WAL');
       },
     );
   }

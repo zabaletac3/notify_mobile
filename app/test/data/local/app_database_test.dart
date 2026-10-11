@@ -118,6 +118,44 @@ void main() {
     },
   );
 
+  test('WAL está activo siempre, también en una base recién creada', () async {
+    final dir = Directory.systemTemp.createTempSync('axonote-wal');
+    final db = AppDatabase(NativeDatabase(File('${dir.path}/wal.db')));
+    await _open(db);
+    final rows = await db.customSelect('PRAGMA journal_mode').get();
+    expect(rows.first.data.values.first.toString().toLowerCase(), 'wal');
+    await db.close();
+    dir.deleteSync(recursive: true);
+  });
+
+  test('la comprobación de cifrado rechaza un valor vacío o ausente', () {
+    expect(AppDatabase.cipherConfigured('chacha20'), isTrue);
+    expect(AppDatabase.cipherConfigured(''), isFalse);
+    expect(AppDatabase.cipherConfigured(null), isFalse);
+    expect(AppDatabase.cipherConfigured(42), isFalse);
+  });
+
+  test(
+    'una base abierta con clave reporta un cifrado real (sqlite3mc enlazado)',
+    () async {
+      final dir = Directory.systemTemp.createTempSync('axonote-cipher');
+      final db = AppDatabase.openEncrypted(
+        file: File('${dir.path}/cipher.db'),
+        key: Uint8List(32),
+      );
+      await _open(db);
+      final rows = await db.customSelect('PRAGMA cipher').get();
+      final cipher = rows.isEmpty ? null : rows.first.data.values.first;
+      expect(
+        AppDatabase.cipherConfigured(cipher),
+        isTrue,
+        reason: 'sin cifrado real',
+      );
+      await db.close();
+      dir.deleteSync(recursive: true);
+    },
+  );
+
   test(
     'el esquema SQL de la versión 1 se puede aplicar sobre una base cruda',
     () {

@@ -483,3 +483,32 @@ nombre. Se usa `AndroidOptions()` (valores por defecto), que ya cumple lo que pe
   memoria a la vez en las pruebas (no es un problema real).
 - **Divergencia aceptada (A3):** con la app bloqueada no hay base abierta ni sincronización; no se
   porta la prueba de la web que sincroniza bloqueada (allí guarda cifrado y aquí no).
+
+### 2026-10-11 · Revisión de la fase 6
+
+- **Cifrado verificado al abrir (fail-closed).** `AppDatabase.openEncrypted` comprueba en el
+  `setup` que `PRAGMA cipher` devuelva un nombre no vacío; si no, lanza y **no abre** la base. Sin
+  esa comprobación, un build que enlazara un `sqlite3` sin cifrado ignoraría `PRAGMA key` en
+  silencio y la base quedaría en claro. Además, `LocalDatabase.open` hace una lectura de prueba
+  (`SELECT count(*) FROM sqlite_master`) para que una clave incorrecta falle **al abrir** con un
+  `AppFailure(decrypt)` tipado, no en la primera consulta de un repositorio.
+- **La clave de la base se borra en cuanto la base está abierta** (`key.dispose()` en el `finally`
+  de `LocalDatabase.open`, también en el camino de error). La representación que usa el `PRAGMA`
+  es una **cadena hexadecimal** que no se puede poner a cero en Dart (los `String` son inmutables)
+  y que viaja a la clausura `setup` del isolate de drift (que no comparte memoria con el isolate
+  principal). Queda como limitación aceptada; el `SecretKeyBytes` sí se borra.
+- **`deviceName` en `LocalDeps`.** El nombre para mostrar en los conflictos es el **nombre** del
+  dispositivo, no su identificador (`deviceId`), como en la web (`device.name`). `LocalDatabase.open`
+  lo acepta; si no se pasa, se usa el `deviceId`.
+- **`applyResult` descifra los cambios remotos antes de la transacción.** Con páginas de 500
+  elementos, descifrar dentro de la transacción mantenía el bloqueo de escritura durante todo el
+  descifrado. Ahora se descifran las filas remotas antes de abrir la transacción (seguimos dentro
+  del Mutex, así que nada local cambia entre medias) y la transacción solo lee y escribe. Si el
+  cofre se bloquea a mitad del descifrado, no se aplica nada.
+- **WAL siempre** (`PRAGMA journal_mode = WAL` en `beforeOpen`, también al crear la base). Antes solo
+  se activaba al reabrir; en memoria es inocuo (responde `memory`).
+- **Fila ilegible sin `raw_payload`.** `sealNoteForUpload`/`sealFolderForUpload` lanzaban un payload
+  vacío (`rawPayload ?? ''`), lo que pisaría el dato en el servidor. Ahora es un `StateError`.
+- **Prueba de rendimiento con la base cifrada real** (archivo en el directorio de la app, clave del
+  Vault), en frío y en caliente, junto con una prueba de cifrado **en dispositivo** (ZTE). Ver
+  `docs/benchmarks.md`.

@@ -37,7 +37,7 @@ void main() {
     expect(raw, isNot(contains('tortuga-azul-42')));
     expect(raw, isNot(contains('Contraseñas del banco')));
 
-    // Sin clave: no se puede consultar.
+    // Sin clave: no se puede consultar (el archivo está cifrado).
     final noKey = AppDatabase(NativeDatabase(file));
     await expectLater(
       noKey.customSelect('SELECT count(*) FROM notes').get(),
@@ -45,15 +45,17 @@ void main() {
     );
     await noKey.close();
 
-    // Con otra clave: tampoco.
+    // Con otra clave: falla al abrir, con un fallo de la aplicación tipado.
     final wrongVault = Vault(userId: 'u1')..unlockWith(generateKeyBytes());
-    final wrongLocal = await LocalDatabase.open(
-      directory: dir,
-      userId: 'u1',
-      vault: wrongVault,
-      deviceId: 'd1',
+    await expectLater(
+      LocalDatabase.open(
+        directory: dir,
+        userId: 'u1',
+        vault: wrongVault,
+        deviceId: 'd1',
+      ),
+      throwsA(isA<AppFailure>().having((e) => e.kind, 'kind', 'decrypt')),
     );
-    await expectLater(wrongLocal.notes.list(), throwsA(anything));
 
     // Con la clave correcta: se lee.
     final correctVault = Vault(userId: 'u1')..unlockWith(master);
@@ -82,7 +84,7 @@ void main() {
         vault: locked,
         deviceId: 'd1',
       ),
-      throwsA(predicate((Object e) => e.toString().contains('locked'))),
+      throwsA(isA<AppFailure>().having((e) => e.kind, 'kind', 'locked')),
     );
     dir.deleteSync(recursive: true);
   });

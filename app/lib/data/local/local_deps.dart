@@ -15,6 +15,7 @@ class LocalDeps {
     required this.lock,
     required this.now,
     required this.deviceId,
+    required this.deviceName,
   }) : notes = NotesDao(db),
        folders = FoldersDao(db),
        sync = SyncDao(db);
@@ -25,6 +26,10 @@ class LocalDeps {
   final Mutex lock;
   final DateTime Function() now;
   final String deviceId;
+
+  /// Nombre del dispositivo, como lo muestra el servidor en los conflictos (en la web es
+  /// `device.name`). Distinto del identificador [deviceId].
+  final String deviceName;
   final NotesDao notes;
   final FoldersDao folders;
   final SyncDao sync;
