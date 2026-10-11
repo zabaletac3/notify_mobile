@@ -13,8 +13,8 @@ import '../state/auth_controller.dart';
 import 'auth_widgets.dart';
 
 /// Verificación de correo (tablero «2 · Autenticación — Verificación de correo», leído por el
-/// MCP): vuelta atrás, ilustración circular 72, título 28/700, cuerpo con el correo en negrita,
-/// 6 casillas OTP 53×60, fila de reenvío y botón primario 362×54 con «Cambiar correo».
+/// MCP): fondo `bgEditor` (#fffdf8), vuelta atrás, ilustración circular 72, título 28/700, cuerpo
+/// 15/400 con el correo en negrita, 6 casillas OTP 53×60, fila de reenvío 14 y botón 362×54.
 class VerifyScreen extends ConsumerStatefulWidget {
   const VerifyScreen({super.key});
 
@@ -75,20 +75,26 @@ class _VerifyScreenState extends ConsumerState<VerifyScreen> {
     final codeError = validationMessage(l10n, state.fieldErrors['code']);
 
     return Scaffold(
-      backgroundColor: c.bgApp,
+      backgroundColor: c.bgEditor,
       body: SafeArea(
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: AxoSpacing.xxl),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              AuthBackButton(
-                onPressed: () {
-                  ref.read(authControllerProvider.notifier).changeEmail();
-                  context.go('/register');
-                },
+              SizedBox(
+                height: 48,
+                child: Align(
+                  alignment: Alignment.centerLeft,
+                  child: AuthBackButton(
+                    onPressed: () {
+                      ref.read(authControllerProvider.notifier).changeEmail();
+                      context.go('/register');
+                    },
+                  ),
+                ),
               ),
-              const SizedBox(height: AxoSpacing.sm),
+              const SizedBox(height: 9),
               Container(
                 width: 72,
                 height: 72,
@@ -100,7 +106,7 @@ class _VerifyScreenState extends ConsumerState<VerifyScreen> {
                   child: AppIcon('mail', size: 32, color: c.accentDefault),
                 ),
               ),
-              const SizedBox(height: AxoSpacing.xl),
+              const SizedBox(height: AxoSpacing.xxl),
               Text(
                 l10n.verifyTitle,
                 style: AxoType.title.copyWith(color: c.textPrimary),
@@ -119,7 +125,7 @@ class _VerifyScreenState extends ConsumerState<VerifyScreen> {
                   ],
                 ),
               ),
-              const SizedBox(height: AxoSpacing.xl),
+              const SizedBox(height: AxoSpacing.xxl),
               AxoOtpInput(onChanged: (value) => setState(() => _code = value)),
               if (codeError != null) ...[
                 const SizedBox(height: AxoSpacing.sm),
@@ -128,12 +134,12 @@ class _VerifyScreenState extends ConsumerState<VerifyScreen> {
                   style: AxoType.caption.copyWith(color: c.statusDanger),
                 ),
               ],
-              const SizedBox(height: AxoSpacing.lg),
+              const SizedBox(height: AxoSpacing.xxl),
               Row(
                 children: [
                   Text(
                     l10n.verifyNoCodeQuestion,
-                    style: AxoType.bodyUi.copyWith(color: c.textSecondary),
+                    style: AxoType.bodySmall.copyWith(color: c.textSecondary),
                   ),
                   const SizedBox(width: AxoSpacing.sm),
                   if (canResend)
@@ -141,7 +147,7 @@ class _VerifyScreenState extends ConsumerState<VerifyScreen> {
                   else
                     Text(
                       l10n.verifyResendCounter(_counter(remaining)),
-                      style: AxoType.bodyUi.copyWith(
+                      style: AxoType.bodySmall.copyWith(
                         color: c.textTertiary,
                         fontWeight: FontWeight.w500,
                       ),

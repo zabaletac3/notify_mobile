@@ -35,7 +35,7 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
     final last = _index == steps.length - 1;
 
     return Scaffold(
-      backgroundColor: c.bgApp,
+      backgroundColor: c.bgEditor,
       body: SafeArea(
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: AxoSpacing.xxl),
@@ -61,7 +61,6 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
                   ),
                 ),
               ),
-              const SizedBox(height: AxoSpacing.lg),
               illustration,
               const SizedBox(height: 28),
               Text(

@@ -20,7 +20,8 @@ class AuthLogo extends StatelessWidget {
       alignment: Alignment.center,
       decoration: BoxDecoration(
         color: c.accentDefault,
-        borderRadius: BorderRadius.circular(size <= 52 ? AxoRadii.lg : 28),
+        // Medido en los tableros: logo de 96 radio 24 (bienvenida), de 48 radio 14 (tarjeta).
+        borderRadius: BorderRadius.circular(size >= 80 ? 24 : AxoRadii.xl),
       ),
       child: Text(
         letter,
@@ -68,11 +69,13 @@ class AuthLink extends StatelessWidget {
     required this.text,
     this.onTap,
     this.textAlign = TextAlign.left,
+    this.textStyle,
   });
 
   final String text;
   final VoidCallback? onTap;
   final TextAlign textAlign;
+  final TextStyle? textStyle;
 
   @override
   Widget build(BuildContext context) {
@@ -87,10 +90,12 @@ class AuthLink extends StatelessWidget {
           child: Text(
             text,
             textAlign: textAlign,
-            style: AxoType.bodyUi.copyWith(
-              color: c.accentDefault,
-              fontWeight: FontWeight.w600,
-            ),
+            style:
+                textStyle ??
+                AxoType.bodySmall.copyWith(
+                  color: c.accentDefault,
+                  fontWeight: FontWeight.w600,
+                ),
           ),
         ),
       ),
@@ -117,7 +122,7 @@ class AuthFooterPrompt extends StatelessWidget {
     return Row(
       mainAxisAlignment: MainAxisAlignment.center,
       children: [
-        Text(prompt, style: AxoType.bodyUi.copyWith(color: c.textSecondary)),
+        Text(prompt, style: AxoType.bodySmall.copyWith(color: c.textSecondary)),
         const SizedBox(width: 6),
         AuthLink(text: action, onTap: onTap),
       ],
@@ -206,6 +211,7 @@ class AuthCard extends StatelessWidget {
           decoration: BoxDecoration(
             color: c.bgEditor,
             borderRadius: BorderRadius.circular(AxoRadii.card),
+            boxShadow: AxoShadows.card,
           ),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -215,4 +221,42 @@ class AuthCard extends StatelessWidget {
       ),
     );
   }
+}
+
+/// Resplandor decorativo del fondo de Registro e «Inicio de sesión» (tres elipses difuminadas:
+/// `accent` 20 %, plum 14 % y amber 12 %). Se pinta detrás de la tarjeta, solo en modo claro (los
+/// tableros oscuros no lo llevan).
+class AuthGlows extends StatelessWidget {
+  const AuthGlows({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    if (Theme.of(context).brightness == Brightness.dark) {
+      return const SizedBox.shrink();
+    }
+    return IgnorePointer(
+      child: ClipRect(
+        child: Stack(
+          children: [
+            _glow(-49, 165, 391, AxoGlow.accent),
+            _glow(239, -110, 350, AxoGlow.plum),
+            _glow(144, 567, 288, AxoGlow.amber),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _glow(double x, double y, double size, Color color) => Positioned(
+    left: x,
+    top: y,
+    width: size,
+    height: size,
+    child: Container(
+      decoration: BoxDecoration(
+        shape: BoxShape.circle,
+        gradient: RadialGradient(colors: [color, color.withAlpha(0)]),
+      ),
+    ),
+  );
 }

@@ -9,7 +9,9 @@ import '../../../ui/tokens.dart';
 import '../state/auth_controller.dart';
 import 'auth_widgets.dart';
 
-/// Solicitud de restablecimiento (tablero «2 · Autenticación — Recuperar contraseña (correo)»).
+/// Solicitud de restablecimiento (tablero «2 · Autenticación — Recuperar contraseña (correo)»,
+/// leído por el MCP): fondo `bgEditor`, título 28/700, campo y acciones al pie (botón 362×54 y
+/// enlace 14/600).
 class ForgotPasswordScreen extends ConsumerStatefulWidget {
   const ForgotPasswordScreen({super.key});
 
@@ -42,52 +44,65 @@ class _ForgotPasswordScreenState extends ConsumerState<ForgotPasswordScreen> {
     final emailError = validationMessage(l10n, state.fieldErrors['email']);
 
     return Scaffold(
-      backgroundColor: c.bgApp,
-      body: AuthBody(
-        children: [
-          AuthBackButton(onPressed: () => context.go('/login')),
-          const SizedBox(height: AxoSpacing.lg),
-          Text(
-            l10n.forgotTitle,
-            style: AxoType.title.copyWith(color: c.textPrimary),
-          ),
-          const SizedBox(height: AxoSpacing.sm),
-          Text(
-            l10n.forgotSubtitle,
-            style: AxoType.body.copyWith(color: c.textSecondary),
-          ),
-          const SizedBox(height: AxoSpacing.xl),
-          if (state.error != null && state.fieldErrors.isEmpty)
-            Padding(
-              padding: const EdgeInsets.only(bottom: AxoSpacing.lg),
-              child: AxoBanner(
-                message: errorMessage(l10n, kind: state.error!.kind),
-                variant: AxoBannerVariant.danger,
+      backgroundColor: c.bgEditor,
+      body: SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: AxoSpacing.xxl),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              SizedBox(
+                height: 48,
+                child: Align(
+                  alignment: Alignment.centerLeft,
+                  child: AuthBackButton(onPressed: () => context.go('/login')),
+                ),
               ),
-            ),
-          AxoField(
-            label: l10n.fieldEmail,
-            hint: l10n.fieldEmailHint,
-            controller: _email,
-            keyboardType: TextInputType.emailAddress,
-            error: emailError,
-            onChanged: (_) => setState(() {}),
+              const SizedBox(height: 9),
+              Text(
+                l10n.forgotTitle,
+                style: AxoType.title.copyWith(color: c.textPrimary),
+              ),
+              const SizedBox(height: AxoSpacing.sm),
+              Text(
+                l10n.forgotSubtitle,
+                style: AxoType.body.copyWith(color: c.textSecondary),
+              ),
+              const SizedBox(height: AxoSpacing.xxl),
+              if (state.error != null && state.fieldErrors.isEmpty)
+                Padding(
+                  padding: const EdgeInsets.only(bottom: AxoSpacing.lg),
+                  child: AxoBanner(
+                    message: errorMessage(l10n, kind: state.error!.kind),
+                    variant: AxoBannerVariant.danger,
+                  ),
+                ),
+              AxoField(
+                label: l10n.fieldEmail,
+                hint: l10n.fieldEmailHint,
+                controller: _email,
+                keyboardType: TextInputType.emailAddress,
+                error: emailError,
+                onChanged: (_) => setState(() {}),
+              ),
+              const Spacer(),
+              AxoButton(
+                label: l10n.forgotSend,
+                expand: true,
+                size: AxoButtonSize.lg,
+                onPressed: state.busy ? null : _submit,
+              ),
+              const SizedBox(height: AxoSpacing.lg),
+              Center(
+                child: AuthLink(
+                  text: l10n.forgotBackToLogin,
+                  onTap: () => context.go('/login'),
+                ),
+              ),
+              const SizedBox(height: AxoSpacing.lg),
+            ],
           ),
-          const SizedBox(height: AxoSpacing.xxl),
-          AxoButton(
-            label: l10n.forgotSend,
-            expand: true,
-            size: AxoButtonSize.lg,
-            onPressed: state.busy ? null : _submit,
-          ),
-          const SizedBox(height: AxoSpacing.lg),
-          Center(
-            child: AuthLink(
-              text: l10n.forgotBackToLogin,
-              onTap: () => context.go('/login'),
-            ),
-          ),
-        ],
+        ),
       ),
     );
   }

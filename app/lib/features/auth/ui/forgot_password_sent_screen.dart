@@ -8,7 +8,9 @@ import '../../../ui/tokens.dart';
 import '../state/auth_controller.dart';
 import 'auth_widgets.dart';
 
-/// Restablecimiento «enviado» (tablero «2 · Autenticación — Recuperar contraseña (enviado)»).
+/// Restablecimiento «enviado» (tablero «2 · Autenticación — Recuperar contraseña (enviado)», leído
+/// por el MCP): fondo `bgEditor`, ilustración 96, título 28/700 y cuerpo 15 centrados, acciones al
+/// pie.
 class ForgotPasswordSentScreen extends ConsumerStatefulWidget {
   const ForgotPasswordSentScreen({super.key});
 
@@ -34,48 +36,60 @@ class _ForgotPasswordSentScreenState
     final email = ref.watch(authControllerProvider).resetEmail ?? '';
 
     return Scaffold(
-      backgroundColor: c.bgApp,
-      body: AuthBody(
-        children: [
-          const SizedBox(height: AxoSpacing.xxxl),
-          const Center(child: AuthIconBadge(icon: 'mail', size: 96)),
-          const SizedBox(height: AxoSpacing.xl),
-          Text(
-            l10n.forgotSentTitle,
-            textAlign: TextAlign.center,
-            style: AxoType.title.copyWith(color: c.textPrimary),
-          ),
-          const SizedBox(height: AxoSpacing.md),
-          Text.rich(
-            TextSpan(
-              style: AxoType.body.copyWith(color: c.textSecondary),
-              children: [
-                TextSpan(text: l10n.forgotSentPrefix),
-                TextSpan(
-                  text: email,
-                  style: const TextStyle(fontWeight: FontWeight.w600),
+      backgroundColor: c.bgEditor,
+      body: SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: AxoSpacing.xxl),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Expanded(
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    const AuthIconBadge(icon: 'mail', size: 96),
+                    const SizedBox(height: AxoSpacing.xxl),
+                    Text(
+                      l10n.forgotSentTitle,
+                      textAlign: TextAlign.center,
+                      style: AxoType.title.copyWith(color: c.textPrimary),
+                    ),
+                    const SizedBox(height: AxoSpacing.md),
+                    Text.rich(
+                      TextSpan(
+                        style: AxoType.body.copyWith(color: c.textSecondary),
+                        children: [
+                          TextSpan(text: l10n.forgotSentPrefix),
+                          TextSpan(
+                            text: email,
+                            style: const TextStyle(fontWeight: FontWeight.w600),
+                          ),
+                          TextSpan(text: l10n.forgotSentSuffix),
+                        ],
+                      ),
+                      textAlign: TextAlign.center,
+                    ),
+                  ],
                 ),
-                TextSpan(text: l10n.forgotSentSuffix),
-              ],
-            ),
-            textAlign: TextAlign.center,
+              ),
+              AxoButton(
+                label: l10n.forgotBackToLogin,
+                expand: true,
+                size: AxoButtonSize.lg,
+                onPressed: () => context.go('/login'),
+              ),
+              const SizedBox(height: AxoSpacing.lg),
+              Center(
+                child: AuthFooterPrompt(
+                  prompt: l10n.forgotSentResend,
+                  action: l10n.forgotSentResendLink,
+                  onTap: _resend,
+                ),
+              ),
+              const SizedBox(height: AxoSpacing.lg),
+            ],
           ),
-          const SizedBox(height: AxoSpacing.xxxl),
-          AxoButton(
-            label: l10n.forgotBackToLogin,
-            expand: true,
-            size: AxoButtonSize.lg,
-            onPressed: () => context.go('/login'),
-          ),
-          const SizedBox(height: AxoSpacing.md),
-          Center(
-            child: AuthFooterPrompt(
-              prompt: l10n.forgotSentResend,
-              action: l10n.forgotSentResendLink,
-              onTap: _resend,
-            ),
-          ),
-        ],
+        ),
       ),
     );
   }
