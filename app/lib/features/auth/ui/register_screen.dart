@@ -13,7 +13,7 @@ import 'auth_widgets.dart';
 /// Registro. En claro usa la tarjeta del tablero «2 · Autenticación — Registro» (leído por el MCP:
 /// fondo `bgApp`, resplandores, tarjeta `bgEditor` a y=91 con sombra). En oscuro usa el tablero
 /// «8 · Modo oscuro — Registro (oscuro)»: pantalla completa sin tarjeta, título 28/700 a la
-/// izquierda. Google es **fuera de v1** (D5): se omite en ambos.
+/// izquierda y botón anclado al pie. Google es **fuera de v1** (D5): se omite en ambos.
 class RegisterScreen extends ConsumerStatefulWidget {
   const RegisterScreen({super.key});
 
@@ -89,7 +89,7 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
             const SizedBox(height: AxoSpacing.xxl),
           ];
 
-    final form = <Widget>[
+    final fields = <Widget>[
       if (state.error != null && state.fieldErrors.isEmpty)
         Padding(
           padding: const EdgeInsets.only(bottom: AxoSpacing.lg),
@@ -140,7 +140,7 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
       AxoCheckbox(
         value: _acceptedTerms,
         onChanged: (v) => setState(() => _acceptedTerms = v),
-        label: l10n.termsAccept,
+        labelRich: _termsLabel(l10n, c, dark: dark),
       ),
       if (errorOf('acceptedTerms') != null)
         Padding(
@@ -150,22 +150,20 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
             style: AxoType.caption.copyWith(color: c.statusDanger),
           ),
         ),
-      const SizedBox(height: AxoSpacing.xxl),
-      AxoButton(
-        label: state.deriving
-            ? l10n.derivingPassword
-            : l10n.createAccountButton,
-        expand: true,
-        size: AxoButtonSize.lg,
-        onPressed: state.busy ? null : _submit,
-      ),
     ];
+
+    final button = AxoButton(
+      label: state.deriving ? l10n.derivingPassword : l10n.createAccountButton,
+      expand: true,
+      size: AxoButtonSize.lg,
+      onPressed: state.busy ? null : _submit,
+    );
 
     if (dark) {
       return Scaffold(
         backgroundColor: c.bgEditor,
         body: SafeArea(
-          child: SingleChildScrollView(
+          child: Padding(
             padding: const EdgeInsets.symmetric(horizontal: AxoSpacing.xxl),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -181,7 +179,9 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
                 ),
                 const SizedBox(height: 9),
                 ...header,
-                ...form,
+                ...fields,
+                const Spacer(),
+                button,
                 const SizedBox(height: AxoSpacing.lg),
                 AuthFooterPrompt(
                   prompt: l10n.haveAccountPrompt,
@@ -217,7 +217,14 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
                     ),
                   ),
                   const SizedBox(height: AxoSpacing.xs),
-                  AuthCard(children: [...header, ...form]),
+                  AuthCard(
+                    children: [
+                      ...header,
+                      ...fields,
+                      const SizedBox(height: AxoSpacing.xxl),
+                      button,
+                    ],
+                  ),
                   const SizedBox(height: AxoSpacing.lg),
                   AuthFooterPrompt(
                     prompt: l10n.haveAccountPrompt,
@@ -229,6 +236,30 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
               ),
             ),
           ),
+        ],
+      ),
+    );
+  }
+
+  /// Términos de uso: en el tablero **oscuro** los enlaces van en color de acento; en el claro,
+  /// uniformes (leído por el MCP).
+  Widget _termsLabel(AppLocalizations l10n, AxoColors c, {required bool dark}) {
+    final linkColor = dark ? c.accentDefault : c.textPrimary;
+    return Text.rich(
+      TextSpan(
+        style: AxoType.bodyLabel.copyWith(color: c.textPrimary),
+        children: [
+          TextSpan(text: l10n.termsPrefix),
+          TextSpan(
+            text: l10n.termsUsage,
+            style: TextStyle(color: linkColor),
+          ),
+          TextSpan(text: l10n.termsConjunction),
+          TextSpan(
+            text: l10n.termsPrivacy,
+            style: TextStyle(color: linkColor),
+          ),
+          TextSpan(text: l10n.termsSuffix),
         ],
       ),
     );

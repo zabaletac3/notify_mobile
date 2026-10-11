@@ -218,6 +218,21 @@ class AppLocalizationsEs extends AppLocalizations {
       'Acepto los Términos de uso y la Política de privacidad de AxoNote.';
 
   @override
+  String get termsPrefix => 'Acepto los ';
+
+  @override
+  String get termsUsage => 'Términos de uso';
+
+  @override
+  String get termsConjunction => ' y la ';
+
+  @override
+  String get termsPrivacy => 'Política de privacidad';
+
+  @override
+  String get termsSuffix => ' de AxoNote.';
+
+  @override
   String get createAccountButton => 'Crear cuenta';
 
   @override

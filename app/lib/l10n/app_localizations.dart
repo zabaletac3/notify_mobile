@@ -466,6 +466,36 @@ abstract class AppLocalizations {
   /// **'Acepto los Términos de uso y la Política de privacidad de AxoNote.'**
   String get termsAccept;
 
+  /// No description provided for @termsPrefix.
+  ///
+  /// In es, this message translates to:
+  /// **'Acepto los '**
+  String get termsPrefix;
+
+  /// No description provided for @termsUsage.
+  ///
+  /// In es, this message translates to:
+  /// **'Términos de uso'**
+  String get termsUsage;
+
+  /// No description provided for @termsConjunction.
+  ///
+  /// In es, this message translates to:
+  /// **' y la '**
+  String get termsConjunction;
+
+  /// No description provided for @termsPrivacy.
+  ///
+  /// In es, this message translates to:
+  /// **'Política de privacidad'**
+  String get termsPrivacy;
+
+  /// No description provided for @termsSuffix.
+  ///
+  /// In es, this message translates to:
+  /// **' de AxoNote.'**
+  String get termsSuffix;
+
   /// No description provided for @createAccountButton.
   ///
   /// In es, this message translates to:
