@@ -46,7 +46,7 @@ void main() {
         4,
         5,
         6,
-      ).add(Duration(microseconds: 789));
+      ).add(const Duration(microseconds: 789));
       expect(isoFromDateTime(d), '2026-01-02T03:04:05.006Z');
     });
 

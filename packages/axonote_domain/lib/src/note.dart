@@ -200,12 +200,28 @@ final class NotesFilterTrash extends NotesFilter {
   const NotesFilterTrash();
 }
 
-/// Consulta de la lista: filtro y orden.
+/// Consulta de la lista: filtro, orden y paginación. Para no materializar toda la colección en
+/// memoria (§4.3), la lista del móvil pide una página ([limit]/[offset]); sin [limit] devuelve todo
+/// (lo usan las pruebas y las operaciones internas).
 class NoteQuery {
-  const NoteQuery({this.filter, this.sort});
+  const NoteQuery({this.filter, this.sort, this.limit, this.offset = 0});
 
   final NotesFilter? filter;
   final NoteSort? sort;
+  final int? limit;
+  final int offset;
+
+  NoteQuery copyWith({
+    NotesFilter? filter,
+    NoteSort? sort,
+    int? limit,
+    int? offset,
+  }) => NoteQuery(
+    filter: filter ?? this.filter,
+    sort: sort ?? this.sort,
+    limit: limit ?? this.limit,
+    offset: offset ?? this.offset,
+  );
 }
 
 /// Conteos para la barra lateral.

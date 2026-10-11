@@ -14,6 +14,18 @@ class Folder {
   final IsoDate createdAt;
   final IsoDate updatedAt;
 
+  Folder copyWith({
+    Id? id,
+    String? name,
+    IsoDate? createdAt,
+    IsoDate? updatedAt,
+  }) => Folder(
+    id: id ?? this.id,
+    name: name ?? this.name,
+    createdAt: createdAt ?? this.createdAt,
+    updatedAt: updatedAt ?? this.updatedAt,
+  );
+
   @override
   bool operator ==(Object other) =>
       other is Folder &&

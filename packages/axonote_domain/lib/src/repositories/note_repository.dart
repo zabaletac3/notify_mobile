@@ -12,6 +12,9 @@ abstract interface class NoteRepository {
 
   Future<Note> get(Id id);
 
+  /// Búsqueda local (FTS5, prefijos, sin distinguir tildes) aplicando [query].
+  Future<List<Note>> search(String term, [NoteQuery query]);
+
   Future<Note> create([NoteDraft draft]);
 
   Future<Note> update(Id id, NoteDraft patch);
