@@ -137,4 +137,103 @@ void main() {
       expect(note.wrappedKey, 'a1.k.v');
     },
   );
+
+  test(
+    'una fecha remota sin milisegundos se normaliza a milisegundos (mismo instante)',
+    () async {
+      final adapter = FakeAdapter(
+        (options) async => jsonResponse(200, {
+          'cursor': '2',
+          'hasMore': false,
+          'applied': <Object?>[],
+          'conflicts': <Object?>[],
+          'remoteChanges': [
+            {
+              'entity': 'note',
+              'id': 'n1',
+              'deleted': false,
+              'revision': 1,
+              'note': {
+                'id': 'n1',
+                'folderId': null,
+                'createdAt': '2026-03-04T10:00:00Z',
+                'updatedAt': '2026-03-04T10:00:00Z',
+                'deletedAt': null,
+                'revision': 1,
+                'lastEditedDeviceId': 'd_b',
+                'wrappedKey': 'a1.k.v',
+                'payload': 'a1.p.v',
+              },
+            },
+          ],
+        }),
+      );
+      final transport = RemoteSyncTransport(
+        await apiWith(adapter),
+        deviceId: 'd_a',
+        deviceName: 'A',
+      );
+
+      final response = await transport.sync(
+        const SyncRequest(cursor: null, changes: []),
+      );
+
+      final note = response.remoteChanges.single.note!;
+      // Documentado en docs/decisions.md, «Fase 7»: es seguro porque createdAt/updatedAt de una
+      // nota o carpeta siempre los fija un cliente (web o móvil), que siempre escribe
+      // milisegundos exactos; el servidor nunca produce esta forma por su cuenta.
+      expect(note.createdAt, '2026-03-04T10:00:00.000Z');
+      expect(note.updatedAt, '2026-03-04T10:00:00.000Z');
+    },
+  );
+
+  test(
+    'una fecha remota con microsegundos se trunca a milisegundos (nunca llega así en la práctica)',
+    () async {
+      final adapter = FakeAdapter(
+        (options) async => jsonResponse(200, {
+          'cursor': '2',
+          'hasMore': false,
+          'applied': <Object?>[],
+          'conflicts': <Object?>[],
+          'remoteChanges': [
+            {
+              'entity': 'note',
+              'id': 'n1',
+              'deleted': false,
+              'revision': 1,
+              'note': {
+                'id': 'n1',
+                'folderId': null,
+                'createdAt': '2026-03-04T10:00:00.123456Z',
+                'updatedAt': '2026-03-04T10:00:00.123999Z',
+                'deletedAt': null,
+                'revision': 1,
+                'lastEditedDeviceId': 'd_b',
+                'wrappedKey': 'a1.k.v',
+                'payload': 'a1.p.v',
+              },
+            },
+          ],
+        }),
+      );
+      final transport = RemoteSyncTransport(
+        await apiWith(adapter),
+        deviceId: 'd_a',
+        deviceName: 'A',
+      );
+
+      final response = await transport.sync(
+        const SyncRequest(cursor: null, changes: []),
+      );
+
+      final note = response.remoteChanges.single.note!;
+      // isoFromDateTime solo escribe DateTime.millisecond: los microsegundos de más se truncan
+      // (no se redondean). Inofensivo por el mismo motivo que el caso de arriba: la base local
+      // solo guarda milisegundos (plan §6), así que esa fracción no se podría conservar de todos
+      // modos, y ningún cliente real la produce.
+      expect(note.createdAt, '2026-03-04T10:00:00.123Z');
+      expect(note.updatedAt, '2026-03-04T10:00:00.123Z');
+    },
+  );
 }

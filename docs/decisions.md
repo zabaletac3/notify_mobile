@@ -551,11 +551,12 @@ nombre. Se usa `AndroidOptions()` (valores por defecto), que ya cumple lo que pe
   mismo papel que `SyncState` en la web) traduce cada `AppError` en `phase`/`lastError`:
   `session-expired`/`device-revoked` no quedan como aviso persistente (disparan
   `onSessionExpired`/`onDeviceRevoked`, que la fase 8 debe conectar a cerrar sesión y a borrar la
-  copia local); el resto sí. **Pendiente, anotado para no perderlo:** el backoff en sí
-  (2 s → 60 s) y el respeto a `retryAfterSec` todavía no están implementados en `SyncTriggers`; hoy
-  el disparador de 60 s simplemente vuelve a intentarlo en su siguiente vuelta normal. Si eso
-  resulta demasiado lento para recuperarse de un fallo transitorio, hace falta añadir ese backoff
-  en `SyncTriggers` (con `TimerFactory`, igual que el resto).
+  copia local); `locked` tampoco (A3: se descarta en silencio); el resto sí.
+- **El backoff en sí, implementado (revisión de código, ver más abajo):** `SyncTriggers` mira
+  `SyncController.state.lastError` tras cada intento y aplica la política completa — espera
+  exponencial 2 s → 60 s ante `network`/`server`, supresión hasta `retryAfterSec` ante
+  `rate-limited`, sin bucle propio ante `forbidden` — con `TimerFactory`, igual que el resto de
+  temporizadores de la app.
 
 ### 2026-10-11 · Sin isolate propio para el descifrado por lotes de la primera descarga
 
@@ -580,9 +581,34 @@ nombre. Se usa `AndroidOptions()` (valores por defecto), que ya cumple lo que pe
   total de `remoteChanges` aplicados hasta ahora. Con eso la interfaz puede mostrar «descargando…
   (1500)» en vez de parecer colgada, que es la parte observable del requisito. La fase 8/9, que
   construye la pantalla, es quien debe pintar ese progreso (todavía no hay interfaz).
-- **Si el presupuesto de rendimiento (§11, 2000 notas en 15 s sin bloquear la interfaz) no se
-  cumple en el ZTE:** medirlo en la fase 12 (`docs/benchmarks.md`, igual que las demás fases) y, si
-  falla, retomar esta decisión con la alternativa completa (isolate de trabajo de verdad).
+- **Medido, no solo supuesto (revisión de código):** `app/integration_test/
+  sync_first_download_performance_test.dart` sincroniza 2 000 notas remotas cifradas de verdad
+  (~1-2 KB cada una, en páginas de 500, en la base cifrada real del ZTE, `flutter drive
+  --profile`) y mide dos cosas: el tiempo total (`expect(..., lessThan(15000))`, presupuesto §11)
+  y el mayor bloqueo del isolate principal con un `Timer.periodic` de 16 ms (el hueco entre dos
+  disparos sucesivos mide exactamente el retraso que habría sufrido un fotograma;
+  `expect(..., lessThan(100))`). **Criterio de cierre de la fase:** si el total supera 15 s o el
+  bloqueo máximo supera ~100 ms, la fase no se cierra sin el isolate de trabajo; la prueba falla a
+  propósito en ese caso, para que no se pueda pasar por alto. Los números concretos del ZTE se
+  anotan en `docs/benchmarks.md` al correr la prueba (pendiente: no se ha ejecutado, solo escrito).
+- **Si falla: esbozo del isolate de trabajo completo.** 1) Al recibir una página de
+  `remoteChanges` con `cursor` anterior `null` (primera sincronización), en vez de descifrar en el
+  isolate que llama, lanzar un `Isolate` de larga vida (o reutilizar uno ya vivo) pasándole solo
+  **bytes**: la clave maestra (`Uint8List`, nunca el objeto `Vault`) y, por cada nota/carpeta, su
+  `wrappedKey`/`payload`/AAD ya calculados (nunca claves de Keystore ni objetos con estado). 2) En
+  el isolate de trabajo, reconstruir las piezas puras necesarias (`axonote_crypto` no depende de
+  Flutter, así que corre igual allí): desenvolver la clave del elemento con la maestra recibida y
+  descifrar el payload, para cada nota de la página, devolviendo solo los campos en claro
+  (título, texto, etiquetas, fijado) más el id — nunca la clave maestra de vuelta. 3) Poner a cero
+  los bytes de la clave maestra en el isolate de trabajo en cuanto termine la página (`finally`),
+  y no guardar ninguna referencia a ella entre páginas (pedirla de nuevo si hace falta otra
+  página, o mantenerla viva solo mientras dure la primera descarga, nunca más). 4) En el isolate
+  principal, `LocalSyncStore.applyResult` recibe las filas ya descifradas en vez de volver a
+  llamar a `LocalCodec`/`Vault` por cada una, y la inserción por lotes en una transacción por
+  página queda igual que ahora. 5) Esto exige ampliar `ItemCodec`/`SyncStore` (o añadir una
+  interfaz nueva específica para el lote remoto) para que el motor pueda entregar y recoger esas
+  filas ya descifradas en vez de descifrar él mismo fila a fila — el cambio que esta fase evitó
+  por salirse de su alcance (ver más arriba).
 
 ### 2026-10-11 · Ajustes `autoSync`/`wifiOnly` en la tabla `meta`, sin pantalla todavía
 
@@ -656,3 +682,57 @@ nombre. Se usa `AndroidOptions()` (valores por defecto), que ya cumple lo que pe
   esta fase sin que opencode pueda confirmar primero que `dart format` no tiene nada pendiente que
   reportar en ese directorio (si lo tuviera, añadirlo ahora generaría un commit de formato ajeno a
   la fase 7).
+
+### 2026-10-11 · Revisión de código: reintentos, errores sin capturar y señal de cambio local
+
+Una revisión de la fase (leyendo el código, sin ejecutar nada) encontró varios huecos reales;
+se corrigen aquí.
+
+**A. `SyncController.syncNow` solo capturaba `AppFailure`.** Cualquier otra excepción (p. ej. el
+`StateError` que lanza `LocalCodec.sealNoteForUpload`/`sealFolderForUpload` ante una fila ilegible
+sin `raw_payload`, o cualquier fallo de la base) se escapaba sin capturar: la fase se quedaba en
+`syncing` para siempre y la excepción llegaba sin manejar al `unawaited` de los disparadores.
+Ahora `syncNow` captura cualquier fallo y lo convierte en un `UnknownError` genérico si no es
+`AppFailure` — sin volcar nunca el mensaje de la excepción (podría llevar datos de la persona) — y
+protege también el `snapshot()` posterior con el mismo criterio, para no quedarse colgado si leer
+el almacén fallara justo después de sincronizar.
+
+**B. `locked` no estaba tratado (A3).** Si el cofre se bloquea a mitad de una sincronización (el
+motor sigue leyendo/escribiendo la base mientras el bloqueo borra la clave maestra de memoria),
+`AppFailure(LockedError())` se mostraba como aviso persistente igual que cualquier otro fallo. Se
+descarta en silencio, como `session-expired`/`device-revoked` (sin disparar ningún aviso: a
+diferencia de esos dos, bloquear no necesita que nadie reaccione — ya lo hizo quien bloqueó).
+
+**C. El disparador por cambio local escuchaba `NoteRepository`/`FolderRepository.watch()`.**
+Esos métodos están pensados para listas en pantalla: en cada cambio vuelven a consultar y
+materializar la lista entera (sin límite; con 10 000 notas, ~270 ms medidos en la fase 6) solo
+para descartarla y usarla de señal, emiten una vez al suscribirse (sincronización duplicada a los
+3 s de desbloquear) y se disparan también cuando `applyResult` escribe una nota o carpeta
+descargada (una sincronización de más tras cada descarga remota). Se sustituye por
+`SyncStore.localChanges` (interfaz nueva, ver más arriba): un `Stream<void>` sobre las
+actualizaciones de la tabla `outbox` (`LocalSyncStore`, sobre `db.tableUpdates()`), que no emite
+nada al suscribirse y no se dispara por descargas que no tocan la cola. De paso se encontró que
+`SyncDao.insertOutbox`/`updateOutbox`/`deleteOutbox` nunca llamaban a `notifyUpdates('outbox')`
+(a diferencia de `notes`/`folders`/`conflicts`, que sí lo hacían): sin eso, ninguna señal sobre
+`outbox` habría funcionado nunca; se corrigió como parte de este mismo cambio. Además, el rebote
+ahora comprueba `pendingCount()` antes de sincronizar: como `localChanges` también avisa cuando
+`applyResult` vacía una entrada ya confirmada, sin esa comprobación cada sincronización con algo
+que subir se seguiría de otra 3 s después, sin nada que hacer.
+
+**D. Reintentos del plan §7, antes inexistentes.** Ver la entrada de más arriba («El motor hace
+un solo intento…»): `SyncTriggers` ya aplica la espera exponencial, la supresión por
+`rate-limited` y la ausencia de bucle propio ante `forbidden`, con pruebas para cada caso usando
+el `TimerFactory` falso.
+
+**E. Fechas que bajan sin milisegundos o con microsegundos.** `remote_sync_transport_test.dart`
+añade los dos casos límite: una fecha remota sin fracción de segundo (`…T10:00:00Z`) se normaliza
+a milisegundos (`…T10:00:00.000Z`, mismo instante); una con microsegundos
+(`…T10:00:00.123456Z`) se trunca a milisegundos (`…T10:00:00.123Z`, `isoFromDateTime` solo lee
+`DateTime.millisecond`, nunca `.microsecond`). **Por qué es seguro, no solo supuesto:**
+`createdAt`/`updatedAt`/`deletedAt` de una nota o carpeta los fija siempre un **cliente** (web o
+móvil, nunca el servidor, que solo los guarda y los devuelve tal cual — ver plan §6 y
+`notify_web`: ambos clientes usan `Date.prototype.toISOString()`/`isoFromDateTime`, que siempre
+escriben exactamente 3 dígitos de milisegundos). Ninguno de los dos casos debería darse nunca en
+la práctica; si alguna vez se diera, además, la base local solo puede guardar texto con
+milisegundos (plan §6, `IsoDate`), así que una fracción de microsegundo no se podría conservar de
+todos modos aunque se intentara — truncarla al bajar no pierde nada que el móvil pudiera guardar.
