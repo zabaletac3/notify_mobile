@@ -91,65 +91,59 @@ void main() {
     expect(a.rawPayload, b.rawPayload);
   }
 
-  test(
-    'descifra notas y carpetas igual que LocalCodec en línea, con la misma clave',
-    () async {
-      final noteCh = await noteChange('Idea', 'contenido de prueba');
-      final folderCh = await folderChange('Proyectos');
+  test('descifra notas y carpetas igual que LocalCodec en línea, con la misma clave', () async {
+    final noteCh = await noteChange('Idea', 'contenido de prueba');
+    final folderCh = await folderChange('Proyectos');
 
-      final batch = await decryptRemoteChangesInWorker(
-        userId: h.vault.userId,
-        masterKeyBytes: masterKeyBytes(),
-        changes: [noteCh, folderCh],
-      );
+    final batch = await decryptRemoteChangesInWorker(
+      userId: h.vault.userId,
+      masterKeyBytes: masterKeyBytes(),
+      changes: [noteCh, folderCh],
+    );
 
-      expect(batch.noteRows, hasLength(1));
-      expect(batch.folderRows, hasLength(1));
+    expect(batch.noteRows, hasLength(1));
+    expect(batch.folderRows, hasLength(1));
 
-      final inlineNote = await h.local.deps.codec.noteRowFromRemote(
-        noteCh.note!,
-        NoteSyncStatus.synced,
-      );
-      expectSameNoteRow(batch.noteRows[noteCh.id]!, inlineNote);
-      expect(batch.noteRows[noteCh.id]!.title, 'Idea');
-      expect(batch.noteRows[noteCh.id]!.content, 'contenido de prueba');
-      expect(batch.noteRows[noteCh.id]!.unreadable, isFalse);
+    final inlineNote = await h.local.deps.codec.noteRowFromRemote(
+      noteCh.note!,
+      NoteSyncStatus.synced,
+    );
+    expectSameNoteRow(batch.noteRows[noteCh.id]!, inlineNote);
+    expect(batch.noteRows[noteCh.id]!.title, 'Idea');
+    expect(batch.noteRows[noteCh.id]!.content, 'contenido de prueba');
+    expect(batch.noteRows[noteCh.id]!.unreadable, isFalse);
 
-      final inlineFolder = await h.local.deps.codec.folderRowFromRemote(
-        folderCh.folder!,
-      );
-      expectSameFolderRow(batch.folderRows[folderCh.id]!, inlineFolder);
-      expect(batch.folderRows[folderCh.id]!.name, 'Proyectos');
-      expect(batch.folderRows[folderCh.id]!.unreadable, isFalse);
-    },
-  );
+    final inlineFolder = await h.local.deps.codec.folderRowFromRemote(
+      folderCh.folder!,
+    );
+    expectSameFolderRow(batch.folderRows[folderCh.id]!, inlineFolder);
+    expect(batch.folderRows[folderCh.id]!.name, 'Proyectos');
+    expect(batch.folderRows[folderCh.id]!.unreadable, isFalse);
+  });
 
-  test(
-    'un payload que no se puede abrir con esa clave/AAD se guarda ilegible, igual que en línea',
-    () async {
-      final noteCh = await noteChange('Idea', 'contenido');
-      final folderCh = await folderChange('Proyectos');
-      // Un userId distinto cambia el AAD (plan §6: liga el cifrado a la cuenta): la misma clave
-      // ya no abre el payload, así que cae al mismo camino que un dato alterado o de otra cuenta.
-      const otherUserId = 'otro-usuario';
+  test('un payload que no se puede abrir con esa clave/AAD se guarda ilegible, igual que en línea', () async {
+    final noteCh = await noteChange('Idea', 'contenido');
+    final folderCh = await folderChange('Proyectos');
+    // Un userId distinto cambia el AAD (plan §6: liga el cifrado a la cuenta): la misma clave
+    // ya no abre el payload, así que cae al mismo camino que un dato alterado o de otra cuenta.
+    const otherUserId = 'otro-usuario';
 
-      final batch = await decryptRemoteChangesInWorker(
-        userId: otherUserId,
-        masterKeyBytes: masterKeyBytes(),
-        changes: [noteCh, folderCh],
-      );
+    final batch = await decryptRemoteChangesInWorker(
+      userId: otherUserId,
+      masterKeyBytes: masterKeyBytes(),
+      changes: [noteCh, folderCh],
+    );
 
-      final inlineNote = unreadableNoteRow(noteCh.note!, NoteSyncStatus.synced);
-      expectSameNoteRow(batch.noteRows[noteCh.id]!, inlineNote);
-      expect(batch.noteRows[noteCh.id]!.unreadable, isTrue);
-      expect(batch.noteRows[noteCh.id]!.title, 'Nota ilegible');
+    final inlineNote = unreadableNoteRow(noteCh.note!, NoteSyncStatus.synced);
+    expectSameNoteRow(batch.noteRows[noteCh.id]!, inlineNote);
+    expect(batch.noteRows[noteCh.id]!.unreadable, isTrue);
+    expect(batch.noteRows[noteCh.id]!.title, 'Nota ilegible');
 
-      final inlineFolder = unreadableFolderRow(folderCh.folder!);
-      expectSameFolderRow(batch.folderRows[folderCh.id]!, inlineFolder);
-      expect(batch.folderRows[folderCh.id]!.unreadable, isTrue);
-      expect(batch.folderRows[folderCh.id]!.name, 'Carpeta ilegible');
-    },
-  );
+    final inlineFolder = unreadableFolderRow(folderCh.folder!);
+    expectSameFolderRow(batch.folderRows[folderCh.id]!, inlineFolder);
+    expect(batch.folderRows[folderCh.id]!.unreadable, isTrue);
+    expect(batch.folderRows[folderCh.id]!.name, 'Carpeta ilegible');
+  });
 
   test('un lote mayor que el umbral se descifra entero', () async {
     final changes = <RemoteChange>[

@@ -42,7 +42,8 @@ class Vault {
       vaultDataAad(userId, entity, id);
 
   /// Datos asociados de la clave de un elemento.
-  String keyAad(ItemEntity entity, String id) => vaultKeyAad(userId, entity, id);
+  String keyAad(ItemEntity entity, String id) =>
+      vaultKeyAad(userId, entity, id);
 
   /// Pone la clave maestra en memoria (ya obtenida por quien llama: contraseña o biometría). Si ya
   /// había una, la borra antes.

@@ -94,48 +94,45 @@ void main() {
     dir.deleteSync(recursive: true);
   });
 
-  test(
-    'open monta la base, el motor, el controlador y los disparadores; close lo suelta todo',
-    () async {
-      final adapter = FakeAdapter(
-        (options) async => jsonResponse(200, _emptySyncResponse()),
-      );
-      final http = await _httpClientWith(adapter);
-      var sessionExpired = false;
-      var deviceRevoked = false;
+  test('open monta la base, el motor, el controlador y los disparadores; close lo suelta todo', () async {
+    final adapter = FakeAdapter(
+      (options) async => jsonResponse(200, _emptySyncResponse()),
+    );
+    final http = await _httpClientWith(adapter);
+    var sessionExpired = false;
+    var deviceRevoked = false;
 
-      final session = await SyncSession.open(
-        ref: container.read(_refProvider),
-        vault: vault,
-        userId: userId,
-        directory: dir,
-        http: http,
-        deviceId: 'd1',
-        deviceName: 'Móvil de prueba',
-        onSessionExpired: () => sessionExpired = true,
-        onDeviceRevoked: () => deviceRevoked = true,
-      );
+    final session = await SyncSession.open(
+      ref: container.read(_refProvider),
+      vault: vault,
+      userId: userId,
+      directory: dir,
+      http: http,
+      deviceId: 'd1',
+      deviceName: 'Móvil de prueba',
+      onSessionExpired: () => sessionExpired = true,
+      onDeviceRevoked: () => deviceRevoked = true,
+    );
 
-      // Los disparadores están montados sobre el `SyncStore` de la base recién abierta.
-      expect(container.read(syncTriggersProvider).isRunning, isTrue);
+    // Los disparadores están montados sobre el `SyncStore` de la base recién abierta.
+    expect(container.read(syncTriggersProvider).isRunning, isTrue);
 
-      // El controlador ya tiene el motor (attach lo adjunta y refresca el snapshot).
-      await session.local.notes.create(const NoteDraft(title: 'x'));
-      await container.read(syncControllerProvider.notifier).syncNow();
-      final state = container.read(syncControllerProvider);
-      expect(state.lastError, isNull);
-      expect(state.pendingCount, 0);
+    // El controlador ya tiene el motor (attach lo adjunta y refresca el snapshot).
+    await session.local.notes.create(const NoteDraft(title: 'x'));
+    await container.read(syncControllerProvider.notifier).syncNow();
+    final state = container.read(syncControllerProvider);
+    expect(state.lastError, isNull);
+    expect(state.pendingCount, 0);
 
-      // onSessionExpired/onDeviceRevoked quedan conectados a los que pasó quien llamó a open().
-      final controller = container.read(syncControllerProvider.notifier);
-      controller.onSessionExpired!();
-      controller.onDeviceRevoked!();
-      expect(sessionExpired, isTrue);
-      expect(deviceRevoked, isTrue);
+    // onSessionExpired/onDeviceRevoked quedan conectados a los que pasó quien llamó a open().
+    final controller = container.read(syncControllerProvider.notifier);
+    controller.onSessionExpired!();
+    controller.onDeviceRevoked!();
+    expect(sessionExpired, isTrue);
+    expect(deviceRevoked, isTrue);
 
-      await session.close();
-      expect(container.read(syncTriggersProvider).isRunning, isFalse);
-      expect(container.read(syncControllerProvider), SyncUiState.empty);
-    },
-  );
+    await session.close();
+    expect(container.read(syncTriggersProvider).isRunning, isFalse);
+    expect(container.read(syncControllerProvider), SyncUiState.empty);
+  });
 }
