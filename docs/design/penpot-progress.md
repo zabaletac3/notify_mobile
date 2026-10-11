@@ -50,7 +50,7 @@ Lectura **pantalla por pantalla** (tablero por tablero, un tablero por consulta)
 | Recuperar contraseña (enviado) / `2 · Autenticación — Recuperar contraseña (enviado)` | **Sí** | 2026-10-11 (tarde) | fondo `#fffdf8`, icono 96 radio 48, título 28/700 centrado, cuerpo 15/400 centrado, botón y pie al pie |
 | Sesión expirada / `7 · Estados y errores — Sesión expirada` | **Sí** | 2026-10-11 | textos del diálogo (título, cuerpo, «Seguir sin conexión»/«Iniciar sesión») |
 | Toasts / `7 · Estados y errores — Toasts` | **Sí** | 2026-10-11 | 4 toasts 388×41 radio 12 `#fffdf8`, mensaje 14/500, acción 14/600 |
-| Error de servidor / `7 · Estados y errores — Error de servidor` | **Parcial** | 2026-10-11 (tarde, **timeouts**) | solo textos de la primera pasada; en la relectura fina dieron **dos timeouts seguidos** → parada |
+| Error de servidor / `7 · Estados y errores — Error de servidor` | **Sí** | 2026-10-11 (noche, relectura fina) | círculo 80 radio 40 `#f8e3e0` con «!» 40/700 `#b3382c`; título 20/700 `#1f1d1a` centrado; cuerpo 14/400 `#57514a` centrado; botón abrazado 115×46 radio 12 `#2a5db0`, etiqueta 15/600 blanca; «Código de error 500» 12/400 `#675f55`; márgenes: círculo→título 14, título→cuerpo 34, cuerpo→botón 14, botón→código 14; padding lateral 32 |
 | Registro (oscuro) / `8 · Modo oscuro — Registro (oscuro)` | **Sí** | 2026-10-11 | pantalla completa sin tarjeta ni Google; fondo `bgEditor` oscuro; título 28/700 a la izquierda; campos 362×74; medidor; botón 362×54 |
 
 ### Historial de paradas por la regla de conexión
@@ -62,12 +62,18 @@ Lectura **pantalla por pantalla** (tablero por tablero, un tablero por consulta)
 4. Tras reconectar: leídos Toasts y Registro (oscuro).
 5. Revisión de fidelidad (tarde): releídos con detalle Bienvenida, Registro claro, Inicio de sesión,
    Verificación, Recuperar (correo y enviado); Error de servidor → **dos timeouts seguidos** → parada.
+6. Revisión de fidelidad 2 (noche): leído «Error de servidor» en detalle (ver tabla); consulta de etiquetas
+   de botón en 6 tableros → timeout; scans `findShapes` sueltos dieron timeouts, resuelto con recorrido
+   manual de `root.children` (ligero). Confirmado: botones primarios **16/600** en Bienvenida, Registro e
+   Inicio de sesión; «Reintentar» del error de servidor es **15/600** (excepción de ese tablero).
+   `penpot_export_shape` (PNG) dio **dos timeouts seguidos** → PNG sin rehacer.
 
 **Pantallas sin tablero en Penpot** (composición con tokens y componentes base, según `screens.md`):
 Clave de recuperación, Segundo factor (2FA) y Desbloqueo.
 
-**Tarea previa del PNG `8-modo-oscuro-registro-oscuro.png`:** no se pudo rehacer (requiere
-`generateMarkup` de Penpot, que no respondía tras los timeouts). El PNG defectuoso sigue en su sitio.
+**Tarea previa del PNG `8-modo-oscuro-registro-oscuro.png`:** no se pudo rehacer (requiere `generateMarkup`
+de Penpot, que no respondía tras los timeouts; `penpot_export_shape` también dio **dos timeouts seguidos**
+en la reconexión). El PNG defectuoso sigue en su sitio.
 
 ## Pendiente
 
