@@ -155,9 +155,11 @@ void main() {
     );
     await engine.syncNow();
 
+    // Nunca se registran contraseñas ni texto de notas (plan §0.5): solo el correo (público
+    // dentro de esta cuenta de prueba) y el id de la nota, nunca su contenido.
     // ignore: avoid_print
     print(
-      'Cuenta: $_email / $_password\n'
+      'Cuenta: $_email (usa la contraseña del archivo, no se imprime aquí).\n'
       'Nota creada: ${note.id} — ábrela ahora en la web con esta misma cuenta.',
     );
 
@@ -197,12 +199,10 @@ void main() {
             'el paso 2 después de editarla en la web (ver la guía)',
       );
       final conflict = snapshot.conflicts.first;
+      // Nunca se registra texto de notas (plan §0.5): solo se confirma que el conflicto
+      // apareció y su id; compara el contenido a mano, en la propia app o en la web.
       // ignore: avoid_print
-      print(
-        'Conflicto detectado en ${conflict.noteId}.\n'
-        'Local (este móvil): «${conflict.local.content}»\n'
-        'Remoto (la web): «${conflict.remote.content}»',
-      );
+      print('Conflicto detectado en la nota ${conflict.noteId}.');
 
       await engine.syncEngine.resolveConflict(
         conflict.noteId,
