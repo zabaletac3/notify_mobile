@@ -558,57 +558,58 @@ nombre. Se usa `AndroidOptions()` (valores por defecto), que ya cumple lo que pe
   `rate-limited`, sin bucle propio ante `forbidden` — con `TimerFactory`, igual que el resto de
   temporizadores de la app.
 
-### 2026-10-11 · Sin isolate propio para el descifrado por lotes de la primera descarga
+### 2026-10-11 · Isolate de trabajo para el descifrado por lotes de la primera descarga
 
 - **Lo que pide el plan §4.4:** «descifrado por lotes (primera sincronización, páginas de 500): en
   un isolate de trabajo de larga vida, por páginas, con inserción por lotes en una transacción por
   página».
-- **Por qué no se hizo tal cual (alternativa mínima, ALCANCE punto 5):** repartir el descifrado en
-  un isolate propio exige pasarle la clave maestra (o las de cada elemento) como bytes, y
-  reconstruir allí algo equivalente a `LocalCodec`/`Vault` — que son de `app/lib/data` y dependen
-  de `axonote_crypto` con estado (caché de claves). Hacerlo bien exige rehacer cómo `LocalSyncStore
-  .applyResult` (fase 6) descifra las filas remotas, y esa fase ya tomó su propia decisión sobre
-  esto («`applyResult` descifra los cambios remotos antes de la transacción», más arriba): mover
-  ese descifrado a otro isolate sin romper esa lógica (y sin romper los 19 escenarios de
-  `sync-behavior.json`, que corren sobre esa misma ruta) se salía del alcance de esta fase.
-- **Por qué pesa menos de lo que parece:** D12 ya usa `cryptography_flutter`, que ejecuta el
-  AES-GCM de cada nota fuera del isolate de Dart (vía su canal nativo); lo que queda en el isolate
-  principal es JSON y relleno, barato por elemento. Repartir eso en otro isolate habría añadido la
-  complejidad (pasar bytes de clave, ponerlos a cero al terminar, reconstruir el códec) sin el
-  beneficio principal que motivaba el isolate.
-- **Lo que sí se hizo:** `SyncEngine` gana `onProgress` (`SyncProgress`): se llama tras aplicar cada
-  página con el número de página, si el cursor era `null` al empezar (primera sincronización) y el
-  total de `remoteChanges` aplicados hasta ahora. Con eso la interfaz puede mostrar «descargando…
-  (1500)» en vez de parecer colgada, que es la parte observable del requisito. La fase 8/9, que
-  construye la pantalla, es quien debe pintar ese progreso (todavía no hay interfaz).
-- **Medido, no solo supuesto (revisión de código):** `app/integration_test/
-  sync_first_download_performance_test.dart` sincroniza 2 000 notas remotas cifradas de verdad
-  (~1-2 KB cada una, en páginas de 500, en la base cifrada real del ZTE, `flutter drive
-  --profile`) y mide dos cosas: el tiempo total (`expect(..., lessThan(15000))`, presupuesto §11)
-  y el mayor bloqueo del isolate principal con un `Timer.periodic` de 16 ms (el hueco entre dos
-  disparos sucesivos mide exactamente el retraso que habría sufrido un fotograma;
-  `expect(..., lessThan(100))`). **Criterio de cierre de la fase:** si el total supera 15 s o el
-  bloqueo máximo supera ~100 ms, la fase no se cierra sin el isolate de trabajo; la prueba falla a
-  propósito en ese caso, para que no se pueda pasar por alto. Los números concretos del ZTE se
-  anotan en `docs/benchmarks.md` al correr la prueba (pendiente: no se ha ejecutado, solo escrito).
-- **Si falla: esbozo del isolate de trabajo completo.** 1) Al recibir una página de
-  `remoteChanges` con `cursor` anterior `null` (primera sincronización), en vez de descifrar en el
-  isolate que llama, lanzar un `Isolate` de larga vida (o reutilizar uno ya vivo) pasándole solo
-  **bytes**: la clave maestra (`Uint8List`, nunca el objeto `Vault`) y, por cada nota/carpeta, su
-  `wrappedKey`/`payload`/AAD ya calculados (nunca claves de Keystore ni objetos con estado). 2) En
-  el isolate de trabajo, reconstruir las piezas puras necesarias (`axonote_crypto` no depende de
-  Flutter, así que corre igual allí): desenvolver la clave del elemento con la maestra recibida y
-  descifrar el payload, para cada nota de la página, devolviendo solo los campos en claro
-  (título, texto, etiquetas, fijado) más el id — nunca la clave maestra de vuelta. 3) Poner a cero
-  los bytes de la clave maestra en el isolate de trabajo en cuanto termine la página (`finally`),
-  y no guardar ninguna referencia a ella entre páginas (pedirla de nuevo si hace falta otra
-  página, o mantenerla viva solo mientras dure la primera descarga, nunca más). 4) En el isolate
-  principal, `LocalSyncStore.applyResult` recibe las filas ya descifradas en vez de volver a
-  llamar a `LocalCodec`/`Vault` por cada una, y la inserción por lotes en una transacción por
-  página queda igual que ahora. 5) Esto exige ampliar `ItemCodec`/`SyncStore` (o añadir una
-  interfaz nueva específica para el lote remoto) para que el motor pueda entregar y recoger esas
-  filas ya descifradas en vez de descifrar él mismo fila a fila — el cambio que esta fase evitó
-  por salirse de su alcance (ver más arriba).
+- **Primer intento: confiar en que no hacía falta (revisado y descartado).** La primera versión de
+  esta fase razonó que `cryptography_flutter` (D12) ya saca el AES-GCM del isolate de Dart, así que
+  lo que queda en el isolate principal sería barato (JSON y relleno). Esa premisa era **falsa**:
+  revisando `packages/axonote_crypto/pubspec.yaml`, el paquete solo depende de
+  `package:cryptography` — `cryptography_flutter` nunca llegó a integrarse en ninguna fase — así
+  que el AES-GCM es software puro y corre, de verdad, en el isolate que lo llama. Medido en el ZTE
+  `LZ0V50COPBC002769` con `sync_first_download_performance_test.dart` (2 000 notas, páginas de
+  500): tiempo total bien (5,1 s / 4,7 s, presupuesto §11 de 15 s), pero bloqueo máximo del isolate
+  principal de **561 ms / 548 ms** por página — muy por encima del umbral de 100 ms de la prueba.
+  Por el criterio de cierre ya documentado aquí mismo, la fase no podía cerrarse así.
+- **Dónde estaba el bloqueo de verdad (no se dio por supuesto, se razonó antes de montar nada):**
+  por elemento, cada página hace dos operaciones AES-GCM software (desenvolver la clave del
+  elemento con la maestra, y abrir su payload) más JSON/relleno y construir la fila — todo código
+  Dart síncrono. El paso de mensajes entre isolates de 500 filas no es el problema (es barato,
+  bytes y estructuras simples); es el propio descifrado repetido 500 veces lo que bloquea.
+- **Implementado:** `app/lib/data/local/remote_decrypt_worker.dart` (`decryptRemoteChangesInWorker`)
+  descifra con `Isolate.run` — sin `BackgroundIsolateBinaryMessenger` ni nada específico de
+  Flutter: el AES-GCM software de `package:cryptography` no usa canales de plataforma, así que un
+  isolate de Dart corriente basta. Solo cruzan la frontera el `userId` y una **copia** de los
+  bytes de la clave maestra (`Uint8List.fromList(vault.requireKey().bytes)`, nunca el `Vault` ni
+  su caché de claves de elemento); el isolate reconstruye su propia `SecretKeyBytes`, descifra
+  cada `EncryptedNote`/`EncryptedFolder` (misma lógica que `LocalCodec.openNote`/`openFolder` +
+  `noteRow`/`folderRow` para el caso remoto, comprobado igual en
+  `remote_decrypt_worker_test.dart`), y la pone a cero (`SecretKeyBytes.dispose()`) antes de
+  devolver el resultado; quien llama (`LocalSyncStore.applyResult`) pone a cero su propia copia en
+  un `finally` en cuanto la llamada vuelve. El resultado (`RemoteDecryptBatch`: mapas de
+  `NoteRow`/`FolderRow` ya en claro, por id) vuelve al isolate principal y `applyResult` sigue
+  aplicándolo en una sola transacción, exactamente igual que antes.
+- **Solo para páginas grandes (`remoteDecryptIsolateThreshold = 50`), documentado aquí:** levantar
+  un isolate cuesta (arrancar su VM, copiar los datos); por debajo del umbral —una sincronización
+  incremental normal, unos pocos cambios— ese coste supera lo que ahorraría, así que
+  `applyResult` sigue descifrando en línea con `LocalCodec` como antes. Por encima (típicamente
+  solo la primera descarga de la cuenta), pasa por el isolate. El umbral vive en
+  `remote_decrypt_worker.dart`, no en `LocalSyncStore`, para que quien lo cambie vea junto el
+  motivo.
+- **`SyncEngine.onProgress` (`SyncProgress`), sin cambios respecto al primer intento:** se sigue
+  llamando tras aplicar cada página con el número de página, si el cursor era `null` al empezar y
+  el total de `remoteChanges` aplicados hasta ahora, para que la interfaz pueda mostrar
+  «descargando… (1500)» en vez de parecer colgada (la fase 8/9, que construye la pantalla, es
+  quien debe pintarlo).
+- **Medido, no solo supuesto:** `sync_first_download_performance_test.dart` sigue siendo la misma
+  prueba (2 000 notas remotas cifradas de verdad, páginas de 500, en la base cifrada real del ZTE,
+  `flutter drive --profile`), con el mismo umbral de 100 ms **sin subir**: ahora ejercita el
+  isolate de trabajo de verdad (páginas de 500 > 50), así que si vuelve a fallar significa que el
+  isolate no basta y hay que repartir también la construcción de filas o trocear el paso de
+  mensajes — no hay una alternativa menor que probar antes. Pendiente: no se ha vuelto a ejecutar
+  tras este cambio (anotar los números nuevos en `docs/benchmarks.md` al correrla).
 
 ### 2026-10-11 · Ajustes `autoSync`/`wifiOnly` en la tabla `meta`, sin pantalla todavía
 
@@ -736,3 +737,59 @@ escriben exactamente 3 dígitos de milisegundos). Ninguno de los dos casos deber
 la práctica; si alguna vez se diera, además, la base local solo puede guardar texto con
 milisegundos (plan §6, `IsoDate`), así que una fracción de microsegundo no se podría conservar de
 todos modos aunque se intentara — truncarla al bajar no pierde nada que el móvil pudiera guardar.
+
+### 2026-10-11 · Tercera revisión de código: ids de los vectores, errores de compilación, snapshot en attach e isolate
+
+Una tercera ronda, tras pasar por primera vez las puertas de calidad reales (`flutter analyze`,
+`flutter test`, `flutter drive --profile` en el ZTE), encontró lo siguiente.
+
+**F. Los 17 escenarios de `sync-behavior.json` que crean algo fallaban por el id.** El vector se
+generó «con reloj e ids fijos» (`sync-behavior-vectors.ts` parchea `crypto.getRandomValues` con
+una secuencia determinista): sus pasos `createNote`/`createFolder` llevan el id exacto que debe
+salir, y la prueba comparaba el estado entero, así que el id real y aleatorio del móvil nunca
+coincidía. **Se descartó reproducir el generador aleatorio determinista** (acoplaría la prueba a
+los detalles de implementación de ese parche, en TypeScript, y a cuántas llamadas a
+`crypto.getRandomValues` hace cada paso previo de los 19 escenarios en orden): en vez de eso,
+`LocalDeps` gana un campo `newId` inyectable (por defecto el real, `domain.newId`), que
+`LocalDatabase.open`/`.memory` reciben y pasan; los cuatro sitios que generaban un id localmente
+(crear nota, duplicarla, crear carpeta, la copia «(conflicto)» de `resolveConflict('both')`) lo
+usan en vez de la función global. `sync_behavior_vectors_test.dart` programa, antes de cada paso,
+el id que hace falta: el de `createNote`/`createFolder` viene en el propio paso; el de la copia
+de `both` —que no viene en ningún paso— se obtiene comparando los ids de nota del estado anterior
+con los del `expected` del paso (el único nuevo es el de la copia), ya que ese estado esperado es
+justo lo que el vector grabó. Tras arreglar el id, los 19 escenarios pasaron tal cual: no apareció
+ninguna diferencia real tapada detrás del id, como se temía al proponer la corrección.
+
+**G. `flutter analyze`, 34 avisos reales.** 8 errores de compilación en
+`sync_cross_client_test.dart`: usaba `AccountApi` donde hace falta `KeysApi` para `/keys`, y los
+DTO de `axonote_api` (`KdfParamsDto`/`KeyBundleDto`) donde `axonote_crypto` —que no depende de
+`axonote_api`, plan §4.2— espera sus propios tipos (`KdfParams`/`KeyBundle`); se añaden
+`_kdfParams`/`_keyBundle` para convertir entre ambos en esa única prueba manual que cruza los dos
+paquetes. El resto (26 avisos/infos) no cambiaba comportamiento: `.cast<Map>()` sin argumentos
+(`strict_raw_type`) pasa a `.cast<Map<String, Object?>>()`; `RemoteSyncTransport`/
+`ScriptedSyncTransport` simulaban un campo privado con otro nombre
+(`required String deviceId}) : _deviceId = deviceId`, `prefer_initializing_formals`) sin nada que
+encapsular, así que los campos pasan a ser públicos y el constructor los asigna con `this.<campo>`
+directamente; dos `if (… == null)\n  return;` de dos líneas ganan llaves
+(`curly_braces_in_flow_control_structures`); `dio` pasa a ser `dev_dependency` directa de `app`
+(antes solo transitiva vía `axonote_api`, `depend_on_referenced_packages`: `fake_dio.dart` lo usa
+a propósito, como ya hacía `packages/axonote_api/test/support/fake_dio.dart`); y `const` donde
+faltaba (`prefer_const_constructors`) en construcciones cuyos argumentos ya eran todos constantes.
+
+**H. `SyncController.refresh()` sin proteger.** `attach()` la llama con `unawaited`: si
+`engine.snapshot()` fallaba (como en la prueba que simula un almacén que lanza al leer
+`conflicts()`), la excepción no tenía quién la capturara y se convertía en un error de zona
+huérfano en vez de quedar en el estado, aunque `syncNow()` ya protegía su propio `snapshot()`
+posterior con el mismo criterio. Se corrige igual: la fase pasa a `error`, nunca se propaga.
+
+**I. Primera descarga: isolate de trabajo, implementado tras medir el bloqueo real.** Ver la
+entrada de más arriba («Isolate de trabajo para el descifrado por lotes…»): la premisa original
+(que `cryptography_flutter` ya evitaba el bloqueo) era falsa; medido en el ZTE, el bloqueo máximo
+por página llegaba a ~560 ms. `remote_decrypt_worker.dart` lo resuelve con `Isolate.run`, solo para
+páginas de más de 50 elementos.
+
+**Costura con la fase 8:** `app/lib/app/sync_session.dart` (`SyncSession.open`/`close`) reúne en
+un solo sitio todo lo que la fase 8 tendrá que llamar desde `VaultLifecycle.onUnlocked`/
+`onSignedOut`, con `onSessionExpired`/`onDeviceRevoked` ya conectados a los que le pase quien
+llame. No implementa nada de la fase 8 (ni `HttpClient` por cuenta, ni `deviceModel()`, ni el bus
+de eventos de sesión): solo deja el punto de unión listo y probado (`sync_session_test.dart`).
