@@ -118,20 +118,16 @@ class _ComponentsGalleryState extends State<ComponentsGallery> {
                   ),
                 ]),
                 const _Section('Casilla', [
-                  Row(
-                    children: [
-                      AxoCheckbox(
-                        value: true,
-                        onChanged: _onChanged,
-                        label: 'Marcada',
-                      ),
-                      SizedBox(width: AxoSpacing.xl),
-                      AxoCheckbox(
-                        value: false,
-                        onChanged: _onChanged,
-                        label: 'Sin marcar',
-                      ),
-                    ],
+                  AxoCheckbox(
+                    value: true,
+                    onChanged: _onChanged,
+                    label: 'Marcada',
+                  ),
+                  SizedBox(height: AxoSpacing.sm),
+                  AxoCheckbox(
+                    value: false,
+                    onChanged: _onChanged,
+                    label: 'Sin marcar',
                   ),
                 ]),
                 const _Section('OTP', [

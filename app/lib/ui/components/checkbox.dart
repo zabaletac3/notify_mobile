@@ -56,7 +56,12 @@ class AxoCheckbox extends StatelessWidget {
           children: [
             box,
             const SizedBox(width: AxoSpacing.md),
-            Text(label!, style: AxoType.bodyUi.copyWith(color: c.textPrimary)),
+            Flexible(
+              child: Text(
+                label!,
+                style: AxoType.bodyUi.copyWith(color: c.textPrimary),
+              ),
+            ),
           ],
         ),
       ),

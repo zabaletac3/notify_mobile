@@ -88,11 +88,14 @@ class AxoButton extends StatelessWidget {
                     AppIcon(icon!, size: 18, color: fg),
                     const SizedBox(width: AxoSpacing.sm),
                   ],
-                  Text(
-                    label,
-                    style: AxoType.bodyUi.copyWith(
-                      color: fg,
-                      fontWeight: FontWeight.w600,
+                  Flexible(
+                    child: Text(
+                      label,
+                      overflow: TextOverflow.ellipsis,
+                      style: AxoType.bodyUi.copyWith(
+                        color: fg,
+                        fontWeight: FontWeight.w600,
+                      ),
                     ),
                   ),
                 ],

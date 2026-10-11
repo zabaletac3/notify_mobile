@@ -315,6 +315,516 @@ abstract class AppLocalizations {
   /// In es, this message translates to:
   /// **'Algo salió mal. Inténtalo de nuevo.'**
   String get errorUnknown;
+
+  /// No description provided for @errorKdfUnsupported.
+  ///
+  /// In es, this message translates to:
+  /// **'Actualiza AxoNote para iniciar sesión.'**
+  String get errorKdfUnsupported;
+
+  /// No description provided for @welcomeTagline.
+  ///
+  /// In es, this message translates to:
+  /// **'Tus notas, claras y siempre contigo.'**
+  String get welcomeTagline;
+
+  /// No description provided for @welcomeCreateAccount.
+  ///
+  /// In es, this message translates to:
+  /// **'Crear cuenta'**
+  String get welcomeCreateAccount;
+
+  /// No description provided for @welcomeHaveAccount.
+  ///
+  /// In es, this message translates to:
+  /// **'Ya tengo una cuenta'**
+  String get welcomeHaveAccount;
+
+  /// No description provided for @welcomeTerms.
+  ///
+  /// In es, this message translates to:
+  /// **'Al continuar aceptas los Términos de uso y la Política de privacidad.'**
+  String get welcomeTerms;
+
+  /// No description provided for @onboardSkip.
+  ///
+  /// In es, this message translates to:
+  /// **'Omitir'**
+  String get onboardSkip;
+
+  /// No description provided for @onboardNext.
+  ///
+  /// In es, this message translates to:
+  /// **'Siguiente'**
+  String get onboardNext;
+
+  /// No description provided for @onboardStart.
+  ///
+  /// In es, this message translates to:
+  /// **'Empezar'**
+  String get onboardStart;
+
+  /// No description provided for @onboard1Title.
+  ///
+  /// In es, this message translates to:
+  /// **'Escribe sin distracciones'**
+  String get onboard1Title;
+
+  /// No description provided for @onboard1Body.
+  ///
+  /// In es, this message translates to:
+  /// **'Un editor limpio con listas, checklists y formato cuando lo necesitas.'**
+  String get onboard1Body;
+
+  /// No description provided for @onboard2Title.
+  ///
+  /// In es, this message translates to:
+  /// **'Todo en su carpeta'**
+  String get onboard2Title;
+
+  /// No description provided for @onboard2Body.
+  ///
+  /// In es, this message translates to:
+  /// **'Organiza tus notas con carpetas y etiquetas, y encuéntralas al instante.'**
+  String get onboard2Body;
+
+  /// No description provided for @onboard3Title.
+  ///
+  /// In es, this message translates to:
+  /// **'En todos tus dispositivos'**
+  String get onboard3Title;
+
+  /// No description provided for @onboard3Body.
+  ///
+  /// In es, this message translates to:
+  /// **'Tus notas se sincronizan entre Linux, Windows y Android.'**
+  String get onboard3Body;
+
+  /// No description provided for @registerTitle.
+  ///
+  /// In es, this message translates to:
+  /// **'Crea tu cuenta'**
+  String get registerTitle;
+
+  /// No description provided for @registerSubtitle.
+  ///
+  /// In es, this message translates to:
+  /// **'Guarda tus notas y sincronízalas en todos tus dispositivos.'**
+  String get registerSubtitle;
+
+  /// No description provided for @fieldName.
+  ///
+  /// In es, this message translates to:
+  /// **'Nombre'**
+  String get fieldName;
+
+  /// No description provided for @fieldNameHint.
+  ///
+  /// In es, this message translates to:
+  /// **'Cómo quieres que te llamemos'**
+  String get fieldNameHint;
+
+  /// No description provided for @fieldEmail.
+  ///
+  /// In es, this message translates to:
+  /// **'Correo electrónico'**
+  String get fieldEmail;
+
+  /// No description provided for @fieldEmailHint.
+  ///
+  /// In es, this message translates to:
+  /// **'nombre@correo.com'**
+  String get fieldEmailHint;
+
+  /// No description provided for @fieldPassword.
+  ///
+  /// In es, this message translates to:
+  /// **'Contraseña'**
+  String get fieldPassword;
+
+  /// No description provided for @fieldPasswordHintMin.
+  ///
+  /// In es, this message translates to:
+  /// **'Mínimo 8 caracteres'**
+  String get fieldPasswordHintMin;
+
+  /// No description provided for @fieldPasswordHint.
+  ///
+  /// In es, this message translates to:
+  /// **'Tu contraseña'**
+  String get fieldPasswordHint;
+
+  /// No description provided for @passwordHelper.
+  ///
+  /// In es, this message translates to:
+  /// **'Usa letras, números y un símbolo para mayor seguridad.'**
+  String get passwordHelper;
+
+  /// No description provided for @termsAccept.
+  ///
+  /// In es, this message translates to:
+  /// **'Acepto los Términos de uso y la Política de privacidad de AxoNote.'**
+  String get termsAccept;
+
+  /// No description provided for @createAccountButton.
+  ///
+  /// In es, this message translates to:
+  /// **'Crear cuenta'**
+  String get createAccountButton;
+
+  /// No description provided for @haveAccountPrompt.
+  ///
+  /// In es, this message translates to:
+  /// **'¿Ya tienes cuenta?'**
+  String get haveAccountPrompt;
+
+  /// No description provided for @logIn.
+  ///
+  /// In es, this message translates to:
+  /// **'Inicia sesión'**
+  String get logIn;
+
+  /// No description provided for @loginTitle.
+  ///
+  /// In es, this message translates to:
+  /// **'Bienvenido de vuelta'**
+  String get loginTitle;
+
+  /// No description provided for @loginButton.
+  ///
+  /// In es, this message translates to:
+  /// **'Iniciar sesión'**
+  String get loginButton;
+
+  /// No description provided for @forgotPasswordLink.
+  ///
+  /// In es, this message translates to:
+  /// **'¿Olvidaste tu contraseña?'**
+  String get forgotPasswordLink;
+
+  /// No description provided for @newHerePrompt.
+  ///
+  /// In es, this message translates to:
+  /// **'¿Eres nuevo?'**
+  String get newHerePrompt;
+
+  /// No description provided for @createAnAccount.
+  ///
+  /// In es, this message translates to:
+  /// **'Crea una cuenta'**
+  String get createAnAccount;
+
+  /// No description provided for @verifyTitle.
+  ///
+  /// In es, this message translates to:
+  /// **'Verifica tu correo'**
+  String get verifyTitle;
+
+  /// No description provided for @verifySentTo.
+  ///
+  /// In es, this message translates to:
+  /// **'Enviamos un código de 6 dígitos a {email}. Ingrésalo para continuar.'**
+  String verifySentTo(Object email);
+
+  /// No description provided for @verifySentPrefix.
+  ///
+  /// In es, this message translates to:
+  /// **'Enviamos un código de 6 dígitos a '**
+  String get verifySentPrefix;
+
+  /// No description provided for @verifySentSuffix.
+  ///
+  /// In es, this message translates to:
+  /// **'. Ingrésalo para continuar.'**
+  String get verifySentSuffix;
+
+  /// No description provided for @verifyButton.
+  ///
+  /// In es, this message translates to:
+  /// **'Verificar'**
+  String get verifyButton;
+
+  /// No description provided for @verifyChangeEmail.
+  ///
+  /// In es, this message translates to:
+  /// **'Cambiar correo'**
+  String get verifyChangeEmail;
+
+  /// No description provided for @verifyNoCodeQuestion.
+  ///
+  /// In es, this message translates to:
+  /// **'¿No llegó?'**
+  String get verifyNoCodeQuestion;
+
+  /// No description provided for @verifyResendCounter.
+  ///
+  /// In es, this message translates to:
+  /// **'Reenviar código en {time}'**
+  String verifyResendCounter(Object time);
+
+  /// No description provided for @verifyResendLink.
+  ///
+  /// In es, this message translates to:
+  /// **'Reenviar código'**
+  String get verifyResendLink;
+
+  /// No description provided for @verifyResendIn.
+  ///
+  /// In es, this message translates to:
+  /// **'¿No llegó? Reenviar código en {time}'**
+  String verifyResendIn(Object time);
+
+  /// No description provided for @verifyResend.
+  ///
+  /// In es, this message translates to:
+  /// **'¿No llegó? Reenviar código'**
+  String get verifyResend;
+
+  /// No description provided for @recoveryKeyTitle.
+  ///
+  /// In es, this message translates to:
+  /// **'Tu clave de recuperación'**
+  String get recoveryKeyTitle;
+
+  /// No description provided for @recoveryKeyIntro.
+  ///
+  /// In es, this message translates to:
+  /// **'Es la única forma de recuperar tus notas si olvidas la contraseña. Guárdala en un lugar seguro: no se volverá a mostrar.'**
+  String get recoveryKeyIntro;
+
+  /// No description provided for @recoveryKeyHelper.
+  ///
+  /// In es, this message translates to:
+  /// **'Puedes copiarla marcándola como dato sensible.'**
+  String get recoveryKeyHelper;
+
+  /// No description provided for @recoveryKeyCopy.
+  ///
+  /// In es, this message translates to:
+  /// **'Copiar clave'**
+  String get recoveryKeyCopy;
+
+  /// No description provided for @recoveryKeyCopied.
+  ///
+  /// In es, this message translates to:
+  /// **'Clave copiada'**
+  String get recoveryKeyCopied;
+
+  /// No description provided for @recoveryKeyConfirmLabel.
+  ///
+  /// In es, this message translates to:
+  /// **'Ya la guardé en un lugar seguro'**
+  String get recoveryKeyConfirmLabel;
+
+  /// No description provided for @recoveryKeyContinue.
+  ///
+  /// In es, this message translates to:
+  /// **'Continuar'**
+  String get recoveryKeyContinue;
+
+  /// No description provided for @twoFactorTitle.
+  ///
+  /// In es, this message translates to:
+  /// **'Verificación en dos pasos'**
+  String get twoFactorTitle;
+
+  /// No description provided for @twoFactorBody.
+  ///
+  /// In es, this message translates to:
+  /// **'Ingresa el código de tu aplicación de autenticación o uno de tus códigos de respaldo.'**
+  String get twoFactorBody;
+
+  /// No description provided for @fieldMfaCode.
+  ///
+  /// In es, this message translates to:
+  /// **'Código'**
+  String get fieldMfaCode;
+
+  /// No description provided for @fieldMfaCodeHint.
+  ///
+  /// In es, this message translates to:
+  /// **'123456 o XXXXX-XXXXX'**
+  String get fieldMfaCodeHint;
+
+  /// No description provided for @twoFactorButton.
+  ///
+  /// In es, this message translates to:
+  /// **'Continuar'**
+  String get twoFactorButton;
+
+  /// No description provided for @twoFactorBackToLogin.
+  ///
+  /// In es, this message translates to:
+  /// **'Volver a iniciar sesión'**
+  String get twoFactorBackToLogin;
+
+  /// No description provided for @forgotTitle.
+  ///
+  /// In es, this message translates to:
+  /// **'¿Olvidaste tu contraseña?'**
+  String get forgotTitle;
+
+  /// No description provided for @forgotSubtitle.
+  ///
+  /// In es, this message translates to:
+  /// **'Escribe el correo de tu cuenta y te enviaremos un enlace para crear una nueva.'**
+  String get forgotSubtitle;
+
+  /// No description provided for @forgotSend.
+  ///
+  /// In es, this message translates to:
+  /// **'Enviar enlace'**
+  String get forgotSend;
+
+  /// No description provided for @forgotBackToLogin.
+  ///
+  /// In es, this message translates to:
+  /// **'Volver a iniciar sesión'**
+  String get forgotBackToLogin;
+
+  /// No description provided for @forgotSentTitle.
+  ///
+  /// In es, this message translates to:
+  /// **'Revisa tu correo'**
+  String get forgotSentTitle;
+
+  /// No description provided for @forgotSentBody.
+  ///
+  /// In es, this message translates to:
+  /// **'Si existe una cuenta con {email}, recibirás un enlace para restablecer tu contraseña en unos minutos.'**
+  String forgotSentBody(Object email);
+
+  /// No description provided for @forgotSentPrefix.
+  ///
+  /// In es, this message translates to:
+  /// **'Si existe una cuenta con '**
+  String get forgotSentPrefix;
+
+  /// No description provided for @forgotSentSuffix.
+  ///
+  /// In es, this message translates to:
+  /// **', recibirás un enlace para restablecer tu contraseña en unos minutos.'**
+  String get forgotSentSuffix;
+
+  /// No description provided for @forgotSentResend.
+  ///
+  /// In es, this message translates to:
+  /// **'¿No lo recibiste?'**
+  String get forgotSentResend;
+
+  /// No description provided for @forgotSentResendLink.
+  ///
+  /// In es, this message translates to:
+  /// **'Reenviar enlace'**
+  String get forgotSentResendLink;
+
+  /// No description provided for @unlockTitle.
+  ///
+  /// In es, this message translates to:
+  /// **'Desbloquea AxoNote'**
+  String get unlockTitle;
+
+  /// No description provided for @unlockPasswordBody.
+  ///
+  /// In es, this message translates to:
+  /// **'Ingresa tu contraseña para leer tus notas.'**
+  String get unlockPasswordBody;
+
+  /// No description provided for @unlockButton.
+  ///
+  /// In es, this message translates to:
+  /// **'Desbloquear'**
+  String get unlockButton;
+
+  /// No description provided for @unlockBiometric.
+  ///
+  /// In es, this message translates to:
+  /// **'Usar biometría o el teléfono'**
+  String get unlockBiometric;
+
+  /// No description provided for @unlockSignOut.
+  ///
+  /// In es, this message translates to:
+  /// **'Cerrar sesión'**
+  String get unlockSignOut;
+
+  /// No description provided for @unlockBiometricPrompt.
+  ///
+  /// In es, this message translates to:
+  /// **'Desbloquea AxoNote'**
+  String get unlockBiometricPrompt;
+
+  /// No description provided for @sessionExpiredTitle.
+  ///
+  /// In es, this message translates to:
+  /// **'Tu sesión expiró'**
+  String get sessionExpiredTitle;
+
+  /// No description provided for @sessionExpiredBody.
+  ///
+  /// In es, this message translates to:
+  /// **'Por seguridad cerramos tu sesión. Inicia sesión de nuevo para seguir sincronizando. Tus notas guardadas en este dispositivo siguen aquí.'**
+  String get sessionExpiredBody;
+
+  /// No description provided for @sessionExpiredOffline.
+  ///
+  /// In es, this message translates to:
+  /// **'Seguir sin conexión'**
+  String get sessionExpiredOffline;
+
+  /// No description provided for @sessionExpiredLogin.
+  ///
+  /// In es, this message translates to:
+  /// **'Iniciar sesión'**
+  String get sessionExpiredLogin;
+
+  /// No description provided for @signedOutNotice.
+  ///
+  /// In es, this message translates to:
+  /// **'Se cerró la sesión en este dispositivo.'**
+  String get signedOutNotice;
+
+  /// No description provided for @mfaExpiredNotice.
+  ///
+  /// In es, this message translates to:
+  /// **'La verificación tardó demasiado. Inicia sesión de nuevo.'**
+  String get mfaExpiredNotice;
+
+  /// No description provided for @serverErrorTitle.
+  ///
+  /// In es, this message translates to:
+  /// **'No pudimos conectar con el servidor'**
+  String get serverErrorTitle;
+
+  /// No description provided for @serverErrorBody.
+  ///
+  /// In es, this message translates to:
+  /// **'Algo falló de nuestro lado. Tus notas están a salvo en este dispositivo. Inténtalo de nuevo en unos minutos.'**
+  String get serverErrorBody;
+
+  /// No description provided for @retry.
+  ///
+  /// In es, this message translates to:
+  /// **'Reintentar'**
+  String get retry;
+
+  /// No description provided for @errorCodeLabel.
+  ///
+  /// In es, this message translates to:
+  /// **'Código de error {code}'**
+  String errorCodeLabel(Object code);
+
+  /// No description provided for @loading.
+  ///
+  /// In es, this message translates to:
+  /// **'Un momento…'**
+  String get loading;
+
+  /// No description provided for @derivingPassword.
+  ///
+  /// In es, this message translates to:
+  /// **'Protegiendo tu contraseña…'**
+  String get derivingPassword;
 }
 
 class _AppLocalizationsDelegate

@@ -172,6 +172,14 @@ abstract final class AxoType {
     letterSpacing: -0.56,
   );
 
+  /// Marca en la bienvenida («Apunte»/«AxoNote»). 34/700, int. 1.2.
+  static const TextStyle brand = TextStyle(
+    fontFamily: family,
+    fontSize: 34,
+    fontWeight: FontWeight.w700,
+    height: 1.2,
+  );
+
   /// Título de pantalla (p. ej. «Crea tu cuenta»). 24/700, int. 1.2.
   static const TextStyle screenTitle = TextStyle(
     fontFamily: family,

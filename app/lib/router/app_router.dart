@@ -5,6 +5,19 @@ import 'package:go_router/go_router.dart';
 
 import '../app/session.dart';
 import '../dev/components_gallery.dart';
+import '../features/auth/ui/forgot_password_screen.dart';
+import '../features/auth/ui/forgot_password_sent_screen.dart';
+import '../features/auth/ui/login_screen.dart';
+import '../features/auth/ui/onboarding_screen.dart';
+import '../features/auth/ui/recovery_key_screen.dart';
+import '../features/auth/ui/register_screen.dart';
+import '../features/auth/ui/server_error_screen.dart';
+import '../features/auth/ui/two_factor_screen.dart';
+import '../features/auth/ui/unlock_screen.dart';
+import '../features/auth/ui/verify_screen.dart';
+import '../features/auth/ui/welcome_screen.dart';
+import '../features/auth/state/auth_controller.dart';
+import '../features/vault/state/vault_lock.dart';
 import '../ui/components.dart';
 import '../ui/placeholder_screen.dart';
 import '../ui/tokens.dart';
@@ -16,65 +29,74 @@ const _publicRoutes = {
   '/login',
   '/register',
   '/verify',
+  '/two-factor',
   '/forgot-password',
   '/forgot-password/sent',
 };
 
-PlaceholderScreen _p(String title, {List<Widget> actions = const []}) =>
-    PlaceholderScreen(title: title, actions: actions);
-
-/// Botón de demostración que cambia el estado de sesión (para recorrer el esqueleto a mano).
-Widget _demo(String label, AxoSession target) => Consumer(
-  builder: (context, ref, _) => AxoButton(
-    label: label,
-    onPressed: () => ref.read(sessionProvider.notifier).set(target),
-  ),
-);
-
-/// Botón de navegación (solo depuración).
-Widget _devNav(String label, String location) => Builder(
-  builder: (context) => AxoButton(
-    label: label,
-    variant: AxoButtonVariant.outline,
-    onPressed: () => GoRouter.of(context).go(location),
-  ),
-);
-
 /// Ruta de la galería de componentes, solo en modo debug.
 const _devRoute = '/dev/components';
 
-/// Pantalla de bienvenida vacía con los accesos visibles (centrados): entrar (demo) y galería de
-/// componentes (solo debug). No van en la barra superior.
-Widget _welcome() => Builder(
-  builder: (context) {
+PlaceholderScreen _p(String title) => PlaceholderScreen(title: title);
+
+/// Pantalla provisional de notas (fase 9) con las acciones de sesión de esta fase: bloquear y
+/// cerrar sesión, para poder recorrer el ciclo completo mientras no existe la lista real.
+class _NotesHome extends ConsumerWidget {
+  const _NotesHome();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
     final c = Theme.of(context).extension<AxoColors>()!;
     return Scaffold(
-      backgroundColor: c.bgApp,
-      body: SafeArea(
-        child: Center(
-          child: Padding(
-            padding: const EdgeInsets.all(AxoSpacing.xxl),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Text(
-                  'Bienvenida',
-                  style: AxoType.screenTitle.copyWith(color: c.textPrimary),
-                ),
-                const SizedBox(height: AxoSpacing.xxl),
-                _demo('Entrar (demo)', AxoSession.unlocked),
-                if (kDebugMode) ...[
-                  const SizedBox(height: AxoSpacing.md),
-                  _devNav('Ver componentes (dev)', _devRoute),
-                ],
-              ],
+      appBar: AppBar(
+        title: Text(
+          'Notas',
+          style: AxoType.heading.copyWith(color: c.textPrimary),
+        ),
+        backgroundColor: c.bgApp,
+        surfaceTintColor: Colors.transparent,
+      ),
+      body: Center(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              'Notas',
+              style: AxoType.screenTitle.copyWith(color: c.textPrimary),
             ),
-          ),
+            const SizedBox(height: AxoSpacing.sm),
+            Text(
+              '(lista en la fase 9)',
+              style: AxoType.body.copyWith(color: c.textTertiary),
+            ),
+            const SizedBox(height: AxoSpacing.xl),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: AxoSpacing.xxxl),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  AxoButton(
+                    label: 'Bloquear',
+                    variant: AxoButtonVariant.outline,
+                    onPressed: () =>
+                        ref.read(vaultLockControllerProvider).lock(),
+                  ),
+                  const SizedBox(height: AxoSpacing.md),
+                  AxoButton(
+                    label: 'Cerrar sesión',
+                    variant: AxoButtonVariant.outline,
+                    onPressed: () =>
+                        ref.read(authControllerProvider.notifier).logout(),
+                  ),
+                ],
+              ),
+            ),
+          ],
         ),
       ),
     );
-  },
-);
+  }
+}
 
 final routerProvider = Provider<GoRouter>((ref) {
   final refresh = ValueNotifier<AxoSession>(ref.read(sessionProvider));
@@ -83,6 +105,8 @@ final routerProvider = Provider<GoRouter>((ref) {
   final router = GoRouter(
     initialLocation: '/',
     refreshListenable: refresh,
+    errorBuilder: (context, state) =>
+        ServerErrorScreen(code: 404, onRetry: () => context.go('/')),
     redirect: (context, state) {
       final session = refresh.value;
       final loc = state.matchedLocation;
@@ -92,55 +116,41 @@ final routerProvider = Provider<GoRouter>((ref) {
       final isLocked = loc == '/unlock';
       switch (session) {
         case AxoSession.noSession:
+          if (loc == '/') return '/onboarding';
           if (!isPublic) return '/welcome';
         case AxoSession.locked:
           if (!isLocked) return '/unlock';
         case AxoSession.unlocked:
-          if (isPublic || isLocked) return '/notes';
+          if (isPublic || isLocked || loc == '/') return '/notes';
       }
       return null;
     },
     routes: [
       // Introducción y autenticación.
-      GoRoute(path: '/welcome', builder: (_, _) => _welcome()),
-      GoRoute(path: '/onboarding', builder: (_, _) => _p('Onboarding')),
-      GoRoute(path: '/login', builder: (_, _) => _p('Inicio de sesión')),
-      GoRoute(path: '/register', builder: (_, _) => _p('Registro')),
-      GoRoute(path: '/verify', builder: (_, _) => _p('Verificación de correo')),
+      GoRoute(path: '/welcome', builder: (_, _) => const WelcomeScreen()),
+      GoRoute(path: '/onboarding', builder: (_, _) => const OnboardingScreen()),
+      GoRoute(path: '/register', builder: (_, _) => const RegisterScreen()),
+      GoRoute(path: '/verify', builder: (_, _) => const VerifyScreen()),
+      GoRoute(
+        path: '/recovery-key',
+        builder: (_, _) => const RecoveryKeyScreen(),
+      ),
+      GoRoute(path: '/login', builder: (_, _) => const LoginScreen()),
+      GoRoute(path: '/two-factor', builder: (_, _) => const TwoFactorScreen()),
       GoRoute(
         path: '/forgot-password',
-        builder: (_, _) => _p('Recuperar contraseña'),
+        builder: (_, _) => const ForgotPasswordScreen(),
       ),
       GoRoute(
         path: '/forgot-password/sent',
-        builder: (_, _) => _p('Correo enviado'),
+        builder: (_, _) => const ForgotPasswordSentScreen(),
       ),
-      GoRoute(
-        path: '/unlock',
-        builder: (_, _) => _p(
-          'Desbloquear',
-          actions: [_demo('Desbloquear (demo)', AxoSession.unlocked)],
-        ),
-      ),
-      // Notas.
+      GoRoute(path: '/unlock', builder: (_, _) => const UnlockScreen()),
+      // Notas (lista real en la fase 9).
       GoRoute(
         path: '/notes',
-        builder: (_, _) => _p(
-          'Notas',
-          actions: [
-            _demo('Bloquear (demo)', AxoSession.locked),
-            _demo('Cerrar sesión (demo)', AxoSession.noSession),
-          ],
-        ),
-        routes: [
-          GoRoute(
-            path: ':id',
-            builder: (_, _) => _p('Editor'),
-            routes: [
-              GoRoute(path: 'share', builder: (_, _) => _p('Compartir nota')),
-            ],
-          ),
-        ],
+        builder: (_, _) => const _NotesHome(),
+        routes: [GoRoute(path: ':id', builder: (_, _) => _p('Editor'))],
       ),
       GoRoute(path: '/folders/:id', builder: (_, _) => _p('Carpeta')),
       GoRoute(path: '/trash', builder: (_, _) => _p('Papelera')),
