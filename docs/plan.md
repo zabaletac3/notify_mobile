@@ -222,11 +222,18 @@ HTTP en claro solo en el manifiesto de debug y solo para `localhost`.
   `authAvailability()`, `setSecure(bool)`.
 - Clave de Keystore AES-256-GCM por cuenta. Con `requireAuth`: `setUserAuthenticationRequired(true)`,
   `setInvalidatedByBiometricEnrollment(true)`, y `BiometricPrompt` con `CryptoObject`.
-  - API ≥ 30: autenticadores `BIOMETRIC_STRONG | DEVICE_CREDENTIAL`.
+  - API ≥ 30: autenticadores `BIOMETRIC_STRONG | DEVICE_CREDENTIAL`. **Enmienda 2026-10-11 (ver
+    docs/decisions.md):** con ambos autenticadores a la vez, Android ata la clave al SID raíz de
+    la credencial del dispositivo, no solo al biométrico, así que una huella nueva **no** la
+    invalida (`setInvalidatedByBiometricEnrollment` solo surte efecto en claves puramente
+    biométricas); se acepta como decisión, no como fallo.
   - API 26–29: solo `BIOMETRIC_STRONG`. Sin biometría registrada, `authAvailability()` lo indica y la app
-    desbloquea con contraseña.
+    desbloquea con contraseña. Al ser puramente biométrica en esta franja, aquí sí invalida una
+    huella nueva.
 - StrongBox si el dispositivo lo ofrece; si no, TEE.
-- Si la clave quedó invalidada (huella nueva) o falla: se borra y se pide la contraseña.
+- Si la clave quedó invalidada (se quitó el bloqueo de pantalla seguro del dispositivo, o —solo en
+  API 26-29— se registró una huella nueva; enmienda 2026-10-11, ver docs/decisions.md) o falla: se
+  borra y se pide la contraseña.
 
 ### 5.3 Estados del cofre
 
@@ -536,9 +543,12 @@ Las claves viven en un tipo `SecretKeyBytes` que no implementa `toString` útil 
 Módulo `axonote_platform` (§5.2), almacén seguro, `Vault` (clave maestra en memoria, claves de elemento
 con caché, bloqueo), gestor de bloqueo (§5.3) y endurecimiento (§5.4).
 
-**Hecho cuando:** pruebas instrumentadas en el ZTE cubren guardar, cargar con biometría, cancelar,
-invalidación por huella nueva y borrado; la app bloquea por tiempo, al salir y manualmente; con la app
-bloqueada el archivo de base no se puede abrir.
+**Hecho cuando:** pruebas instrumentadas cubren guardar, cargar con biometría, cancelar y borrado;
+la app bloquea por tiempo, al salir y manualmente; con la app bloqueada el archivo de base no se
+puede abrir. **Enmienda 2026-10-11 (ver docs/decisions.md):** se quita «invalidación por huella
+nueva» de este criterio — en el dispositivo de referencia (API ≥ 30) una huella nueva no invalida
+la clave, por decisión, no por fallo; en su lugar se cubre que una huella nueva **no** afecta a la
+clave guardada.
 
 ### Fase 6 · Datos locales (1,5 sem)
 

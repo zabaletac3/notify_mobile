@@ -72,6 +72,9 @@ kotlin {
 }
 
 dependencies {
+    // BiometricPrompt y el Keystore ligado a biometría (plan §5.2); trae androidx.fragment, que
+    // exige que MainActivity sea FlutterFragmentActivity (ver AxonotePlatformPlugin.kt).
+    implementation("androidx.biometric:biometric:1.1.0")
     testImplementation("org.jetbrains.kotlin:kotlin-test")
     testImplementation("org.mockito:mockito-core:5.0.0")
 }

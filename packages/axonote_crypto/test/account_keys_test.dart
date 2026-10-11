@@ -278,9 +278,7 @@ void main() {
 
     test('createAccountKeys propaga el error si Argon2id falla', () async {
       // Argon2id es lo único inyectable y aquí es la única llamada: falla antes de que exista
-      // una clave maestra que borrar. El borrado en el camino de error (si algo falla después de
-      // generarla: un `wrap`) queda como código defensivo no accesible desde esta prueba, porque
-      // ni `wrap` ni la derivación de la clave de recuperación fallan con entradas válidas.
+      // una clave maestra que borrar.
       final flaky = _FlakyArgon2id(argon2id, failOnCall: 1);
       await expectLater(
         createAccountKeys(
@@ -292,6 +290,28 @@ void main() {
         throwsA(isA<_ForcedFailure>()),
       );
     });
+
+    test(
+      'createAccountKeys borra la clave maestra si falla tras generarla '
+      '(account_keys.dart:132)',
+      () async {
+        // `deriveRecovery` solo existe para pruebas (ver doc de `createAccountKeys`): se llama
+        // después de `generateKeyBytes()`, así que forzar aquí un fallo prueba el `catch` que
+        // borra `masterKey` antes de relanzar. No hay forma de observar el borrado desde fuera
+        // (SecretKeyBytes no expone sus bytes tras `dispose`), así que la prueba comprueba lo que
+        // sí es observable: el error se propaga y la llamada nunca devuelve una clave maestra.
+        await expectLater(
+          createAccountKeys(
+            password: 'x',
+            userId: userId,
+            argon2id: argon2id,
+            kdfBase: lightKdf,
+            deriveRecovery: (_) async => throw _ForcedFailure(),
+          ),
+          throwsA(isA<_ForcedFailure>()),
+        );
+      },
+    );
 
     test(
       'changePasswordKeys borra la clave maestra si falla tras desbloquear',
