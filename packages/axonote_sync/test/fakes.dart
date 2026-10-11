@@ -178,7 +178,12 @@ class FakeSyncStore implements SyncStore {
   Future<void> resolveConflict(Id noteId, ConflictResolution resolution) async {
     _conflicts.remove(noteId);
     _conflictedNotes.remove(noteId);
-    _outbox.removeWhere((r) => r.entity == SyncEntity.note && r.entityId == noteId && resolution == ConflictResolution.remote);
+    _outbox.removeWhere(
+      (r) =>
+          r.entity == SyncEntity.note &&
+          r.entityId == noteId &&
+          resolution == ConflictResolution.remote,
+    );
     _localChanges.add(null);
   }
 
@@ -234,7 +239,9 @@ class FakeSyncTransport implements SyncTransport {
   Future<SyncResponse> sync(SyncRequest request) async {
     requests.add(request);
     if (_next >= _script.length) {
-      throw StateError('más peticiones (${requests.length}) de las guionizadas (${_script.length})');
+      throw StateError(
+        'más peticiones (${requests.length}) de las guionizadas (${_script.length})',
+      );
     }
     return _script[_next++](request);
   }

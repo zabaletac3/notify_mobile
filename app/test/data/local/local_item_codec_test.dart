@@ -25,7 +25,10 @@ void main() {
     expect(fields.payload, isNotEmpty);
 
     // El cifrado refleja el contenido actual, no uno congelado al encolar.
-    await h.local.notes.update(note.id, const NoteDraft(content: 'cuerpo nuevo'));
+    await h.local.notes.update(
+      note.id,
+      const NoteDraft(content: 'cuerpo nuevo'),
+    );
     final after = await codec.sealNote(note.id);
     expect(after.payload, isNot(fields.payload));
   });

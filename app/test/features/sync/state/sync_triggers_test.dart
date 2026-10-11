@@ -141,33 +141,30 @@ void main() {
     expect(transport.calls, 1);
   });
 
-  test(
-    'no sincroniza en el rebote si no queda nada pendiente (tras confirmar la subida)',
-    () async {
-      start();
-      await pumpEventQueue();
-      transport.calls = 0;
+  test('no sincroniza en el rebote si no queda nada pendiente (tras confirmar la subida)', () async {
+    start();
+    await pumpEventQueue();
+    transport.calls = 0;
 
-      await h.local.notes.create(const NoteDraft(title: 'a'));
-      await pumpEventQueue();
+    await h.local.notes.create(const NoteDraft(title: 'a'));
+    await pumpEventQueue();
 
-      // Primer rebote: pendingCount > 0, sincroniza y el transporte confirma la subida (la
-      // entrada de outbox se borra, lo que también es una escritura en «outbox»).
-      timers.advance(const Duration(seconds: 3));
-      await pumpEventQueue();
-      expect(transport.calls, 1);
-      expect(await h.local.syncStore.pendingCount(), 0);
+    // Primer rebote: pendingCount > 0, sincroniza y el transporte confirma la subida (la
+    // entrada de outbox se borra, lo que también es una escritura en «outbox»).
+    timers.advance(const Duration(seconds: 3));
+    await pumpEventQueue();
+    expect(transport.calls, 1);
+    expect(await h.local.syncStore.pendingCount(), 0);
 
-      // Ese borrado programó otro rebote: como ya no queda nada pendiente, no debe sincronizar.
-      timers.advance(const Duration(seconds: 3));
-      await pumpEventQueue();
-      expect(
-        transport.calls,
-        1,
-        reason: 'pendingCount es 0: el rebote no debe sincronizar de más',
-      );
-    },
-  );
+    // Ese borrado programó otro rebote: como ya no queda nada pendiente, no debe sincronizar.
+    timers.advance(const Duration(seconds: 3));
+    await pumpEventQueue();
+    expect(
+      transport.calls,
+      1,
+      reason: 'pendingCount es 0: el rebote no debe sincronizar de más',
+    );
+  });
 
   test('sincroniza cada 60 s', () async {
     start();
@@ -210,26 +207,35 @@ void main() {
     expect(transport.calls, 0);
   });
 
-  test('con la sesión bloqueada no sincroniza aunque el disparador salte', () async {
-    start();
-    await pumpEventQueue();
-    transport.calls = 0;
-    container.read(sessionProvider.notifier).set(AxoSession.locked);
+  test(
+    'con la sesión bloqueada no sincroniza aunque el disparador salte',
+    () async {
+      start();
+      await pumpEventQueue();
+      transport.calls = 0;
+      container.read(sessionProvider.notifier).set(AxoSession.locked);
 
-    timers.advance(const Duration(seconds: 60));
-    await pumpEventQueue();
-    expect(transport.calls, 0);
-  });
+      timers.advance(const Duration(seconds: 60));
+      await pumpEventQueue();
+      expect(transport.calls, 0);
+    },
+  );
 
   test('con autoSync desactivado no sincroniza sola', () async {
-    await writeSyncSettings(h.local.syncStore, const SyncSettings(autoSync: false));
+    await writeSyncSettings(
+      h.local.syncStore,
+      const SyncSettings(autoSync: false),
+    );
     start();
     await pumpEventQueue();
     expect(transport.calls, 0);
   });
 
   test('con wifiOnly activado no sincroniza fuera de Wi-Fi', () async {
-    await writeSyncSettings(h.local.syncStore, const SyncSettings(wifiOnly: true));
+    await writeSyncSettings(
+      h.local.syncStore,
+      const SyncSettings(wifiOnly: true),
+    );
     connectivity.current = const [ConnectivityResult.mobile];
     start();
     await pumpEventQueue();
@@ -268,117 +274,122 @@ void main() {
       },
     );
 
-    test(
-      'la espera del reintento se reinicia a 2 s tras una sincronización correcta',
-      () async {
-        transport.handler = (r) async => throw const AppFailure(ServerError());
-        start();
-        await pumpEventQueue();
-        timers.advance(const Duration(seconds: 2));
-        await pumpEventQueue();
-        timers.advance(const Duration(seconds: 4));
-        await pumpEventQueue();
-        expect(transport.calls, 3, reason: '2 reintentos tras el fallo inicial');
+    test('la espera del reintento se reinicia a 2 s tras una sincronización correcta', () async {
+      transport.handler = (r) async => throw const AppFailure(ServerError());
+      start();
+      await pumpEventQueue();
+      timers.advance(const Duration(seconds: 2));
+      await pumpEventQueue();
+      timers.advance(const Duration(seconds: 4));
+      await pumpEventQueue();
+      expect(transport.calls, 3, reason: '2 reintentos tras el fallo inicial');
 
-        // Ahora responde bien: la próxima espera debe volver a ser 2 s, no 8.
-        transport.handler = _confirmAll;
-        timers.advance(const Duration(seconds: 8));
-        await pumpEventQueue();
-        expect(transport.calls, 4, reason: 'el 3er reintento (a los 8 s) ya funciona');
+      // Ahora responde bien: la próxima espera debe volver a ser 2 s, no 8.
+      transport.handler = _confirmAll;
+      timers.advance(const Duration(seconds: 8));
+      await pumpEventQueue();
+      expect(
+        transport.calls,
+        4,
+        reason: 'el 3er reintento (a los 8 s) ya funciona',
+      );
 
-        await h.local.notes.create(const NoteDraft(title: 'x'));
-        await pumpEventQueue();
-        transport.handler = (r) async => throw const AppFailure(ServerError());
+      await h.local.notes.create(const NoteDraft(title: 'x'));
+      await pumpEventQueue();
+      transport.handler = (r) async => throw const AppFailure(ServerError());
 
-        timers.advance(const Duration(seconds: 3)); // dispara el rebote
-        await pumpEventQueue();
-        expect(transport.calls, 5, reason: 'el rebote intenta y falla otra vez');
+      timers.advance(const Duration(seconds: 3)); // dispara el rebote
+      await pumpEventQueue();
+      expect(transport.calls, 5, reason: 'el rebote intenta y falla otra vez');
 
-        timers.advance(const Duration(seconds: 1));
-        await pumpEventQueue();
-        expect(
-          transport.calls,
-          5,
-          reason: 'todavía no pasaron los 2 s: la espera se reinició, no sigue en 8',
-        );
-        timers.advance(const Duration(seconds: 1));
-        await pumpEventQueue();
-        expect(transport.calls, 6, reason: 'reintento a los 2 s, no a los 8');
-      },
-    );
+      timers.advance(const Duration(seconds: 1));
+      await pumpEventQueue();
+      expect(
+        transport.calls,
+        5,
+        reason:
+            'todavía no pasaron los 2 s: la espera se reinició, no sigue en 8',
+      );
+      timers.advance(const Duration(seconds: 1));
+      await pumpEventQueue();
+      expect(transport.calls, 6, reason: 'reintento a los 2 s, no a los 8');
+    });
 
-    test(
-      'recuperar la red reinicia la espera y sincroniza ya, sin esperar el reintento programado',
-      () async {
-        transport.handler = (r) async => throw const AppFailure(NetworkError());
-        start();
-        await pumpEventQueue();
-        expect(transport.calls, 1);
+    test('recuperar la red reinicia la espera y sincroniza ya, sin esperar el reintento programado', () async {
+      transport.handler = (r) async => throw const AppFailure(NetworkError());
+      start();
+      await pumpEventQueue();
+      expect(transport.calls, 1);
 
-        // El reintento programado sería a los 2 s; la red vuelve antes, a 1 s.
-        transport.handler = _confirmAll;
-        timers.advance(const Duration(seconds: 1));
-        connectivity.emit(const [ConnectivityResult.wifi]);
-        await pumpEventQueue();
-        expect(transport.calls, 2, reason: 'sincronizó ya, sin esperar al reintento de los 2 s');
-      },
-    );
+      // El reintento programado sería a los 2 s; la red vuelve antes, a 1 s.
+      transport.handler = _confirmAll;
+      timers.advance(const Duration(seconds: 1));
+      connectivity.emit(const [ConnectivityResult.wifi]);
+      await pumpEventQueue();
+      expect(
+        transport.calls,
+        2,
+        reason: 'sincronizó ya, sin esperar al reintento de los 2 s',
+      );
+    });
 
-    test(
-      'rate-limited no sincroniza por ningún disparador hasta pasar retryAfterSec',
-      () async {
-        transport.handler = (r) async =>
-            throw const AppFailure(RateLimitedError(retryAfterSec: 30));
-        start();
-        await pumpEventQueue();
-        expect(transport.calls, 1);
-        transport.handler = _confirmAll;
+    test('rate-limited no sincroniza por ningún disparador hasta pasar retryAfterSec', () async {
+      transport.handler = (r) async =>
+          throw const AppFailure(RateLimitedError(retryAfterSec: 30));
+      start();
+      await pumpEventQueue();
+      expect(transport.calls, 1);
+      transport.handler = _confirmAll;
 
-        // Ni el rebote…
-        await h.local.notes.create(const NoteDraft(title: 'x'));
-        await pumpEventQueue();
-        timers.advance(const Duration(seconds: 3));
-        await pumpEventQueue();
-        expect(transport.calls, 1, reason: 'suprimido: ni el rebote sincroniza');
+      // Ni el rebote…
+      await h.local.notes.create(const NoteDraft(title: 'x'));
+      await pumpEventQueue();
+      timers.advance(const Duration(seconds: 3));
+      await pumpEventQueue();
+      expect(transport.calls, 1, reason: 'suprimido: ni el rebote sincroniza');
 
-        // …ni la red…
-        connectivity.emit(const [ConnectivityResult.none]);
-        await pumpEventQueue();
-        connectivity.emit(const [ConnectivityResult.wifi]);
-        await pumpEventQueue();
-        expect(transport.calls, 1, reason: 'suprimido: ni recuperar la red sincroniza');
+      // …ni la red…
+      connectivity.emit(const [ConnectivityResult.none]);
+      await pumpEventQueue();
+      connectivity.emit(const [ConnectivityResult.wifi]);
+      await pumpEventQueue();
+      expect(
+        transport.calls,
+        1,
+        reason: 'suprimido: ni recuperar la red sincroniza',
+      );
 
-        // …ni el sondeo, hasta que pasen los 30 s.
-        timers.advance(const Duration(seconds: 26));
-        await pumpEventQueue();
-        expect(transport.calls, 1, reason: 'aún no pasaron los 30 s');
+      // …ni el sondeo, hasta que pasen los 30 s.
+      timers.advance(const Duration(seconds: 26));
+      await pumpEventQueue();
+      expect(transport.calls, 1, reason: 'aún no pasaron los 30 s');
 
-        timers.advance(const Duration(seconds: 1));
-        await pumpEventQueue();
-        expect(transport.calls, 2, reason: 'pasados los 30 s, se reintenta solo');
-      },
-    );
+      timers.advance(const Duration(seconds: 1));
+      await pumpEventQueue();
+      expect(transport.calls, 2, reason: 'pasados los 30 s, se reintenta solo');
+    });
 
-    test(
-      'forbidden no programa un reintento propio, pero el sondeo normal sigue intentando',
-      () async {
-        transport.handler = (r) async => throw const AppFailure(ForbiddenError());
-        start();
-        await pumpEventQueue();
-        expect(transport.calls, 1);
+    test('forbidden no programa un reintento propio, pero el sondeo normal sigue intentando', () async {
+      transport.handler = (r) async => throw const AppFailure(ForbiddenError());
+      start();
+      await pumpEventQueue();
+      expect(transport.calls, 1);
 
-        // Sin reintento propio: a los 2 s (lo que tocaría con network/server) no pasa nada.
-        timers.advance(const Duration(seconds: 2));
-        await pumpEventQueue();
-        expect(transport.calls, 1, reason: 'forbidden no programa un reintento propio');
+      // Sin reintento propio: a los 2 s (lo que tocaría con network/server) no pasa nada.
+      timers.advance(const Duration(seconds: 2));
+      await pumpEventQueue();
+      expect(
+        transport.calls,
+        1,
+        reason: 'forbidden no programa un reintento propio',
+      );
 
-        // El sondeo normal de 60 s sigue intentando (y, como aquí ya responde bien, confirma
-        // que no quedó nada suprimido).
-        transport.handler = _confirmAll;
-        timers.advance(const Duration(seconds: 58));
-        await pumpEventQueue();
-        expect(transport.calls, 2, reason: 'el sondeo de 60 s sí lo reintenta');
-      },
-    );
+      // El sondeo normal de 60 s sigue intentando (y, como aquí ya responde bien, confirma
+      // que no quedó nada suprimido).
+      transport.handler = _confirmAll;
+      timers.advance(const Duration(seconds: 58));
+      await pumpEventQueue();
+      expect(transport.calls, 2, reason: 'el sondeo de 60 s sí lo reintenta');
+    });
   });
 }

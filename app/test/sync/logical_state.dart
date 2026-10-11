@@ -19,8 +19,12 @@ Future<Map<String, Object?>> logicalState(LocalHarness h) async {
 
 Future<List<Map<String, Object?>>> _notes(LocalHarness h) async {
   // `list()` devuelve resúmenes sin `content` (plan §4.4): hace falta `get(id)` para el texto.
-  final active = await h.local.notes.list(const NoteQuery(filter: NotesFilterAll()));
-  final trash = await h.local.notes.list(const NoteQuery(filter: NotesFilterTrash()));
+  final active = await h.local.notes.list(
+    const NoteQuery(filter: NotesFilterAll()),
+  );
+  final trash = await h.local.notes.list(
+    const NoteQuery(filter: NotesFilterTrash()),
+  );
   final notes = <Note>[];
   for (final summary in [...active, ...trash]) {
     notes.add(await h.local.notes.get(summary.id));
@@ -49,9 +53,7 @@ Future<List<Map<String, Object?>>> _folders(LocalHarness h) async {
     for (final row in rows)
       {'id': row.id, 'name': row.name, 'revision': row.revision},
   ];
-  folders.sort(
-    (a, b) => (a['id']! as String).compareTo(b['id']! as String),
-  );
+  folders.sort((a, b) => (a['id']! as String).compareTo(b['id']! as String));
   return folders;
 }
 

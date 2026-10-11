@@ -91,11 +91,31 @@ class _PagedTransport implements SyncTransport {
 
 /// Cifra [count] notas remotas de verdad (mismo formato que mandaría el servidor), con un tamaño
 /// de nota realista (~1-2 KB de texto, como una nota normal, no una de prueba de unas líneas).
-Future<List<EncryptedNote>> _sealRemoteNotes(LocalCodec codec, int count) async {
+Future<List<EncryptedNote>> _sealRemoteNotes(
+  LocalCodec codec,
+  int count,
+) async {
   const words = [
-    'lorem', 'ipsum', 'dolor', 'sit', 'amet', 'consectetur', 'adipiscing',
-    'elit', 'tempor', 'incididunt', 'labore', 'magna', 'aliqua', 'veniam',
-    'nostrud', 'exercitation', 'ullamco', 'laboris', 'nisi', 'aliquip',
+    'lorem',
+    'ipsum',
+    'dolor',
+    'sit',
+    'amet',
+    'consectetur',
+    'adipiscing',
+    'elit',
+    'tempor',
+    'incididunt',
+    'labore',
+    'magna',
+    'aliqua',
+    'veniam',
+    'nostrud',
+    'exercitation',
+    'ullamco',
+    'laboris',
+    'nisi',
+    'aliquip',
   ];
   final random = Random(7);
   const now = '2026-01-01T00:00:00.000Z';
@@ -162,7 +182,9 @@ void main() {
       // Sellado de las notas remotas: con la MISMA clave maestra (otro `Vault`, otro `LocalCodec`,
       // como si las hubiera cifrado otro dispositivo de la cuenta), pero sin tocar la base del
       // dispositivo bajo prueba.
-      final remoteCodec = LocalCodec(Vault(userId: userId)..unlockWith(masterKey));
+      final remoteCodec = LocalCodec(
+        Vault(userId: userId)..unlockWith(masterKey),
+      );
       final remoteNotes = await _sealRemoteNotes(remoteCodec, _totalNotes);
 
       final transport = _PagedTransport(remoteNotes, pageSize: _pageSize);
@@ -190,7 +212,8 @@ void main() {
       expect(
         totalMs,
         lessThan(15000),
-        reason: 'presupuesto §11: primera sincronización de 2000 notas en ≤ 15 s',
+        reason:
+            'presupuesto §11: primera sincronización de 2000 notas en ≤ 15 s',
       );
       // Sin isolate de trabajo propio (decisión documentada en docs/decisions.md, «Fase 7»): si
       // el bloqueo máximo supera ~100 ms, la fase no se cierra sin montar ese isolate. Anota el

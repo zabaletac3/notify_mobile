@@ -23,8 +23,7 @@ class PluginConnectivityProbe implements ConnectivityProbe {
       _connectivity.onConnectivityChanged;
 
   @override
-  Future<List<ConnectivityResult>> check() =>
-      _connectivity.checkConnectivity();
+  Future<List<ConnectivityResult>> check() => _connectivity.checkConnectivity();
 }
 
 /// Hay alguna conexión (lo que sea, para los disparadores que no exigen Wi-Fi).

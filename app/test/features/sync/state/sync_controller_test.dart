@@ -238,36 +238,30 @@ void main() {
     },
   );
 
-  test(
-    'locked se descarta en silencio: sin aviso persistente (A3)',
-    () async {
-      controller.attach(
-        engineWith((r) async => throw const AppFailure(LockedError())),
-      );
-      await controller.syncNow();
-      final state = container.read(syncControllerProvider);
-      expect(state.lastError, isNull);
-      expect(state.phase, isNot(SyncPhase.error));
-    },
-  );
+  test('locked se descarta en silencio: sin aviso persistente (A3)', () async {
+    controller.attach(
+      engineWith((r) async => throw const AppFailure(LockedError())),
+    );
+    await controller.syncNow();
+    final state = container.read(syncControllerProvider);
+    expect(state.lastError, isNull);
+    expect(state.phase, isNot(SyncPhase.error));
+  });
 
-  test(
-    'un fallo al leer el snapshot tras sincronizar también deja fase error, no syncing',
-    () async {
-      final throwing = _ThrowingSnapshotStore(h.local.syncStore);
-      controller.attach(
-        SyncEngine(
-          store: throwing,
-          transport: _FakeTransport((r) async => _ok()),
-          codec: LocalItemCodec(h.local.deps),
-        ),
-      );
-      await controller.syncNow();
-      final state = container.read(syncControllerProvider);
-      expect(state.phase, SyncPhase.error);
-      expect(state.lastError, isA<UnknownError>());
-    },
-  );
+  test('un fallo al leer el snapshot tras sincronizar también deja fase error, no syncing', () async {
+    final throwing = _ThrowingSnapshotStore(h.local.syncStore);
+    controller.attach(
+      SyncEngine(
+        store: throwing,
+        transport: _FakeTransport((r) async => _ok()),
+        codec: LocalItemCodec(h.local.deps),
+      ),
+    );
+    await controller.syncNow();
+    final state = container.read(syncControllerProvider);
+    expect(state.phase, SyncPhase.error);
+    expect(state.lastError, isA<UnknownError>());
+  });
 
   test('detach limpia el estado', () async {
     await h.local.notes.create(const NoteDraft(title: 'x'));

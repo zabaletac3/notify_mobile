@@ -46,7 +46,9 @@ class SyncUiState {
     pendingCount: pendingCount ?? this.pendingCount,
     conflicts: conflicts ?? this.conflicts,
     lastSyncedAt: lastSyncedAt ?? this.lastSyncedAt,
-    lastError: identical(lastError, _unset) ? this.lastError : lastError as AppError?,
+    lastError: identical(lastError, _unset)
+        ? this.lastError
+        : lastError as AppError?,
   );
 
   static const Object _unset = Object();
@@ -132,7 +134,8 @@ class SyncController extends Notifier<SyncUiState> {
       }
     }
     final engineAfter = _engine;
-    if (engineAfter == null) return; // se cerró sesión durante la sincronización.
+    if (engineAfter == null)
+      return; // se cerró sesión durante la sincronización.
     SyncSnapshot? snapshot;
     try {
       snapshot = await engineAfter.snapshot();

@@ -68,11 +68,7 @@ Future<void> _runScenario(Map<String, Object?> scenario) async {
   addTearDown(h.close);
   final shadow = ShadowSealer(masterKey);
 
-  expect(
-    await logicalState(h),
-    initial,
-    reason: '$name: estado inicial',
-  );
+  expect(await logicalState(h), initial, reason: '$name: estado inicial');
 
   for (var i = 0; i < steps.length; i++) {
     final step = steps[i];
@@ -122,7 +118,10 @@ Future<void> _applyStep(
     case 'createFolder':
       await h.local.folders.create(step['name']! as String);
     case 'renameFolder':
-      await h.local.folders.rename(step['id']! as String, step['name']! as String);
+      await h.local.folders.rename(
+        step['id']! as String,
+        step['name']! as String,
+      );
     case 'deleteFolder':
       await h.local.folders.delete(step['id']! as String);
     case 'resolveConflict':

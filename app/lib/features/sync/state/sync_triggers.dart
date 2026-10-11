@@ -1,7 +1,8 @@
 import 'dart:async';
 
 import 'package:axonote_domain/axonote_domain.dart';
-import 'package:connectivity_plus/connectivity_plus.dart' show ConnectivityResult;
+import 'package:connectivity_plus/connectivity_plus.dart'
+    show ConnectivityResult;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../app/session.dart';
@@ -164,7 +165,8 @@ class SyncTriggers {
     } finally {
       _syncing = false;
     }
-    if (_store == null) return; // se bloqueó o cerró sesión durante la sincronización.
+    if (_store == null)
+      return; // se bloqueó o cerró sesión durante la sincronización.
     _handleResult(ref.read(syncControllerProvider).lastError);
   }
 

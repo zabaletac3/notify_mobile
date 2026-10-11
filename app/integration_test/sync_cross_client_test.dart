@@ -50,7 +50,9 @@ void main() {
   ) async {
     final sodium = await crypto.SodiumArgon2id.load();
     final tokens = MemoryTokenStore();
-    final http = HttpClient(HttpClientOptions(baseUrl: _apiUrl, tokens: tokens));
+    final http = HttpClient(
+      HttpClientOptions(baseUrl: _apiUrl, tokens: tokens),
+    );
     final auth = AuthApi(http, deviceName: _deviceName);
     final account = AccountApi(http);
 
@@ -167,53 +169,52 @@ void main() {
     await local.close();
   });
 
-  testWidgets(
-    'paso 2 · baja lo editado en la web y comprueba un conflicto',
-    (tester) async {
-      final engine = await _reopenAndSync();
-      // En este punto la guía ya pidió editar «Nota desde el móvil» en la web (sube a
-      // revisión 1) y crear una nota nueva allí: una segunda sincronización debe traer las dos
-      // cosas.
-      final notes = await engine.local.notes.list();
-      expect(
-        notes.length,
-        greaterThanOrEqualTo(2),
-        reason: 'debería haber bajado también la nota creada en la web',
-      );
+  testWidgets('paso 2 · baja lo editado en la web y comprueba un conflicto', (
+    tester,
+  ) async {
+    final engine = await _reopenAndSync();
+    // En este punto la guía ya pidió editar «Nota desde el móvil» en la web (sube a
+    // revisión 1) y crear una nota nueva allí: una segunda sincronización debe traer las dos
+    // cosas.
+    final notes = await engine.local.notes.list();
+    expect(
+      notes.length,
+      greaterThanOrEqualTo(2),
+      reason: 'debería haber bajado también la nota creada en la web',
+    );
 
-      // Conflicto en los dos sentidos: se edita aquí SIN sincronizar — la guía ya pidió editar la
-      // misma nota en la web también, sin que este paso haya sincronizado entre medias.
-      final shared = notes.firstWhere((n) => n.title == 'Nota desde el móvil');
-      await engine.local.notes.update(
-        shared.id,
-        const NoteDraft(content: 'Editada en el móvil, sin sincronizar antes.'),
-      );
-      await engine.syncEngine.syncNow();
+    // Conflicto en los dos sentidos: se edita aquí SIN sincronizar — la guía ya pidió editar la
+    // misma nota en la web también, sin que este paso haya sincronizado entre medias.
+    final shared = notes.firstWhere((n) => n.title == 'Nota desde el móvil');
+    await engine.local.notes.update(
+      shared.id,
+      const NoteDraft(content: 'Editada en el móvil, sin sincronizar antes.'),
+    );
+    await engine.syncEngine.syncNow();
 
-      final snapshot = await engine.syncEngine.snapshot();
-      expect(
-        snapshot.conflicts,
-        isNotEmpty,
-        reason:
-            'si la web no editó la misma nota antes de este paso, no habrá conflicto: repite '
-            'el paso 2 después de editarla en la web (ver la guía)',
-      );
-      final conflict = snapshot.conflicts.first;
-      // Nunca se registra texto de notas (plan §0.5): solo se confirma que el conflicto
-      // apareció y su id; compara el contenido a mano, en la propia app o en la web.
-      // ignore: avoid_print
-      print('Conflicto detectado en la nota ${conflict.noteId}.');
+    final snapshot = await engine.syncEngine.snapshot();
+    expect(
+      snapshot.conflicts,
+      isNotEmpty,
+      reason:
+          'si la web no editó la misma nota antes de este paso, no habrá conflicto: repite '
+          'el paso 2 después de editarla en la web (ver la guía)',
+    );
+    final conflict = snapshot.conflicts.first;
+    // Nunca se registra texto de notas (plan §0.5): solo se confirma que el conflicto
+    // apareció y su id; compara el contenido a mano, en la propia app o en la web.
+    // ignore: avoid_print
+    print('Conflicto detectado en la nota ${conflict.noteId}.');
 
-      await engine.syncEngine.resolveConflict(
-        conflict.noteId,
-        ConflictResolution.both,
-      );
-      await engine.syncEngine.syncNow();
-      expect((await engine.syncEngine.snapshot()).conflicts, isEmpty);
+    await engine.syncEngine.resolveConflict(
+      conflict.noteId,
+      ConflictResolution.both,
+    );
+    await engine.syncEngine.syncNow();
+    expect((await engine.syncEngine.snapshot()).conflicts, isEmpty);
 
-      await engine.local.close();
-    },
-  );
+    await engine.local.close();
+  });
 
   testWidgets('paso 3 · papelera y borrado se reflejan en los dos sentidos', (
     tester,
