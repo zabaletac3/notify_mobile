@@ -1,11 +1,13 @@
 // Prueba de rendimiento de la primera descarga (plan §4.4 y §11, «Hecho cuando» de la Fase 7):
-// 2 000 notas en ≤ 15 s, con progreso y SIN BLOQUEAR LA INTERFAZ. La fase 7 decidió no montar un
-// isolate de trabajo propio para el descifrado por lotes (ver docs/decisions.md, «Fase 7»):
-// `cryptography_flutter` ya saca el AES-GCM del isolate de Dart, pero el resto (JSON, relleno,
-// la propia transacción de drift) sigue en el isolate principal. Esta prueba lo MIDE en vez de
-// suponerlo: un `Timer.periodic` de 16 ms detecta cualquier bloqueo del isolate principal por el
-// mayor hueco entre dos de sus disparos (si el isolate está ocupado calculando, el temporizador
-// se retrasa exactamente lo mismo que se retrasaría un fotograma).
+// 2 000 notas en ≤ 15 s, con progreso y SIN BLOQUEAR LA INTERFAZ. La primera medición en el ZTE
+// `LZ0V50COPBC002769` (sin isolate de trabajo) dio un bloqueo máximo de ~560 ms por página: muy
+// por encima de lo que se puede tapar con una animación. `LocalSyncStore.applyResult` ya descifra
+// cada página de más de `remoteDecryptIsolateThreshold` elementos en un isolate de trabajo aparte
+// (`data/local/remote_decrypt_worker.dart`, ver docs/decisions.md «Fase 7»): esta prueba, con
+// páginas de 500, lo ejercita y mide si de verdad resuelve el bloqueo, en vez de suponerlo. Un
+// `Timer.periodic` de 16 ms detecta cualquier bloqueo del isolate principal por el mayor hueco
+// entre dos de sus disparos (si el isolate está ocupado calculando, el temporizador se retrasa
+// exactamente lo mismo que se retrasaría un fotograma).
 //
 // Se ejecuta en un dispositivo Android de verdad, en modo perfil:
 //
@@ -215,15 +217,15 @@ void main() {
         reason:
             'presupuesto §11: primera sincronización de 2000 notas en ≤ 15 s',
       );
-      // Sin isolate de trabajo propio (decisión documentada en docs/decisions.md, «Fase 7»): si
-      // el bloqueo máximo supera ~100 ms, la fase no se cierra sin montar ese isolate. Anota el
-      // número impreso arriba en docs/benchmarks.md tanto si pasa como si no.
+      // Umbral de §4.4 (documentado en docs/decisions.md, «Fase 7»): no se sube, aunque el
+      // isolate de trabajo ya esté montado — es la prueba de que de verdad resuelve el bloqueo.
+      // Anota el número impreso arriba en docs/benchmarks.md tanto si pasa como si no.
       expect(
         maxGapMs,
         lessThan(100),
         reason:
-            'bloqueo máximo del isolate principal durante la descarga; por encima de esto hace '
-            'falta el isolate de trabajo que describe docs/decisions.md, «Fase 7»',
+            'bloqueo máximo del isolate principal durante la descarga; el isolate de trabajo de '
+            '`remote_decrypt_worker.dart` debería mantenerlo por debajo de esto',
       );
 
       await local.close();

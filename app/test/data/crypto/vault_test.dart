@@ -40,6 +40,21 @@ void main() {
     expect(vault.keyAad(ItemEntity.folder, 'f1'), 'apunte/v1/key/u1/folder/f1');
   });
 
+  test(
+    'vaultDataAad/vaultKeyAad (funciones libres) coinciden con las del Vault',
+    () {
+      final vault = Vault(userId: userId);
+      expect(
+        vaultDataAad(userId, ItemEntity.note, 'n1'),
+        vault.dataAad(ItemEntity.note, 'n1'),
+      );
+      expect(
+        vaultKeyAad(userId, ItemEntity.folder, 'f1'),
+        vault.keyAad(ItemEntity.folder, 'f1'),
+      );
+    },
+  );
+
   test('localDbKey lanza VaultLockedError si está bloqueado', () {
     final vault = Vault(userId: userId);
     expect(() => vault.localDbKey(), throwsA(isA<VaultLockedError>()));

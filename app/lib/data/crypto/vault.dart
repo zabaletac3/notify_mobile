@@ -3,6 +3,16 @@ import 'package:axonote_crypto/axonote_crypto.dart';
 /// Qué cifra la clave de un elemento (igual que `ItemEntity` de `notify_web/.../crypto/vault.ts`).
 enum ItemEntity { note, folder }
 
+/// Datos asociados (AAD) del contenido de un elemento: lo ligan a su cuenta, tipo e id. Función
+/// libre (sin `Vault`) para que también la use quien descifra con la clave maestra directa, sin
+/// una instancia de `Vault` a mano (`remote_decrypt_worker.dart`, dentro del isolate de trabajo).
+String vaultDataAad(String userId, ItemEntity entity, String id) =>
+    'apunte/v1/data/$userId/${entity.name}/$id';
+
+/// Datos asociados de la clave de un elemento. Ver [vaultDataAad].
+String vaultKeyAad(String userId, ItemEntity entity, String id) =>
+    'apunte/v1/key/$userId/${entity.name}/$id';
+
 /// El cofre está bloqueado: no hay clave maestra en memoria. Quien llame debe desbloquear antes
 /// (contraseña o biometría) o mostrar la pantalla de bloqueo.
 class VaultLockedError implements Exception {
@@ -29,11 +39,10 @@ class Vault {
 
   /// Datos asociados (AAD) del contenido de un elemento: lo ligan a su cuenta, tipo e id.
   String dataAad(ItemEntity entity, String id) =>
-      'apunte/v1/data/$userId/${entity.name}/$id';
+      vaultDataAad(userId, entity, id);
 
   /// Datos asociados de la clave de un elemento.
-  String keyAad(ItemEntity entity, String id) =>
-      'apunte/v1/key/$userId/${entity.name}/$id';
+  String keyAad(ItemEntity entity, String id) => vaultKeyAad(userId, entity, id);
 
   /// Pone la clave maestra en memoria (ya obtenida por quien llama: contraseña o biometría). Si ya
   /// había una, la borra antes.

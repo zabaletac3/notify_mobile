@@ -35,14 +35,14 @@ class SyncProgress {
 /// `DateTime.now()` directos: esa política necesita temporizadores, y el motor no).
 ///
 /// **Primera descarga por páginas, con progreso (plan §4.4).** [onProgress], si se da, se llama
-/// tras aplicar cada página. No hay un isolate de trabajo propio para el descifrado por lotes que
-/// pedía el plan: `cryptography_flutter` (D12) ya corre el AES-GCM de cada elemento fuera del
-/// isolate de Dart, y `LocalSyncStore.applyResult` (fase 6) ya descifra la página entera *antes*
-/// de abrir la transacción, para no retener el candado de escritura. Repartir ese descifrado en
-/// un isolate propio habría exigido rehacer esa fase (pasar la clave maestra a otro isolate y
-/// reconstruir `LocalCodec` allí): se documenta como la alternativa mínima del plan §12/ALCANCE en
-/// `docs/decisions.md`, «Fase 7». [onProgress] es lo que sí aporta este motor: una señal por
-/// página para que la interfaz muestre avance en vez de parecer colgada.
+/// tras aplicar cada página, para que la interfaz muestre avance en vez de parecer colgada. El
+/// descifrado por lotes que pedía el plan no vive aquí (este paquete es Dart puro y no conoce
+/// `drift`/`Vault`): lo hace `LocalSyncStore.applyResult` (`app/lib/data`), que descifra la
+/// página entera *antes* de abrir la transacción (para no retener el candado de escritura) y, a
+/// partir de cierto tamaño, en un isolate de trabajo aparte en vez del isolate principal — D12
+/// preveía `cryptography_flutter` para evitar ese bloqueo, pero la fase no llegó a integrarlo, así
+/// que el AES-GCM de `package:cryptography` seguía corriendo (y bloqueando) en el isolate que
+/// llama. Documentado con la medición real en `docs/decisions.md`, «Fase 7».
 class SyncEngine {
   SyncEngine({
     required this.store,

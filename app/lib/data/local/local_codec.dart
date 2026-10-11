@@ -219,39 +219,6 @@ class LocalCodec {
     return (wrappedKey: row.wrappedKey, payload: payload);
   }
 
-  /// Fila «Nota ilegible» (marcador sin contenido).
-  NoteRow unreadableNoteRow(EncryptedNote enc, NoteSyncStatus status) =>
-      NoteRow(
-        id: enc.id,
-        folderId: enc.folderId,
-        title: 'Nota ilegible',
-        content: '',
-        preview: '',
-        tagsJson: tagsToJson(const []),
-        pinned: false,
-        createdAt: enc.createdAt,
-        updatedAt: enc.updatedAt,
-        deletedAt: enc.deletedAt,
-        revision: enc.revision,
-        syncStatus: status,
-        lastEditedDeviceId: enc.lastEditedDeviceId,
-        wrappedKey: enc.wrappedKey,
-        unreadable: true,
-        rawPayload: enc.payload,
-      );
-
-  /// Fila «Carpeta ilegible».
-  FolderRow unreadableFolderRow(EncryptedFolder enc) => FolderRow(
-    id: enc.id,
-    name: 'Carpeta ilegible',
-    createdAt: enc.createdAt,
-    updatedAt: enc.updatedAt,
-    revision: enc.revision,
-    wrappedKey: enc.wrappedKey,
-    unreadable: true,
-    rawPayload: enc.payload,
-  );
-
   Future<String> _newNoteKey(String id) async {
     try {
       return (await _vault.newItemKey(ItemEntity.note, id)).wrapped;
@@ -285,3 +252,37 @@ class LocalCodec {
 class _Unreadable implements Exception {
   const _Unreadable();
 }
+
+/// Fila «Nota ilegible» (marcador sin contenido). Función libre (no usa `Vault`): también la usa
+/// `remote_decrypt_worker.dart`, que descifra con la clave maestra directa sin una instancia de
+/// [LocalCodec] a mano.
+NoteRow unreadableNoteRow(EncryptedNote enc, NoteSyncStatus status) => NoteRow(
+  id: enc.id,
+  folderId: enc.folderId,
+  title: 'Nota ilegible',
+  content: '',
+  preview: '',
+  tagsJson: tagsToJson(const []),
+  pinned: false,
+  createdAt: enc.createdAt,
+  updatedAt: enc.updatedAt,
+  deletedAt: enc.deletedAt,
+  revision: enc.revision,
+  syncStatus: status,
+  lastEditedDeviceId: enc.lastEditedDeviceId,
+  wrappedKey: enc.wrappedKey,
+  unreadable: true,
+  rawPayload: enc.payload,
+);
+
+/// Fila «Carpeta ilegible». Ver [unreadableNoteRow].
+FolderRow unreadableFolderRow(EncryptedFolder enc) => FolderRow(
+  id: enc.id,
+  name: 'Carpeta ilegible',
+  createdAt: enc.createdAt,
+  updatedAt: enc.updatedAt,
+  revision: enc.revision,
+  wrappedKey: enc.wrappedKey,
+  unreadable: true,
+  rawPayload: enc.payload,
+);
