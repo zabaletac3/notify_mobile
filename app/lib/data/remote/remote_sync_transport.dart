@@ -17,21 +17,20 @@ import 'package:axonote_sync/axonote_sync.dart';
 class RemoteSyncTransport implements SyncTransport {
   RemoteSyncTransport(
     this._api, {
-    required String deviceId,
-    required String deviceName,
-  }) : _deviceId = deviceId,
-       _deviceName = deviceName;
+    required this.deviceId,
+    required this.deviceName,
+  });
 
   final api.SyncApi _api;
-  final String _deviceId;
-  final String _deviceName;
+  final String deviceId;
+  final String deviceName;
 
   @override
   Future<SyncResponse> sync(SyncRequest request) async {
     final dto = await _api.sync(
       api.SyncRequestDto(
-        deviceId: _deviceId,
-        deviceName: _deviceName,
+        deviceId: deviceId,
+        deviceName: deviceName,
         cursor: request.cursor,
         changes: [for (final entry in request.changes) _changeDto(entry)],
       ),

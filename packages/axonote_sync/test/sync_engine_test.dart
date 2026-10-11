@@ -204,7 +204,7 @@ void main() {
         sent: const [],
         applied: const [],
         conflicts: [
-          ConflictReport(
+          const ConflictReport(
             noteId: 'n1',
             remote: EncryptedNote(
               id: 'n1',
@@ -241,7 +241,7 @@ void main() {
     final engine = SyncEngine(
       store: store,
       transport: FakeSyncTransport([
-        (req) => SyncResponse(
+        (req) => const SyncResponse(
           cursor: 'page:1',
           hasMore: true,
           applied: const [],

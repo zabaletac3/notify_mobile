@@ -150,8 +150,9 @@ class SyncController extends Notifier<SyncUiState> {
       }
     }
     final engineAfter = _engine;
-    if (engineAfter == null)
+    if (engineAfter == null) {
       return; // se cerró sesión durante la sincronización.
+    }
     SyncSnapshot? snapshot;
     try {
       snapshot = await engineAfter.snapshot();

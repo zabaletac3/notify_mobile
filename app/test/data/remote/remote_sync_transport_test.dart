@@ -25,7 +25,7 @@ void main() {
     );
 
     final response = await transport.sync(
-      SyncRequest(
+      const SyncRequest(
         cursor: '0',
         changes: [
           const domain.OutboxEntry(

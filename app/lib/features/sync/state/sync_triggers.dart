@@ -165,8 +165,9 @@ class SyncTriggers {
     } finally {
       _syncing = false;
     }
-    if (_store == null)
+    if (_store == null) {
       return; // se bloqueó o cerró sesión durante la sincronización.
+    }
     _handleResult(ref.read(syncControllerProvider).lastError);
   }
 

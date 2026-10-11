@@ -20,8 +20,7 @@ void main() {
   );
   final request = (vector['request']! as Map).cast<String, Object?>();
   final responses = (vector['responses']! as List)
-      .cast<Map>()
-      .map((r) => r.cast<String, Object?>())
+      .cast<Map<String, Object?>>()
       .toList();
 
   String keyAad(String entity, String id) =>
@@ -69,7 +68,8 @@ void main() {
   test(
     'la nota que viaja en la petición se descifra con la masterKey del vector',
     () async {
-      final changes = (request['changes']! as List).cast<Map>();
+      final changes = (request['changes']! as List)
+          .cast<Map<String, Object?>>();
       final noteChange = changes.firstWhere((c) => c['entity'] == 'note');
       final data = (noteChange['data']! as Map).cast<String, Object?>();
       await expectNoteDecrypts(
@@ -93,7 +93,8 @@ void main() {
         deviceId: request['deviceId']! as String,
         deviceName: request['deviceName']! as String,
       );
-      final changes = (request['changes']! as List).cast<Map>();
+      final changes = (request['changes']! as List)
+          .cast<Map<String, Object?>>();
 
       await transport.sync(
         SyncRequest(

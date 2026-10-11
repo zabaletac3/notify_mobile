@@ -25,44 +25,41 @@ typedef EditHook = Future<void> Function();
 /// grabada, ya con sus notas y carpetas remotas cifradas de verdad ([ShadowSealer]).
 class ScriptedSyncTransport implements SyncTransport {
   ScriptedSyncTransport({
-    required List<Map<String, Object?>> exchanges,
-    required ShadowSealer shadow,
-    int? editIndex,
-    EditHook? editHook,
-  }) : _exchanges = exchanges,
-       _shadow = shadow,
-       _editIndex = editIndex,
-       _editHook = editHook;
+    required this.exchanges,
+    required this.shadow,
+    this.editIndex,
+    this.editHook,
+  });
 
-  final List<Map<String, Object?>> _exchanges;
-  final ShadowSealer _shadow;
-  final int? _editIndex;
-  final EditHook? _editHook;
+  final List<Map<String, Object?>> exchanges;
+  final ShadowSealer shadow;
+  final int? editIndex;
+  final EditHook? editHook;
   int _next = 0;
 
   /// Cuántos intercambios se consumieron de verdad; al final de un paso debe igualar
-  /// `_exchanges.length` (ninguno de más, ninguno de menos).
+  /// `exchanges.length` (ninguno de más, ninguno de menos).
   int get consumed => _next;
 
   @override
   Future<SyncResponse> sync(SyncRequest request) async {
     final index = _next;
-    if (index >= _exchanges.length) {
+    if (index >= exchanges.length) {
       throw StateError(
-        'el motor pidió más páginas (${index + 1}) de las grabadas (${_exchanges.length})',
+        'el motor pidió más páginas (${index + 1}) de las grabadas (${exchanges.length})',
       );
     }
-    final exchange = _exchanges[index];
+    final exchange = exchanges[index];
     _assertRequest(
       (exchange['request']! as Map).cast<String, Object?>(),
       request,
     );
     final response = await _buildResponse(
       (exchange['response']! as Map).cast<String, Object?>(),
-      _shadow,
+      shadow,
     );
-    if (_editIndex == index && _editHook != null) {
-      await _editHook();
+    if (editIndex == index && editHook != null) {
+      await editHook!();
     }
     _next++;
     return response;
@@ -72,8 +69,7 @@ class ScriptedSyncTransport implements SyncTransport {
 void _assertRequest(Map<String, Object?> expected, SyncRequest actual) {
   expect(actual.cursor, expected['cursor']);
   final expectedChanges = (expected['changes']! as List)
-      .cast<Map>()
-      .map((c) => c.cast<String, Object?>())
+      .cast<Map<String, Object?>>()
       .toList();
   expect(
     actual.changes,
@@ -95,7 +91,7 @@ Future<SyncResponse> _buildResponse(
   ShadowSealer shadow,
 ) async {
   final applied = [
-    for (final a in (json['applied']! as List).cast<Map>())
+    for (final a in (json['applied']! as List).cast<Map<String, Object?>>())
       AppliedChange(
         entity: _entity(a['entity']! as String),
         id: a['id']! as String,
@@ -104,8 +100,7 @@ Future<SyncResponse> _buildResponse(
   ];
 
   final remoteChangesJson = (json['remoteChanges']! as List)
-      .cast<Map>()
-      .map((m) => m.cast<String, Object?>())
+      .cast<Map<String, Object?>>()
       .toList();
   final remoteChanges = <RemoteChange>[];
   for (final rc in remoteChangesJson) {
@@ -145,8 +140,7 @@ Future<SyncResponse> _buildResponse(
   }
 
   final conflicts = <ConflictReport>[];
-  for (final c in (json['conflicts']! as List).cast<Map>()) {
-    final cc = c.cast<String, Object?>();
+  for (final cc in (json['conflicts']! as List).cast<Map<String, Object?>>()) {
     final noteId = cc['noteId']! as String;
     final remoteJson = (cc['remote']! as Map).cast<String, Object?>();
     // El vector solo guarda título/texto en `conflicts[].remote` (ver README); el resto de

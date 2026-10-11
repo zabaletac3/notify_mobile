@@ -45,8 +45,7 @@ class _ScriptedIds {
 void main() {
   final vector = loadVector('sync-behavior');
   final scenarios = (vector['scenarios']! as List)
-      .cast<Map>()
-      .map((s) => s.cast<String, Object?>())
+      .cast<Map<String, Object?>>()
       .toList();
 
   // Si esto falla, es que `sync-behavior.json` cambió de forma (p. ej. se regeneró con más o
@@ -66,12 +65,10 @@ Future<void> _runScenario(Map<String, Object?> scenario) async {
   final name = scenario['name']! as String;
   final initial = (scenario['initial']! as Map).cast<String, Object?>();
   final steps = (scenario['steps']! as List)
-      .cast<Map>()
-      .map((s) => s.cast<String, Object?>())
+      .cast<Map<String, Object?>>()
       .toList();
   final expected = (scenario['expected']! as List)
-      .cast<Map>()
-      .map((s) => s.cast<String, Object?>())
+      .cast<Map<String, Object?>>()
       .toList();
   expect(
     steps,
@@ -133,7 +130,7 @@ void _queueCreatedId(
 }
 
 Set<String> _noteIds(Map<String, Object?> state) => (state['notes']! as List)
-    .cast<Map>()
+    .cast<Map<String, Object?>>()
     .map((n) => n['id']! as String)
     .toSet();
 
@@ -196,8 +193,7 @@ Future<void> _driveSync(
   bool editing = false,
 }) async {
   final exchanges = (step['exchanges']! as List)
-      .cast<Map>()
-      .map((e) => e.cast<String, Object?>())
+      .cast<Map<String, Object?>>()
       .toList();
   final transport = ScriptedSyncTransport(
     exchanges: exchanges,
