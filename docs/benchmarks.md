@@ -26,3 +26,25 @@ plugins (ver `docs/decisions.md`).
 
 Conclusión de la fase: las dependencias elegidas (D10, D11, D12, editor) funcionan en el
 dispositivo de referencia con el Flutter estable actual. Argon2id cumple el presupuesto.
+
+## Fase 6 · Datos locales
+
+**ZTE 8050 (Android 13, API 33), `--profile`, base en memoria, 2026-10-11.** Comando:
+
+```
+flutter drive --driver=test_driver/integration_test.dart \
+  --target=integration_test/local_performance_test.dart -d LZ0V50COPBC002769 --profile
+```
+
+La lista inicial es una **página de 200 notas** (plan §4.4: no se materializa toda la colección).
+
+| Medida | 2 000 notas | 10 000 notas | Límite §11 |
+| --- | --- | --- | --- |
+| Lista inicial (página de 200) | 6 ms | **4 ms** | < 50 ms |
+| Búsqueda (página de 200) | 6 ms | **7 ms** | < 100 ms |
+| Generar 10 000 notas (semilla de la prueba) | — | ~3,2 s | — |
+| Lista completa sin límite (solo registro) | 46 ms | 271 ms | — |
+
+El índice `notes(deleted_at, updated_at)` (ver `docs/decisions.md`) fue lo que bajó la lista de
+10 000 notas de 74 ms a 4 ms. La lista sin límite no cumple el presupuesto, y por eso la interfaz
+trabaja por páginas.
