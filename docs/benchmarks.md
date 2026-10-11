@@ -29,7 +29,7 @@ dispositivo de referencia con el Flutter estable actual. Argon2id cumple el pres
 
 ## Fase 6 · Datos locales
 
-**ZTE 8050 (Android 13, API 33), `--profile`, base en memoria, 2026-10-11.** Comando:
+**ZTE 8050 (Android 13, API 33), `--profile`, 2026-10-11.** Comando:
 
 ```
 flutter drive --driver=test_driver/integration_test.dart \
@@ -37,14 +37,34 @@ flutter drive --driver=test_driver/integration_test.dart \
 ```
 
 La lista inicial es una **página de 200 notas** (plan §4.4: no se materializa toda la colección).
+Desde la revisión de la fase 6 la prueba usa la **base cifrada real** (archivo en el directorio de
+la app, clave derivada del Vault), como en producción, y mide en frío (tras cerrar y reabrir) y en
+caliente.
 
-| Medida | 2 000 notas | 10 000 notas | Límite §11 |
+| Medida (base cifrada) | 2 000 notas | 10 000 notas | Límite §11 |
 | --- | --- | --- | --- |
-| Lista inicial (página de 200) | 6 ms | **4 ms** | < 50 ms |
-| Búsqueda (página de 200) | 6 ms | **7 ms** | < 100 ms |
-| Generar 10 000 notas (semilla de la prueba) | — | ~3,2 s | — |
-| Lista completa sin límite (solo registro) | 46 ms | 271 ms | — |
+| Lista inicial, frío | 7 ms | **8 ms** | < 50 ms |
+| Lista inicial, caliente | 5 ms | **7 ms** | < 50 ms |
+| Búsqueda, frío | 8 ms | **12 ms** | < 100 ms |
+| Búsqueda, caliente | 5 ms | **10 ms** | < 100 ms |
+| Generar 10 000 notas (semilla) | — | ~10 s | — |
+
+```
+Fase 6 · 2000 cifrada: seed=1722ms cold list=7ms search=8ms · warm list=5ms search=5ms
+Fase 6 · 10000 cifrada: seed=9960ms cold list=8ms search=12ms · warm list=7ms search=10ms
+```
 
 El índice `notes(deleted_at, updated_at)` (ver `docs/decisions.md`) fue lo que bajó la lista de
-10 000 notas de 74 ms a 4 ms. La lista sin límite no cumple el presupuesto, y por eso la interfaz
+10 000 notas de 74 ms a ~8 ms. La lista sin límite no cumple el presupuesto, y por eso la interfaz
 trabaja por páginas.
+
+### (En memoria, **no válidas** · superadas)
+
+Estas cifras se midieron antes de la revisión con `LocalDatabase.memory` (sin cifrar). **No son
+válidas** como medición de producción y quedan solo como histórico:
+
+| Medida (en memoria) | 2 000 notas | 10 000 notas |
+| --- | --- | --- |
+| Lista inicial (página de 200) | 6 ms | 4 ms |
+| Búsqueda (página de 200) | 6 ms | 7 ms |
+| Lista completa sin límite | 46 ms | 271 ms |
