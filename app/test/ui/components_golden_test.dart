@@ -88,6 +88,33 @@ void main() {
     await runGolden(t, 'otp', const AxoOtpField(value: '1234'));
   });
 
+  testWidgets('entrada OTP', (t) async {
+    await runGolden(t, 'otp-input', const AxoOtpInput());
+  });
+
+  testWidgets('fuerza de contraseña', (t) async {
+    await runGolden(
+      t,
+      'password-strength',
+      const SizedBox(width: 300, child: AxoPasswordStrength(score: 2)),
+    );
+  });
+
+  testWidgets('toast', (t) async {
+    await runGolden(
+      t,
+      'toast',
+      const SizedBox(
+        width: 340,
+        child: AxoToast(
+          message: 'Nota movida a Ideas',
+          variant: AxoToastVariant.success,
+          actionLabel: 'Deshacer',
+        ),
+      ),
+    );
+  });
+
   testWidgets('tarjeta de nota', (t) async {
     await runGolden(
       t,
