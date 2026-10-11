@@ -68,6 +68,31 @@ void main() {
     expect(await store.cursor(), '1');
   });
 
+  test('cifra también un upsert de carpeta desde su fila actual', () async {
+    await store.enqueue(
+      const PendingChange(
+        entity: SyncEntity.folder,
+        entityId: 'f1',
+        op: SyncOp.upsert,
+        baseRevision: 0,
+      ),
+      '2026-01-01T00:00:00.000Z',
+    );
+
+    SyncRequest? seen;
+    final engine = engineWith([
+      (req) {
+        seen = req;
+        return emptyResponse(cursor: '1');
+      },
+    ]);
+
+    await engine.syncNow();
+
+    expect(codec.sealedFolders, ['f1']);
+    expect(seen!.changes.single.folderData!.wrappedKey, 'wk-folder-f1');
+  });
+
   test('pagina mientras hasMore sea verdadero, sin repetir los cambios subidos', () async {
     await store.enqueue(
       const PendingChange(
