@@ -5,25 +5,32 @@ import 'errors.dart';
 import 'types.dart';
 
 class _StoredKey {
-  _StoredKey(this.bytes, this.requireAuth, this.enrollmentEpoch);
+  _StoredKey(this.bytes, this.requireAuth, this.invalidationEpoch);
 
   Uint8List bytes;
   bool requireAuth;
 
-  /// Generación de biometría vigente cuando se guardó esta clave. Si ya no coincide con la
-  /// generación actual de [FakeAxonotePlatform], la clave quedó invalidada (huella nueva).
-  int enrollmentEpoch;
+  /// Generación de validez vigente cuando se guardó esta clave. Si ya no coincide con la
+  /// generación actual de [FakeAxonotePlatform], la clave quedó invalidada.
+  int invalidationEpoch;
 }
 
 /// Implementación en memoria de [AxonotePlatform] para pruebas unitarias (Vault, gestor de
 /// bloqueo): no toca ningún canal nativo. Simula el comportamiento del Keystore real que describe
-/// el plan §5.2, incluida la invalidación al "registrar una huella nueva" (`invalidateByEnrollment`)
-/// y los modos de fallo que se pueden forzar con `nextAuthResult`.
+/// el plan §5.2, incluida la invalidación de una clave guardada (`invalidateStoredKey`) y los
+/// modos de fallo que se pueden forzar con `nextAuthResult`.
+///
+/// `invalidateStoredKey` simula un camino real de invalidación (p. ej. quitar el bloqueo de
+/// pantalla seguro del dispositivo), no "registrar una huella nueva": con `requireAuth`, la clave
+/// real pide biometría o credencial del dispositivo a la vez (API ≥ 30) y una huella nueva ya NO
+/// la invalida (decisión de 2026-10-11, ver `docs/decisions.md` en el repo de la app). El único
+/// caso donde una huella nueva sí invalida sigue siendo API 26-29 con clave puramente biométrica,
+/// que este fake no modela por separado.
 class FakeAxonotePlatform extends AxonotePlatform {
   final Map<String, _StoredKey> _store = {};
 
-  /// Generación de biometría actual del dispositivo simulado. `invalidateByEnrollment` la avanza.
-  int _enrollmentEpoch = 0;
+  /// Generación de validez actual del dispositivo simulado. `invalidateStoredKey` la avanza.
+  int _invalidationEpoch = 0;
 
   AuthAvailability authAvailabilityValue = const AuthAvailability(
     biometricStrong: true,
@@ -44,10 +51,13 @@ class FakeAxonotePlatform extends AxonotePlatform {
   /// [loadMasterKey]).
   int storeMasterKeyCallCount = 0;
 
-  /// Simula que la persona registró una biometría nueva: invalida cualquier clave guardada con
-  /// `requireAuth: true` (plan §5.2: "si la clave quedó invalidada (huella nueva) ... se borra y
-  /// se pide la contraseña").
-  void invalidateByEnrollment() => _enrollmentEpoch++;
+  /// Simula un camino real de invalidación de la clave guardada (p. ej. quitar el bloqueo de
+  /// pantalla seguro del dispositivo; ver `MasterKeyInvalidatedException` en `MasterKeyStore.kt`):
+  /// invalida cualquier clave guardada con `requireAuth: true` (plan §5.2: "si la clave quedó
+  /// invalidada ... se borra y se pide la contraseña"). No simula "registrar una huella nueva":
+  /// con la clave combinada que usa esta app (biometría o credencial, API ≥ 30) eso ya no invalida
+  /// nada (decisión de 2026-10-11, `docs/decisions.md`).
+  void invalidateStoredKey() => _invalidationEpoch++;
 
   @override
   Future<void> storeMasterKey({
@@ -68,7 +78,7 @@ class FakeAxonotePlatform extends AxonotePlatform {
     _store[userId] = _StoredKey(
       Uint8List.fromList(bytes),
       requireAuth,
-      _enrollmentEpoch,
+      _invalidationEpoch,
     );
   }
 
@@ -80,7 +90,7 @@ class FakeAxonotePlatform extends AxonotePlatform {
     final stored = _store[userId];
     if (stored == null) throw const NoStoredKey();
     if (stored.requireAuth) {
-      if (stored.enrollmentEpoch != _enrollmentEpoch) {
+      if (stored.invalidationEpoch != _invalidationEpoch) {
         _store.remove(userId);
         throw const KeyInvalidated();
       }

@@ -356,7 +356,8 @@ void main() {
     });
 
     test(
-      'si la clave quedó invalidada (huella nueva), devuelve false',
+      'si la clave quedó invalidada (p. ej. se quitó el bloqueo de pantalla '
+      'seguro), devuelve false',
       () async {
         final h = _Harness();
         await h.platform.storeMasterKey(
@@ -364,7 +365,7 @@ void main() {
           bytes: Uint8List.fromList(List.filled(32, 3)),
           requireAuth: true,
         );
-        h.platform.invalidateByEnrollment();
+        h.platform.invalidateStoredKey();
         final ok = await h.controller.unlockWithStoredKey(
           userId: 'u1',
           prompt: 'x',

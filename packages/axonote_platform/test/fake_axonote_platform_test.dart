@@ -130,15 +130,15 @@ void main() {
     );
 
     test(
-      'invalidateByEnrollment invalida una clave guardada con requireAuth '
-      'y la borra (huella nueva, plan §5.2)',
+      'invalidateStoredKey invalida una clave guardada con requireAuth '
+      'y la borra (p. ej. se quitó el bloqueo de pantalla seguro, plan §5.2)',
       () async {
         await platform.storeMasterKey(
           userId: 'u1',
           bytes: Uint8List.fromList([7, 7, 7]),
           requireAuth: true,
         );
-        platform.invalidateByEnrollment();
+        platform.invalidateStoredKey();
         await expectLater(
           platform.loadMasterKey(userId: 'u1', prompt: 'x'),
           throwsA(isA<KeyInvalidated>()),
@@ -152,14 +152,14 @@ void main() {
     );
 
     test(
-      'invalidateByEnrollment no afecta a una clave guardada con requireAuth: false',
+      'invalidateStoredKey no afecta a una clave guardada con requireAuth: false',
       () async {
         await platform.storeMasterKey(
           userId: 'u1',
           bytes: Uint8List.fromList([3]),
           requireAuth: false,
         );
-        platform.invalidateByEnrollment();
+        platform.invalidateStoredKey();
         final loaded = await platform.loadMasterKey(userId: 'u1', prompt: 'x');
         expect(loaded, Uint8List.fromList([3]));
       },
