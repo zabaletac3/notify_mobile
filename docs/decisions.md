@@ -948,3 +948,30 @@ de 15 s. Se revisó el código (sin ejecutar nada) buscando trabajo real de más
 - Todos los tableros de la fase 8 se leyeron por el MCP (ver `docs/design/penpot-progress.md`), con
   varias paradas por la regla de conexión (dos timeouts seguidos → parar). Cada pantalla indica en
   el informe el tablero que la respalda.
+
+### 2026-10-11 · Revisión de fidelidad de la Fase 8 (tokens y pantallas)
+
+Tras comparar los goldens con los tableros, se corrigió pantalla por pantalla leyendo cada tablero
+por el MCP (detalle en `docs/design/penpot-progress.md`).
+
+- **Tokens nuevos** en `app/lib/ui/tokens.dart`:
+  - `AxoGlow.accent/plum/amber` (`#2a5db0` 20 %, `#7b4b8a` 14 %, `#b7791f` 12 %): los tres
+    resplandores del fondo de Registro e Inicio de sesión (medidos).
+  - `AxoShadows.card` (`#1f1a14` al 10 %, blur 64, y 24, spread −8): sombra de la tarjeta.
+  - Roles tipográficos medidos: `button` (16/600), `bodyReading` (16/400), `bodySmall` (14/400);
+    `title` pasa a `letterSpacing` 0 (el tablero lo mide 0; se corregía a −0.56 por la ficha
+    antigua). No se sustituyó ningún rol existente.
+- **Fondos por tablero:** Bienvenida, Onboarding, Verificación y Recuperar usan `bgEditor`
+  (`#fffdf8`); Registro (claro) e Inicio de sesión usan `bgApp` (`#f6f2ea`) con resplandores y
+  tarjeta `bgEditor`. **Registro (oscuro)** es a pantalla completa con `bgEditor` oscuro, sin
+  tarjeta ni resplandores (tablero «8 · Modo oscuro — Registro (oscuro)»); la pantalla de registro
+  ramifica por tema (claro = tarjeta, oscuro = pantalla completa).
+- **Etiquetas de campo** en `textPrimary` (el tablero mide `#1f1d1a`), no `textSecondary`; casilla
+  sin marcar con borde `textTertiary` (`#675f55`).
+- **Medidor de contraseña:** una sola barra continua (pista `borderDefault`, progreso `accent`,
+  alto 4, radio 2), no cuatro segmentos.
+- **Logo:** 96 radio 24 (bienvenida), 48 radio 14 (tarjeta).
+- **Goldens:** el arnés emula el chasis del tablero (`MediaQuery` con barra de estado 39 y de gestos
+  26) para comparar como el diseño.
+- **Pendiente de relectura:** «Error de servidor» (dos timeouts seguidos → parada; se dejó como
+  estaba) y `Registro (oscuro)` (leído en la primera pasada, no re-leído en esta).

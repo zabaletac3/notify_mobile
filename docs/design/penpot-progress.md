@@ -32,54 +32,42 @@ los tableros con un renderizador fiel (ver «Pendiente»).
 4. Reanudado; se recogieron las medidas de componentes y los SVG de los 41 tableros (vía servidor local) y
    se convirtieron a PNG.
 
-## Fase 8 (2026-10-11): PARADA por regla de Penpot (diseño no leído)
+## Fase 8 (2026-10-11): estado real de la lectura por el MCP
 
-**Regla vigente (sustituye a la anterior):** si el MCP no devuelve un tablero, no se inventa ni se
-deduce el diseño (ni de los PNG, ni de la web, ni de memoria) y **no se sigue construyendo ninguna
-pantalla**. Se para y se pide reconectar Penpot.
+**Regla vigente:** si el MCP no devuelve un tablero (o da dos timeouts seguidos), no se inventa ni se
+deduce el diseño y **no se sigue construyendo ninguna pantalla**; se para y se pide reconectar.
 
-**Estado de la lectura por el MCP en esta sesión:**
+Lectura **pantalla por pantalla** (tablero por tablero, un tablero por consulta). Fecha: 2026-10-11.
 
-| Tablero de la fase 8 | ¿Leído por el MCP? |
-| --- | --- |
-| 2 · Autenticación — Registro (claro) | **SÍ** (textos y estructura completos) |
-| 1 · Onboarding — Bienvenida | **SÍ** (textos y cajas principales) |
-| 1 · Onboarding — Onboarding 1 | **SÍ** (textos + ilustración) |
-| 1 · Onboarding — Onboarding 2 | **SÍ** (textos + ilustración) |
-| 1 · Onboarding — Onboarding 3 | **SÍ** (textos + ilustración) |
-| 2 · Autenticación — Verificación de correo | **SÍ** (textos + cajas y casillas OTP) |
-| 2 · Autenticación — Inicio de sesión | **SÍ** (textos + tarjeta, campos y botones) |
-| 2 · Autenticación — Recuperar contraseña (correo) | **SÍ** (textos + cajas) |
-| 2 · Autenticación — Recuperar contraseña (enviado) | **SÍ** (textos + cajas) |
-| 7 · Estados y errores — Sesión expirada | **SÍ** (textos del diálogo) |
-| 7 · Estados y errores — Error de servidor | **SÍ** (textos) |
-| 7 · Estados y errores — Toasts | **SÍ** (textos + 4 toasts 388×41, radio 12) |
-| 8 · Modo oscuro — Registro (oscuro) | **SÍ** (textos + cajas; full-screen, sin Google) |
+| Pantalla / tablero | ¿Leído por el MCP? | Última lectura | Qué se leyó |
+| --- | --- | --- | --- |
+| Bienvenida / `1 · Onboarding — Bienvenida` | **Sí** | 2026-10-11 (tarde) | fondo `#fffdf8`, logo 96 radio 24, marca 34/700, eslogan 16/400, botones 16/600 y 362×54, secundario con borde, pie 12/400 |
+| Onboarding 1–3 / `1 · Onboarding — Onboarding 1/2/3` | **Sí** | 2026-10-11 | fondo `#fffdf8`, panel 362×340 radio 28 `#dce7f5`, tarjetas 240×45, título 28/700 centrado, cuerpo 15/400, puntos 22/8, botón 362×54 |
+| Registro (claro) / `2 · Autenticación — Registro` | **Sí** | 2026-10-11 (tarde) | fondo `bgApp #f6f2ea`, **3 resplandores** (`#2a5db0` 20 %, `#7b4b8a` 14 %, `#b7791f` 12 %), tarjeta `#fffdf8` radio 28 a y=91 con **sombra** (`#1f1a14` 10 %, blur 64, y 24, spread −8), logo 48 radio 14, título 24/700, subtítulo 14/400, etiquetas 13/500 `#1f1d1a`, inputs 52 radio 12 `#eae4d9`, medidor barra continua, botón 16/600 |
+| Inicio de sesión / `2 · Autenticación — Inicio de sesión` | **Sí** | 2026-10-11 (tarde) | mismo fondo/resplandores/sombra; tarjeta 372×533 a y=177; título 24/700; enlace 13/600 |
+| Verificación de correo / `2 · Autenticación — Verificación de correo` | **Sí** | 2026-10-11 (tarde) | fondo `#fffdf8`, vuelta 40 radio 20, icono 72, título 28/700, cuerpo 15/400 (correo en negrita), OTP 53×60 radio 12 (activa `#fffdf8` + borde `#2a5db0`), reenvío 14, botón 362×54 |
+| Recuperar contraseña (correo) / `2 · Autenticación — Recuperar contraseña (correo)` | **Sí** | 2026-10-11 (tarde) | fondo `#fffdf8`, título 28/700, subtítulo 15/400, campo 362×74, botón y enlace al pie |
+| Recuperar contraseña (enviado) / `2 · Autenticación — Recuperar contraseña (enviado)` | **Sí** | 2026-10-11 (tarde) | fondo `#fffdf8`, icono 96 radio 48, título 28/700 centrado, cuerpo 15/400 centrado, botón y pie al pie |
+| Sesión expirada / `7 · Estados y errores — Sesión expirada` | **Sí** | 2026-10-11 | textos del diálogo (título, cuerpo, «Seguir sin conexión»/«Iniciar sesión») |
+| Toasts / `7 · Estados y errores — Toasts` | **Sí** | 2026-10-11 | 4 toasts 388×41 radio 12 `#fffdf8`, mensaje 14/500, acción 14/600 |
+| Error de servidor / `7 · Estados y errores — Error de servidor` | **Parcial** | 2026-10-11 (tarde, **timeouts**) | solo textos de la primera pasada; en la relectura fina dieron **dos timeouts seguidos** → parada |
+| Registro (oscuro) / `8 · Modo oscuro — Registro (oscuro)` | **Sí** | 2026-10-11 | pantalla completa sin tarjeta ni Google; fondo `bgEditor` oscuro; título 28/700 a la izquierda; campos 362×74; medidor; botón 362×54 |
 
-La pestaña respondió a `getPages` y se leyó el tablero **Registro**. Al leer varios tableros en una
-misma ejecución y, después, un tablero suelto, llegaron **dos timeouts seguidos** → se canceló la
-lectura (regla de conexión). No se reintentó en bucle.
+### Historial de paradas por la regla de conexión
 
-**Segundo intento (tras reconectar, 2026-10-11):** se leyó bien **Bienvenida**; al leer **Onboarding 1**
-llegaron **dos timeouts seguidos** (la consulta y su reintento) → se volvió a **parar**. Datos de
-Bienvenida ya extraídos: marca «Apunte» 34/700 centrada; eslogan 16/400 `text.secondary`; logo 96×96;
-primario «Crear cuenta» y secundario «Ya tengo una cuenta», ambos 362×54; pie legal 12/400 centrado
-`text.tertiary`. No se siguió con más tableros.
+1. Varios tableros en una consulta y uno suelto → **dos timeouts seguidos** → parada.
+2. Tras reconectar: Bienvenida OK; Onboarding 1 → **dos timeouts seguidos** → parada.
+3. Tras reconectar: leídos Bienvenida, Onboarding 1–3, Verificación, Inicio de sesión, Recuperar
+   (correo y enviado), Sesión expirada, Error de servidor; Toasts → **dos timeouts seguidos** → parada.
+4. Tras reconectar: leídos Toasts y Registro (oscuro).
+5. Revisión de fidelidad (tarde): releídos con detalle Bienvenida, Registro claro, Inicio de sesión,
+   Verificación, Recuperar (correo y enviado); Error de servidor → **dos timeouts seguidos** → parada.
 
-**Tercer intento (tras reconectar de nuevo, 2026-10-11):** se leyeron, uno a uno, Bienvenida,
-Onboarding 1–3 (con ilustraciones), Verificación de correo, Inicio de sesión, Recuperar contraseña
-(correo), Recuperar contraseña (enviado), Sesión expirada y Error de servidor. Al pedir **Toasts**
-llegaron **dos timeouts seguidos** (la consulta y su reintento) → se **paró**. Quedan sin leer:
-**Toasts** y **Registro (oscuro)**.
-
-**Nota de honestidad sobre lo ya escrito:** antes de recibir la regla nueva, se avanzó con pantallas
-basadas en los **PNG** de `docs/design/boards/` (que la regla nueva ya **no** acepta como fuente).
-Ese trabajo de pantallas **no se da por válido**: debe rehacerse o validarse contra cada tablero leído
-por el MCP antes de continuar. Lo que sí queda válido (no depende del diseño): validaciones del
-dominio, interfaces de repositorio, capa `data`, estado (`AuthController`) y sus pruebas unitarias.
+**Pantallas sin tablero en Penpot** (composición con tokens y componentes base, según `screens.md`):
+Clave de recuperación, Segundo factor (2FA) y Desbloqueo.
 
 **Tarea previa del PNG `8-modo-oscuro-registro-oscuro.png`:** no se pudo rehacer (requiere
-`generateMarkup` de Penpot, que ya no respondía tras los timeouts). El PNG defectuoso sigue en su sitio.
+`generateMarkup` de Penpot, que no respondía tras los timeouts). El PNG defectuoso sigue en su sitio.
 
 ## Pendiente
 

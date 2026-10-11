@@ -70,3 +70,18 @@ primario, 20), `13/600` (encabezado de grupo, 39), `11/500` (etiqueta de carpeta
 21), y los tamaños menores de la ficha de tienda (reducida). `sourcesanspro` aparece 2× (probablemente en
 la ficha de tienda): a revisar, no se usa.
 
+
+## Revisión de fidelidad de la Fase 8 (2026-10-11): tokens añadidos
+
+Medidos en los tableros «Registro» e «Inicio de sesión» (uno a uno por el MCP):
+
+- **Resplandor del fondo** (tres elipses difuminadas): `#2a5db0` al 20 %, `#7b4b8a` al 14 % y
+  `#b7791f` al 12 %. En `npm`: `AxoGlow.accent`, `AxoGlow.plum`, `AxoGlow.amber`.
+- **Sombra de tarjeta**: `#1f1a14` al 10 %, blur 64, desplazamiento y 24, spread −8. En npm:
+  `AxoShadows.card`.
+- **Tipografía medida**: botón 16/600 (`AxoType.button`); eslogan de bienvenida 16/400
+  (`AxoType.bodyReading`); textos de apoyo 14/400 (`AxoType.bodySmall`); el título de autenticación
+  (28/700) lleva `letterSpacing` **0** (se corrige la ficha anterior, que decía −0.56).
+- **Etiquetas de campo**: 13/500 en `text.primary` (`#1f1d1a`), no en `text.secondary`.
+- **Medidor de contraseña**: una sola barra continua (no cuatro segmentos).
+- **Logo**: 96 radio 24 (bienvenida), 48 radio 14 (tarjeta).

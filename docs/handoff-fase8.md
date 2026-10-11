@@ -45,3 +45,13 @@ Rama `fase-8-cuenta` en `notify_mobile-fase-8`. No hay push ni PR.
   Registro con tarjeta del tablero claro).
 - Las pantallas «Clave de recuperación», «Segundo factor» y «Desbloqueo» **no tienen tablero** en
   Penpot; se compusieron con tokens y componentes base (como dice `docs/screens.md`).
+
+## Revisión de fidelidad (2026-10-11, tarde)
+
+- Se corrigió pantalla por pantalla leyendo cada tablero por el MCP (ver `penpot-progress.md`).
+- Tokens nuevos: `AxoGlow.{accent,plum,amber}`, `AxoShadows.card`, `AxoType.{button,bodyReading,bodySmall}`;
+  `title` con `letterSpacing` 0.
+- Fondos por tablero (bgEditor vs bgApp), resplandor y sombra en Registro/Login, medidor continuo,
+  Registro oscuro a pantalla completa.
+- Goldens regenerados; montajes en `.../scratchpad/cmp2/`. Puertas repetidas en verde.
+- Pendiente: releer «Error de servidor» (timeouts) y rehacer el PNG del Registro oscuro.
