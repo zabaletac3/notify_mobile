@@ -20,6 +20,7 @@ class AxoButton extends StatelessWidget {
     this.size = AxoButtonSize.md,
     this.icon,
     this.expand = false,
+    this.labelStyle,
   });
 
   final String label;
@@ -28,6 +29,7 @@ class AxoButton extends StatelessWidget {
   final AxoButtonSize size;
   final String? icon;
   final bool expand;
+  final TextStyle? labelStyle;
 
   double get _height => switch (size) {
     AxoButtonSize.sm => AxoSizes.buttonSm,
@@ -92,7 +94,7 @@ class AxoButton extends StatelessWidget {
                     child: Text(
                       label,
                       overflow: TextOverflow.ellipsis,
-                      style: AxoType.button.copyWith(color: fg),
+                      style: (labelStyle ?? AxoType.button).copyWith(color: fg),
                     ),
                   ),
                 ],

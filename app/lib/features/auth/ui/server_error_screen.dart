@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 
 import '../../../l10n/app_localizations.dart';
-import '../../../ui/app_icon.dart';
 import '../../../ui/components.dart';
 import '../../../ui/tokens.dart';
 
@@ -21,42 +20,53 @@ class ServerErrorScreen extends StatelessWidget {
       backgroundColor: c.bgApp,
       body: SafeArea(
         child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: AxoSpacing.xxl),
+          padding: const EdgeInsets.symmetric(horizontal: AxoSpacing.xxxl),
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
               Container(
-                width: 88,
-                height: 88,
+                width: 80,
+                height: 80,
                 decoration: BoxDecoration(
                   color: c.statusDangerBg,
                   shape: BoxShape.circle,
                 ),
                 child: Center(
-                  child: AppIcon(
-                    'circle-alert',
-                    size: 40,
-                    color: c.statusDanger,
+                  child: Text(
+                    '!',
+                    style: TextStyle(
+                      fontSize: 40,
+                      fontWeight: FontWeight.w700,
+                      height: 1,
+                      color: c.statusDanger,
+                    ),
                   ),
                 ),
               ),
-              const SizedBox(height: AxoSpacing.xxl),
+              const SizedBox(height: 14),
               Text(
                 l10n.serverErrorTitle,
                 textAlign: TextAlign.center,
                 style: AxoType.dialogTitle.copyWith(color: c.textPrimary),
               ),
-              const SizedBox(height: AxoSpacing.md),
+              const SizedBox(height: 34),
               Text(
                 l10n.serverErrorBody,
                 textAlign: TextAlign.center,
-                style: AxoType.body.copyWith(color: c.textSecondary),
+                style: AxoType.bodySmall.copyWith(color: c.textSecondary),
               ),
-              const SizedBox(height: AxoSpacing.xl),
+              const SizedBox(height: 14),
               if (onRetry != null)
-                AxoButton(label: l10n.retry, onPressed: onRetry),
+                UnconstrainedBox(
+                  constrainedAxis: Axis.horizontal,
+                  child: AxoButton(
+                    label: l10n.retry,
+                    onPressed: onRetry,
+                    labelStyle: AxoType.button.copyWith(fontSize: 15),
+                  ),
+                ),
               if (code != null) ...[
-                const SizedBox(height: AxoSpacing.md),
+                const SizedBox(height: 14),
                 Text(
                   l10n.errorCodeLabel('$code'),
                   style: AxoType.caption.copyWith(color: c.textTertiary),
