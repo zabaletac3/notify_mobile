@@ -95,10 +95,26 @@ class SyncController extends Notifier<SyncUiState> {
   bool get isAttached => _engine != null;
 
   /// Relee el estado del almacén sin ir al servidor (al adjuntar y tras cada sincronización).
+  ///
+  /// [attach] la llama sin esperarla (`unawaited`), así que un fallo sin capturar aquí se
+  /// convertiría en un error de zona sin dueño en vez de quedar en el estado; por eso protege la
+  /// lectura igual que [syncNow] protege la suya: la fase pasa a `error`, nunca se propaga.
   Future<void> refresh() async {
     final engine = _engine;
     if (engine == null) return;
-    state = _toUiState(await engine.snapshot(), state.lastError);
+    SyncSnapshot? snapshot;
+    try {
+      snapshot = await engine.snapshot();
+      // ignore: avoid_catches_without_on_clauses
+    } catch (_) {
+      // se gestiona abajo: `snapshot` queda null.
+    }
+    state = snapshot == null
+        ? state.copyWith(
+            phase: SyncPhase.error,
+            lastError: state.lastError ?? const UnknownError(),
+          )
+        : _toUiState(snapshot, state.lastError);
   }
 
   /// Sincroniza ahora. No lanza: el fallo (si lo hay) queda en `state.lastError`, salvo
