@@ -28,7 +28,7 @@ void main() {
       const SyncRequest(
         cursor: '0',
         changes: [
-          const domain.OutboxEntry(
+          domain.OutboxEntry(
             seq: 1,
             entity: domain.SyncEntity.note,
             entityId: 'n1',
@@ -45,7 +45,7 @@ void main() {
               payload: 'a1.pay.load',
             ),
           ),
-          const domain.OutboxEntry(
+          domain.OutboxEntry(
             seq: 2,
             entity: domain.SyncEntity.folder,
             entityId: 'f1',

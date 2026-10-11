@@ -244,8 +244,8 @@ void main() {
         (req) => const SyncResponse(
           cursor: 'page:1',
           hasMore: true,
-          applied: const [],
-          conflicts: const [],
+          applied: [],
+          conflicts: [],
           remoteChanges: [
             RemoteChange(
               entity: SyncEntity.note,
