@@ -167,6 +167,7 @@ void main() {
       b = LocalHarness(
         master: master,
         deviceId: 'd_b',
+        deviceName: 'Móvil de B',
         now: () => DateTime.utc(2026, 10, 7, 12),
       );
     });
@@ -334,6 +335,7 @@ void main() {
 
         final described = await b.local.syncStore.conflicts();
         expect(described.single.local.content, 'version de B');
+        expect(described.single.local.deviceName, 'Móvil de B');
         expect(described.single.remote.content, 'version de A');
 
         await b.local.syncStore.resolveConflict(note.id, resolution);
@@ -370,6 +372,7 @@ void main() {
         b = LocalHarness(
           master: master,
           deviceId: 'd_b',
+          deviceName: 'Móvil de B',
           now: () => DateTime.utc(2026, 10, 7, 12),
         );
       }

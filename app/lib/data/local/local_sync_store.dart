@@ -67,6 +67,26 @@ class LocalSyncStore implements SyncStore {
       for (final entry in sent)
         outboxKey(entry.entity, entry.entityId): entry.version,
     };
+    // Descifrar los cambios remotos ANTES de abrir la transacción: mantener la escritura durante
+    // el descifrado de una página de 500 elementos bloquearía la base demasiado tiempo. Seguimos
+    // dentro del Mutex, así que nada local cambia entre medias. Si el cofre se bloquea aquí, no se
+    // aplica nada.
+    final remoteNoteRows = <String, NoteRow>{};
+    final remoteFolderRows = <String, FolderRow>{};
+    for (final ch in remoteChanges) {
+      if (ch.deleted) continue;
+      if (ch.entity == SyncEntity.note && ch.note != null) {
+        remoteNoteRows[ch.id] = await _d.codec.noteRowFromRemote(
+          ch.note!,
+          NoteSyncStatus.synced,
+        );
+      } else if (ch.entity == SyncEntity.folder && ch.folder != null) {
+        remoteFolderRows[ch.id] = await _d.codec.folderRowFromRemote(
+          ch.folder!,
+        );
+      }
+    }
+
     await _d.db.transaction(() async {
       // 1) Lo que el servidor aceptó.
       for (final a in applied) {
@@ -150,19 +170,14 @@ class LocalSyncStore implements SyncStore {
             await _d.notes.delete(ch.id);
             await _d.sync.deleteConflict(ch.id);
           } else if (ch.note != null) {
-            final row = await _d.codec.noteRowFromRemote(
-              ch.note!,
-              NoteSyncStatus.synced,
-            );
-            await _d.notes.upsert(row);
+            await _d.notes.upsert(remoteNoteRows[ch.id]!);
           }
         } else {
           if (pending.isNotEmpty && !ch.deleted) continue;
           if (ch.deleted) {
             await _d.folders.delete(ch.id);
           } else if (ch.folder != null) {
-            final row = await _d.codec.folderRowFromRemote(ch.folder!);
-            await _d.folders.upsert(row);
+            await _d.folders.upsert(remoteFolderRows[ch.id]!);
           }
         }
       }
@@ -194,7 +209,7 @@ class LocalSyncStore implements SyncStore {
               title: local.title,
               content: local.content,
               editedAt: local.updatedAt,
-              deviceName: _d.deviceId,
+              deviceName: _d.deviceName,
             ),
             remote: NoteVersion(
               title: remote.title,

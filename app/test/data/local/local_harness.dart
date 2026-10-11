@@ -17,11 +17,13 @@ class LocalHarness {
     DateTime Function()? now,
     SecretKeyBytes? master,
     String deviceId = 'd_test',
+    String? deviceName,
   }) {
     final vault = testVault(master: master);
     final local = LocalDatabase.memory(
       vault: vault,
       deviceId: deviceId,
+      deviceName: deviceName,
       now: now,
     );
     return LocalHarness._(vault, local);
