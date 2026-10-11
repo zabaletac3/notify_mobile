@@ -793,3 +793,54 @@ un solo sitio todo lo que la fase 8 tendrá que llamar desde `VaultLifecycle.onU
 `onSignedOut`, con `onSessionExpired`/`onDeviceRevoked` ya conectados a los que le pase quien
 llame. No implementa nada de la fase 8 (ni `HttpClient` por cuenta, ni `deviceModel()`, ni el bus
 de eventos de sesión): solo deja el punto de unión listo y probado (`sync_session_test.dart`).
+
+### 2026-10-11 · Isolate de trabajo: el bloqueo bajó a 20-21 ms, pero el tiempo total casi se triplicó
+
+Segunda medición en el ZTE tras montar el isolate (ver la entrada de más arriba): bloqueo máximo
+del isolate principal 20-21 ms (bien por debajo del umbral de 100 ms — el isolate cumple su
+objetivo), pero el tiempo total pasó de 5,1 s / 4,7 s a **13,5 s / 13,4 s**, cerca del presupuesto
+de 15 s. Se revisó el código (sin ejecutar nada) buscando trabajo real de más, con esta lista:
+
+- **¿`Isolate.run` arranca un isolate nuevo por página?** Sí: `decryptRemoteChangesInWorker`
+  (`remote_decrypt_worker.dart`) hace un `Isolate.run` por llamada, y `LocalSyncStore.applyResult`
+  la llama una vez por página — con 2 000 notas en páginas de 500, son **4 arranques y 4 cierres**
+  de isolate por sincronización, donde antes no había ninguno. Real, pero su coste típico (arrancar
+  la VM del isolate, cargar sus bibliotecas) se mide normalmente en decenas de ms, no en segundos:
+  4 arranques no deberían explicar por sí solos la mayor parte de un salto de ~8,4 s.
+- **¿Se copian los 500 elementos y las 500 filas dos veces?** Sí, eso es inherente a usar un
+  isolate aparte: el lote de `RemoteChange`/`EncryptedNote` cruza hacia el isolate y el lote de
+  `NoteRow`/`FolderRow` ya descifradas cruza de vuelta, ambos copiados (el paso de mensajes entre
+  isolates no comparte memoria). Para notas de ~1-2 KB, esto es trabajo real pero barato
+  (serializar algunos cientos de objetos pequeños), no la explicación principal esperada.
+- **¿El isolate reinicializa algo caro en cada página (p. ej. `package:cryptography`)?** No se
+  encontró nada: la inicialización de `AesGcm.with256bits(...)` (`axonote_crypto/src/sealed.dart`)
+  es la construcción de un objeto Dart normal, sin trabajo pesado documentado; el coste de que
+  cada página vuelva a cargar las bibliotecas del isolate ya queda contado en el punto del arranque
+  de arriba, no es un coste aparte.
+- **¿La prueba cifra las 2 000 notas remotas dentro del tiempo medido?** No: `_sealRemoteNotes`
+  corre antes de crear el `Stopwatch`, que arranca justo antes de `engine.syncNow()`. El total
+  medido es solo el ciclo de sincronización.
+- **Lo que sí explicaría el resto:** mover el descifrado a otro isolate cambia el **tipo** de
+  coste, no solo lo mueve — el isolate principal ahora tiene que esperar a que el sistema
+  planifique y ejecute el isolate de trabajo (un cambio de contexto real, no solo CPU), lo que
+  convierte bloqueo síncrono en latencia de ida y vuelta: menos bloqueo, pero no necesariamente
+  menos tiempo total. Esto es coherente con lo medido (bloqueo mucho mejor, total peor), pero por
+  sí solo tampoco parece suficiente para 8,4 s en un dispositivo en condiciones normales.
+- **La pista más fuerte, ajena a este cambio:** en la misma sesión, la prueba de la fase 6 (sembrar
+  2 000 notas, sin isolates ni red, código que esta fase no tocó) también salió ~3,7× más lenta
+  (6,3 s frente a 1,7 s). Un código que no cambió no se vuelve 3,7× más lento solo; apunta a que el
+  propio teléfono estaba en un estado distinto durante esta sesión de medición (temperatura,
+  ahorro de batería, otra app en segundo plano) más que a esta fase.
+- **Por qué no se implementó el isolate de trabajo persistente (la alternativa que se barajó):**
+  haría falta que `LocalSyncStore.applyResult` supiera que una página es la última para cerrarlo
+  "al terminar" como pide un buen ciclo de vida, y hoy no lo sabe: `applyResult` no recibe
+  `hasMore`, y `SyncStore` (interfaz pura de `axonote_domain`) no tiene ningún punto de
+  "empieza"/"termina la sincronización". Añadirlo exigiría ampliar esa interfaz (afecta a
+  `FakeSyncStore`, a los 19 escenarios de `sync-behavior.json` y a cualquier otro implementador
+  futuro) para un ahorro que, por el análisis de arriba, probablemente no sea el grueso de los
+  8,4 s. No se hizo este cambio más grande a ciegas.
+- **Pendiente:** remedir con el teléfono en reposo (sin cargar, enfriado, sin otras apps) antes de
+  decidir si hace falta el isolate persistente. Si el total vuelve a estar cerca de los 5 s
+  originales, confirma que era el estado del teléfono. Si sigue por encima de ~10 s con el
+  teléfono en reposo, sí merece la pena el isolate de trabajo persistente de arriba (y entonces
+  haría falta ampliar `SyncStore` con el lifecycle que le falta).
