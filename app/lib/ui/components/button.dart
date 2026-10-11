@@ -92,10 +92,7 @@ class AxoButton extends StatelessWidget {
                     child: Text(
                       label,
                       overflow: TextOverflow.ellipsis,
-                      style: AxoType.bodyUi.copyWith(
-                        color: fg,
-                        fontWeight: FontWeight.w600,
-                      ),
+                      style: AxoType.button.copyWith(color: fg),
                     ),
                   ),
                 ],

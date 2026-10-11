@@ -62,7 +62,7 @@ class _AxoFieldState extends State<AxoField> {
         if (widget.label != null) ...[
           Text(
             widget.label!,
-            style: AxoType.label.copyWith(color: c.textSecondary),
+            style: AxoType.label.copyWith(color: c.textPrimary),
           ),
           const SizedBox(height: AxoSpacing.xs),
         ],

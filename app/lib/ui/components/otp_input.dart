@@ -102,8 +102,8 @@ class _AxoOtpInputState extends State<AxoOtpInput> {
   }
 }
 
-/// Barra de fuerza de contraseña (4 segmentos del diseño). Los segmentos activos van en `accent`
-/// (como en Penpot); el texto de ayuda lo pone la pantalla.
+/// Medidor de fuerza de contraseña del diseño: **una sola barra continua** (alto 4, radio 2),
+/// pista `borderDefault` y progreso `accent`. [score] va de 0 a 4.
 class AxoPasswordStrength extends StatelessWidget {
   const AxoPasswordStrength({super.key, required this.score});
 
@@ -113,21 +113,22 @@ class AxoPasswordStrength extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final c = Theme.of(context).extension<AxoColors>()!;
-    return Row(
-      children: [
-        for (var i = 0; i < 4; i++) ...[
-          if (i > 0) const SizedBox(width: AxoSpacing.xs),
-          Expanded(
-            child: Container(
-              height: 4,
-              decoration: BoxDecoration(
-                color: i < score ? c.accentDefault : c.bgInput,
-                borderRadius: BorderRadius.circular(2),
-              ),
+    final fraction = (score / 4).clamp(0.0, 1.0);
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(2),
+      child: SizedBox(
+        height: 4,
+        child: Stack(
+          children: [
+            Container(color: c.borderDefault),
+            FractionallySizedBox(
+              widthFactor: fraction,
+              alignment: Alignment.centerLeft,
+              child: Container(color: c.accentDefault),
             ),
-          ),
-        ],
-      ],
+          ],
+        ),
+      ),
     );
   }
 }

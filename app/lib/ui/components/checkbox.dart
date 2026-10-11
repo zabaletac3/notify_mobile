@@ -25,7 +25,7 @@ class AxoCheckbox extends StatelessWidget {
       decoration: BoxDecoration(
         color: value ? c.accentDefault : Colors.transparent,
         shape: BoxShape.circle,
-        border: value ? null : Border.all(color: c.borderDefault, width: 2),
+        border: value ? null : Border.all(color: c.textTertiary, width: 2),
       ),
       child: value
           ? Center(child: AppIcon('check', size: 14, color: c.accentOn))
