@@ -11,9 +11,11 @@
 //
 //   flutter test integration_test/axonote_platform_test.dart -d <deviceId> \
 //     --dart-define=AXONOTE_MANUAL_BIOMETRIC_TESTS=true
+import 'dart:async';
 import 'dart:typed_data';
 
 import 'package:axonote_platform/axonote_platform.dart';
+import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:integration_test/integration_test.dart';
 
@@ -21,6 +23,29 @@ import 'package:integration_test/integration_test.dart';
 /// ejecutar: entonces sí se corren las pruebas que necesitan tocar el sensor (el motivo de por
 /// qué están excluidas por defecto está en la cabecera de este fichero).
 const _runManual = bool.fromEnvironment('AXONOTE_MANUAL_BIOMETRIC_TESTS');
+
+/// Espera a que la app vuelva a primer plano tras haber pasado a segundo plano al menos una vez.
+/// La prueba de "huella nueva" (PASO A PASO 3 de la guía) la usa para dar tiempo real a registrar
+/// la biometría nueva en Ajustes del sistema entre `storeMasterKey` y `loadMasterKey`, en vez de
+/// llamar a `loadMasterKey` justo después de guardar sin ninguna pausa (lo que antes no dejaba
+/// margen para registrar la huella). El límite de espera lo pone quien llama con `.timeout(...)`.
+class _ForegroundAfterBackgroundWaiter extends WidgetsBindingObserver {
+  final Completer<void> _completer = Completer<void>();
+  bool _wentToBackground = false;
+
+  Future<void> get untilForegroundAfterBackground => _completer.future;
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.paused || state == AppLifecycleState.hidden) {
+      _wentToBackground = true;
+    } else if (state == AppLifecycleState.resumed &&
+        _wentToBackground &&
+        !_completer.isCompleted) {
+      _completer.complete();
+    }
+  }
+}
 
 void main() {
   IntegrationTestWidgetsFlutterBinding.ensureInitialized();
@@ -164,36 +189,46 @@ void main() {
   });
 
   group(
-    'invalidación por huella nueva (PASO A PASO 3 de la guía — la más larga)',
+    'una huella nueva no invalida la clave guardada (decisión 2026-10-11, '
+    'docs/decisions.md — PASO A PASO 3 de la guía, la más larga)',
     () {
-      const userId = 'fase5-invalidada';
+      const userId = 'fase5-huella-nueva';
 
       tearDown(() => cleanUp(userId));
 
       testWidgets(
-        'registrar una biometría nueva invalida la clave guardada: cargar '
-        'lanza KeyInvalidated y ya no queda nada guardado',
+        'registrar una huella nueva no invalida la clave: cargar sigue '
+        'devolviendo los mismos bytes (con huella o PIN/patrón)',
         (tester) async {
+          final original = Uint8List.fromList(List.generate(32, (i) => i));
           await platform.storeMasterKey(
             userId: userId,
-            bytes: Uint8List(32),
+            bytes: original,
             requireAuth: true,
-            prompt: 'Prueba Fase 5: confirma tu huella para guardar',
+            prompt: 'Prueba Fase 5: confirma tu huella o PIN/patrón para guardar',
           );
           // Entre el storeMasterKey de arriba y el loadMasterKey de abajo, la persona debe salir
-          // de la app y registrar una huella nueva en Ajustes del sistema (ver la guía). La
-          // prueba se queda esperando en el cuadro de biometría hasta que vuelva a abrir AxoNote.
-          await expectLater(
-            platform.loadMasterKey(
-              userId: userId,
-              prompt: 'Prueba Fase 5: huella nueva ya registrada',
-            ),
-            throwsA(isA<KeyInvalidated>()),
+          // de la app y registrar una huella nueva en Ajustes del sistema (ver la guía). Antes
+          // esta prueba llamaba a loadMasterKey justo después de guardar, sin dar tiempo a
+          // hacerlo; ahora espera (con un límite amplio) a que la app vuelva a primer plano tras
+          // pasar a segundo plano, que es lo que ocurre al ir a Ajustes y volver.
+          final observer = _ForegroundAfterBackgroundWaiter();
+          WidgetsBinding.instance.addObserver(observer);
+          try {
+            await observer.untilForegroundAfterBackground.timeout(
+              const Duration(minutes: 5),
+              onTimeout: () {},
+            );
+          } finally {
+            WidgetsBinding.instance.removeObserver(observer);
+          }
+          final loaded = await platform.loadMasterKey(
+            userId: userId,
+            prompt:
+                'Prueba Fase 5: huella nueva ya registrada; confirma con '
+                'huella o PIN/patrón para cargar',
           );
-          await expectLater(
-            platform.loadMasterKey(userId: userId, prompt: 'x'),
-            throwsA(isA<NoStoredKey>()),
-          );
+          expect(loaded, original);
         },
         skip: !_runManual,
       );
