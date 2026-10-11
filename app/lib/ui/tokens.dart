@@ -204,6 +204,14 @@ abstract final class AxoType {
     height: 1.5,
   );
 
+  /// Etiqueta de casilla / términos. 13/400, int. 1.2 (medido en el tablero).
+  static const TextStyle bodyLabel = TextStyle(
+    fontFamily: family,
+    fontSize: 13,
+    fontWeight: FontWeight.w400,
+    height: 1.2,
+  );
+
   /// Título de pantalla (p. ej. «Crea tu cuenta»). 24/700, int. 1.2.
   static const TextStyle screenTitle = TextStyle(
     fontFamily: family,

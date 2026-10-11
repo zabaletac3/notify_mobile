@@ -10,11 +10,15 @@ class AxoCheckbox extends StatelessWidget {
     required this.value,
     this.onChanged,
     this.label,
+    this.labelRich,
   });
 
   final bool value;
   final ValueChanged<bool>? onChanged;
   final String? label;
+
+  /// Etiqueta enriquecida (con enlaces en color de acento); si se pasa, sustituye a [label].
+  final Widget? labelRich;
 
   @override
   Widget build(BuildContext context) {
@@ -32,7 +36,7 @@ class AxoCheckbox extends StatelessWidget {
           : null,
     );
 
-    if (label == null) {
+    if (label == null && labelRich == null) {
       return Semantics(
         checked: value,
         child: GestureDetector(
@@ -53,14 +57,17 @@ class AxoCheckbox extends StatelessWidget {
         onTap: onChanged == null ? null : () => onChanged!(!value),
         behavior: HitTestBehavior.opaque,
         child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             box,
             const SizedBox(width: AxoSpacing.md),
             Flexible(
-              child: Text(
-                label!,
-                style: AxoType.bodyUi.copyWith(color: c.textPrimary),
-              ),
+              child:
+                  labelRich ??
+                  Text(
+                    label!,
+                    style: AxoType.bodyLabel.copyWith(color: c.textPrimary),
+                  ),
             ),
           ],
         ),
