@@ -37,7 +37,8 @@ class _ForegroundAfterBackgroundWaiter extends WidgetsBindingObserver {
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    if (state == AppLifecycleState.paused || state == AppLifecycleState.hidden) {
+    if (state == AppLifecycleState.paused ||
+        state == AppLifecycleState.hidden) {
       _wentToBackground = true;
     } else if (state == AppLifecycleState.resumed &&
         _wentToBackground &&
@@ -54,14 +55,17 @@ void main() {
 
   // userId de prueba por caso: evita que una prueba deje una clave de Keystore que afecte a la
   // siguiente si algo falla a medio camino.
-  Future<void> cleanUp(String userId) => platform.deleteMasterKey(userId: userId);
+  Future<void> cleanUp(String userId) =>
+      platform.deleteMasterKey(userId: userId);
 
   group('sin requireAuth (automatizable, no toca el sensor)', () {
     const userId = 'fase5-sin-auth';
 
     tearDown(() => cleanUp(userId));
 
-    testWidgets('guardar y cargar devuelve los mismos 32 bytes', (tester) async {
+    testWidgets('guardar y cargar devuelve los mismos 32 bytes', (
+      tester,
+    ) async {
       final bytes = Uint8List.fromList(List.generate(32, (i) => i));
       await platform.storeMasterKey(
         userId: userId,
@@ -88,7 +92,9 @@ void main() {
       );
     });
 
-    testWidgets('cargar sin haber guardado nunca lanza NoStoredKey', (tester) async {
+    testWidgets('cargar sin haber guardado nunca lanza NoStoredKey', (
+      tester,
+    ) async {
       await expectLater(
         platform.loadMasterKey(userId: 'fase5-nunca-guardada', prompt: 'x'),
         throwsA(isA<NoStoredKey>()),
@@ -108,14 +114,19 @@ void main() {
           bytes: Uint8List.fromList(List.filled(32, 2)),
           requireAuth: false,
         );
-        final loaded = await platform.loadMasterKey(userId: userId, prompt: 'x');
+        final loaded = await platform.loadMasterKey(
+          userId: userId,
+          prompt: 'x',
+        );
         expect(loaded, Uint8List.fromList(List.filled(32, 2)));
       },
     );
   });
 
   group('authAvailability y endurecimiento (automatizable)', () {
-    testWidgets('authAvailability responde con una forma coherente', (tester) async {
+    testWidgets('authAvailability responde con una forma coherente', (
+      tester,
+    ) async {
       final result = await platform.authAvailability();
       // No se afirma nada sobre el hardware concreto del dispositivo (varía): solo que la
       // respuesta tiene sentido entre sí.
@@ -136,31 +147,34 @@ void main() {
     });
   });
 
-  group('con requireAuth: true (pide tocar el sensor — PASO A PASO 1 de la guía)', () {
-    const userId = 'fase5-con-auth';
+  group(
+    'con requireAuth: true (pide tocar el sensor — PASO A PASO 1 de la guía)',
+    () {
+      const userId = 'fase5-con-auth';
 
-    tearDown(() => cleanUp(userId));
+      tearDown(() => cleanUp(userId));
 
-    testWidgets(
-      'guardar pide biometría; al autenticar, cargar luego también la pide y '
-      'devuelve los mismos bytes',
-      (tester) async {
-        final bytes = Uint8List.fromList(List.generate(32, (i) => 31 - i));
-        await platform.storeMasterKey(
-          userId: userId,
-          bytes: bytes,
-          requireAuth: true,
-          prompt: 'Prueba Fase 5: confirma tu huella para guardar',
-        );
-        final loaded = await platform.loadMasterKey(
-          userId: userId,
-          prompt: 'Prueba Fase 5: confirma tu huella para cargar',
-        );
-        expect(loaded, bytes);
-      },
-      skip: !_runManual,
-    );
-  });
+      testWidgets(
+        'guardar pide biometría; al autenticar, cargar luego también la pide y '
+        'devuelve los mismos bytes',
+        (tester) async {
+          final bytes = Uint8List.fromList(List.generate(32, (i) => 31 - i));
+          await platform.storeMasterKey(
+            userId: userId,
+            bytes: bytes,
+            requireAuth: true,
+            prompt: 'Prueba Fase 5: confirma tu huella para guardar',
+          );
+          final loaded = await platform.loadMasterKey(
+            userId: userId,
+            prompt: 'Prueba Fase 5: confirma tu huella para cargar',
+          );
+          expect(loaded, bytes);
+        },
+        skip: !_runManual,
+      );
+    },
+  );
 
   group('cancelar la biometría (PASO A PASO 2 de la guía)', () {
     const userId = 'fase5-cancelar';
@@ -188,93 +202,85 @@ void main() {
     );
   });
 
-  group(
-    'una huella nueva no invalida la clave guardada (decisión 2026-10-11, '
-    'docs/decisions.md — PASO A PASO 3 de la guía, la más larga)',
-    () {
-      const userId = 'fase5-huella-nueva';
+  group('una huella nueva no invalida la clave guardada (decisión 2026-10-11, '
+      'docs/decisions.md — PASO A PASO 3 de la guía, la más larga)', () {
+    const userId = 'fase5-huella-nueva';
 
-      tearDown(() => cleanUp(userId));
+    tearDown(() => cleanUp(userId));
 
-      testWidgets(
-        'registrar una huella nueva no invalida la clave: cargar sigue '
-        'devolviendo los mismos bytes (con huella o PIN/patrón)',
-        (tester) async {
-          final original = Uint8List.fromList(List.generate(32, (i) => i));
-          await platform.storeMasterKey(
+    testWidgets('registrar una huella nueva no invalida la clave: cargar sigue '
+        'devolviendo los mismos bytes (con huella o PIN/patrón)', (
+      tester,
+    ) async {
+      final original = Uint8List.fromList(List.generate(32, (i) => i));
+      await platform.storeMasterKey(
+        userId: userId,
+        bytes: original,
+        requireAuth: true,
+        prompt: 'Prueba Fase 5: confirma tu huella o PIN/patrón para guardar',
+      );
+      // Entre el storeMasterKey de arriba y el loadMasterKey de abajo, la persona debe salir
+      // de la app y registrar una huella nueva en Ajustes del sistema (ver la guía). Antes
+      // esta prueba llamaba a loadMasterKey justo después de guardar, sin dar tiempo a
+      // hacerlo; ahora espera (con un límite amplio) a que la app vuelva a primer plano tras
+      // pasar a segundo plano, que es lo que ocurre al ir a Ajustes y volver.
+      final observer = _ForegroundAfterBackgroundWaiter();
+      WidgetsBinding.instance.addObserver(observer);
+      try {
+        await observer.untilForegroundAfterBackground.timeout(
+          const Duration(minutes: 5),
+          onTimeout: () {},
+        );
+      } finally {
+        WidgetsBinding.instance.removeObserver(observer);
+      }
+      final loaded = await platform.loadMasterKey(
+        userId: userId,
+        prompt:
+            'Prueba Fase 5: huella nueva ya registrada; confirma con '
+            'huella o PIN/patrón para cargar',
+      );
+      expect(loaded, original);
+    }, skip: !_runManual);
+  });
+
+  group('cancelar al re-guardar conserva la clave anterior intacta '
+      '(PASO A PASO 4 de la guía — atomicidad)', () {
+    const userId = 'fase5-atomico';
+
+    tearDown(() => cleanUp(userId));
+
+    testWidgets(
+      'guardar con auth y cancelar un segundo guardado no deja la cuenta '
+      'inservible: la clave anterior sigue intacta',
+      (tester) async {
+        final original = Uint8List.fromList(List.generate(32, (i) => i));
+        await platform.storeMasterKey(
+          userId: userId,
+          bytes: original,
+          requireAuth: true,
+          prompt: 'Prueba Fase 5 (atomicidad): confirma tu huella para guardar la ORIGINAL',
+        );
+        // Segundo intento de guardar (p. ej. al cambiar de contraseña): cancélalo.
+        await expectLater(
+          platform.storeMasterKey(
             userId: userId,
-            bytes: original,
+            bytes: Uint8List.fromList(List.filled(32, 9)),
             requireAuth: true,
-            prompt: 'Prueba Fase 5: confirma tu huella o PIN/patrón para guardar',
-          );
-          // Entre el storeMasterKey de arriba y el loadMasterKey de abajo, la persona debe salir
-          // de la app y registrar una huella nueva en Ajustes del sistema (ver la guía). Antes
-          // esta prueba llamaba a loadMasterKey justo después de guardar, sin dar tiempo a
-          // hacerlo; ahora espera (con un límite amplio) a que la app vuelva a primer plano tras
-          // pasar a segundo plano, que es lo que ocurre al ir a Ajustes y volver.
-          final observer = _ForegroundAfterBackgroundWaiter();
-          WidgetsBinding.instance.addObserver(observer);
-          try {
-            await observer.untilForegroundAfterBackground.timeout(
-              const Duration(minutes: 5),
-              onTimeout: () {},
-            );
-          } finally {
-            WidgetsBinding.instance.removeObserver(observer);
-          }
-          final loaded = await platform.loadMasterKey(
-            userId: userId,
             prompt:
-                'Prueba Fase 5: huella nueva ya registrada; confirma con '
-                'huella o PIN/patrón para cargar',
-          );
-          expect(loaded, original);
-        },
-        skip: !_runManual,
-      );
-    },
-  );
-
-  group(
-    'cancelar al re-guardar conserva la clave anterior intacta '
-    '(PASO A PASO 4 de la guía — atomicidad)',
-    () {
-      const userId = 'fase5-atomico';
-
-      tearDown(() => cleanUp(userId));
-
-      testWidgets(
-        'guardar con auth y cancelar un segundo guardado no deja la cuenta '
-        'inservible: la clave anterior sigue intacta',
-        (tester) async {
-          final original = Uint8List.fromList(List.generate(32, (i) => i));
-          await platform.storeMasterKey(
-            userId: userId,
-            bytes: original,
-            requireAuth: true,
-            prompt: 'Prueba Fase 5 (atomicidad): confirma tu huella para guardar la ORIGINAL',
-          );
-          // Segundo intento de guardar (p. ej. al cambiar de contraseña): cancélalo.
-          await expectLater(
-            platform.storeMasterKey(
-              userId: userId,
-              bytes: Uint8List.fromList(List.filled(32, 9)),
-              requireAuth: true,
-              prompt:
-                  'Prueba Fase 5 (atomicidad): TOCA "CANCELAR" O EL BOTÓN ATRÁS AHORA '
-                  '(NO pongas el dedo)',
-            ),
-            throwsA(isA<AuthCancelled>()),
-          );
-          // La cuenta sigue teniendo la clave ORIGINAL, no `no_stored_key` ni un fallo genérico.
-          final loaded = await platform.loadMasterKey(
-            userId: userId,
-            prompt: 'Prueba Fase 5 (atomicidad): confirma tu huella para cargar',
-          );
-          expect(loaded, original);
-        },
-        skip: !_runManual,
-      );
-    },
-  );
+                'Prueba Fase 5 (atomicidad): TOCA "CANCELAR" O EL BOTÓN ATRÁS AHORA '
+                '(NO pongas el dedo)',
+          ),
+          throwsA(isA<AuthCancelled>()),
+        );
+        // La cuenta sigue teniendo la clave ORIGINAL, no `no_stored_key` ni un fallo genérico.
+        final loaded = await platform.loadMasterKey(
+          userId: userId,
+          prompt: 'Prueba Fase 5 (atomicidad): confirma tu huella para cargar',
+        );
+        expect(loaded, original);
+      },
+      skip: !_runManual,
+    );
+  });
 }
