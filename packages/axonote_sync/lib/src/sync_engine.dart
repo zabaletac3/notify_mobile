@@ -4,6 +4,24 @@ import 'item_codec.dart';
 import 'sync_clock.dart';
 import 'sync_transport.dart';
 
+/// Progreso de una página aplicada (plan §4.4/§7: primera descarga con progreso). [page] es el
+/// número de página dentro de esta `syncNow()` (0 la primera); [isFirstSync] indica si el cursor
+/// guardado era `null` al empezar (primera sincronización de la cuenta, potencialmente miles de
+/// elementos); [downloaded] acumula cuántos `remoteChanges` se han aplicado ya en total.
+class SyncProgress {
+  const SyncProgress({
+    required this.page,
+    required this.isFirstSync,
+    required this.downloaded,
+    required this.hasMore,
+  });
+
+  final int page;
+  final bool isFirstSync;
+  final int downloaded;
+  final bool hasMore;
+}
+
 /// Motor de sincronización (plan §7): el ciclo `syncNow()` sobre `SyncStore`, `SyncTransport` e
 /// `ItemCodec`.
 ///
@@ -15,18 +33,30 @@ import 'sync_transport.dart';
 /// `device-revoked`, aviso persistente ante `forbidden` — vive en
 /// `app/lib/features/sync/state` (fuera de este paquete puro, que por eso mismo no usa `Timer` ni
 /// `DateTime.now()` directos: esa política necesita temporizadores, y el motor no).
+///
+/// **Primera descarga por páginas, con progreso (plan §4.4).** [onProgress], si se da, se llama
+/// tras aplicar cada página. No hay un isolate de trabajo propio para el descifrado por lotes que
+/// pedía el plan: `cryptography_flutter` (D12) ya corre el AES-GCM de cada elemento fuera del
+/// isolate de Dart, y `LocalSyncStore.applyResult` (fase 6) ya descifra la página entera *antes*
+/// de abrir la transacción, para no retener el candado de escritura. Repartir ese descifrado en
+/// un isolate propio habría exigido rehacer esa fase (pasar la clave maestra a otro isolate y
+/// reconstruir `LocalCodec` allí): se documenta como la alternativa mínima del plan §12/ALCANCE en
+/// `docs/decisions.md`, «Fase 7». [onProgress] es lo que sí aporta este motor: una señal por
+/// página para que la interfaz muestre avance en vez de parecer colgada.
 class SyncEngine {
   SyncEngine({
     required this.store,
     required this.transport,
     required this.codec,
     SyncClock? clock,
+    this.onProgress,
   }) : clock = clock ?? const SystemSyncClock();
 
   final SyncStore store;
   final SyncTransport transport;
   final ItemCodec codec;
   final SyncClock clock;
+  final void Function(SyncProgress progress)? onProgress;
 
   /// Tope de páginas por sincronización (plan §7).
   static const int maxPages = 100;
@@ -52,6 +82,8 @@ class SyncEngine {
   }
 
   Future<void> _run() async {
+    final isFirstSync = await store.cursor() == null;
+    var downloaded = 0;
     var toSend = await store.pending();
     for (var page = 0; page < maxPages; page++) {
       final sealed = await _seal(toSend);
@@ -66,6 +98,15 @@ class SyncEngine {
         remoteChanges: response.remoteChanges,
         cursor: response.cursor,
         now: clock.now(),
+      );
+      downloaded += response.remoteChanges.length;
+      onProgress?.call(
+        SyncProgress(
+          page: page,
+          isFirstSync: isFirstSync,
+          downloaded: downloaded,
+          hasMore: response.hasMore,
+        ),
       );
       if (!response.hasMore) return;
       toSend = const [];

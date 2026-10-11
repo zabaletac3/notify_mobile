@@ -181,6 +181,43 @@ void main() {
     expect((await store.conflicts()), isEmpty);
   });
 
+  test(
+    'onProgress se llama por página con el total descargado y si es la primera sincronización',
+    () async {
+      final progress = <SyncProgress>[];
+      final engine = SyncEngine(
+        store: store,
+        transport: FakeSyncTransport([
+          (req) => SyncResponse(
+            cursor: 'page:1',
+            hasMore: true,
+            applied: const [],
+            conflicts: const [],
+            remoteChanges: [
+              RemoteChange(entity: SyncEntity.note, id: 'n1', deleted: false, revision: 1),
+              RemoteChange(entity: SyncEntity.note, id: 'n2', deleted: false, revision: 1),
+            ],
+          ),
+          (req) => emptyResponse(cursor: 'final'),
+        ]),
+        codec: codec,
+        clock: clock,
+        onProgress: progress.add,
+      );
+
+      await engine.syncNow();
+
+      expect(progress, hasLength(2));
+      expect(progress[0].page, 0);
+      expect(progress[0].isFirstSync, isTrue);
+      expect(progress[0].downloaded, 2);
+      expect(progress[0].hasMore, isTrue);
+      expect(progress[1].page, 1);
+      expect(progress[1].downloaded, 2, reason: 'la segunda página no trajo nada nuevo');
+      expect(progress[1].hasMore, isFalse);
+    },
+  );
+
   test('el reloj real da la hora actual en formato ISO con milisegundos', () {
     final iso = const SystemSyncClock().now();
     expect(DateTime.tryParse(iso), isNotNull);
