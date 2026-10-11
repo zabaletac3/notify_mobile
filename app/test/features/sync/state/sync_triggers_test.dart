@@ -38,19 +38,31 @@ class _FakeConnectivityProbe implements ConnectivityProbe {
   Future<void> dispose() => _controller.close();
 }
 
-class _CountingTransport implements SyncTransport {
+/// Transporte guionizado: responde según [handler]; por defecto, confirma todo lo que suban (los
+/// cambios de la cola quedan en `synced`, como haría el servidor).
+class _ScriptedTransport implements SyncTransport {
+  _ScriptedTransport([Future<SyncResponse> Function(SyncRequest)? handler])
+    : _handler = handler ?? _confirmAll;
+
+  final Future<SyncResponse> Function(SyncRequest) _handler;
   int calls = 0;
+
+  static Future<SyncResponse> _confirmAll(SyncRequest request) async =>
+      SyncResponse(
+        cursor: '0',
+        hasMore: false,
+        applied: [
+          for (final c in request.changes)
+            AppliedChange(entity: c.entity, id: c.entityId, revision: 1),
+        ],
+        conflicts: const [],
+        remoteChanges: const [],
+      );
 
   @override
   Future<SyncResponse> sync(SyncRequest request) async {
     calls++;
-    return const SyncResponse(
-      cursor: '0',
-      hasMore: false,
-      applied: [],
-      conflicts: [],
-      remoteChanges: [],
-    );
+    return _handler(request);
   }
 }
 
@@ -61,16 +73,10 @@ void main() {
   late _FakeConnectivityProbe connectivity;
   late ProviderContainer container;
   late SyncTriggers triggers;
-  late _CountingTransport transport;
+  late _ScriptedTransport transport;
 
-  setUp(() {
-    h = LocalHarness();
-    clock = FakeClock();
-    timers = FakeTimerFactory(clock);
-    connectivity = _FakeConnectivityProbe();
-    transport = _CountingTransport();
-    container = ProviderContainer();
-    container.read(sessionProvider.notifier).set(AxoSession.unlocked);
+  void useTransport(_ScriptedTransport t) {
+    transport = t;
     container
         .read(syncControllerProvider.notifier)
         .attach(
@@ -80,6 +86,16 @@ void main() {
             codec: LocalItemCodec(h.local.deps),
           ),
         );
+  }
+
+  setUp(() {
+    h = LocalHarness();
+    clock = FakeClock();
+    timers = FakeTimerFactory(clock);
+    connectivity = _FakeConnectivityProbe();
+    container = ProviderContainer();
+    container.read(sessionProvider.notifier).set(AxoSession.unlocked);
+    useTransport(_ScriptedTransport());
     triggers = SyncTriggers(
       ref: container.read(_refProvider),
       connectivity: connectivity,
@@ -94,22 +110,7 @@ void main() {
     await h.close();
   });
 
-  void start() => triggers.start(
-    notes: h.local.notes,
-    folders: h.local.folders,
-    store: h.local.syncStore,
-  );
-
-  /// Arranca y deja correr el primer emparejamiento de `watch()` (que por sí solo ya hace saltar
-  /// el rebote de 3 s, aunque no haya habido ningún cambio real): así cada prueba empieza en
-  /// limpio, sin un temporizador de sobra ya en marcha.
-  Future<void> startAndSettle() async {
-    start();
-    await pumpEventQueue();
-    timers.advance(const Duration(seconds: 3));
-    await pumpEventQueue();
-    transport.calls = 0;
-  }
+  void start() => triggers.start(store: h.local.syncStore);
 
   test('al arrancar sincroniza (desbloquear)', () async {
     start();
@@ -118,7 +119,9 @@ void main() {
   });
 
   test('tras un cambio local sincroniza 3 s después, con rebote', () async {
-    await startAndSettle();
+    start();
+    await pumpEventQueue();
+    transport.calls = 0;
 
     await h.local.notes.create(const NoteDraft(title: 'a'));
     await pumpEventQueue();
@@ -137,8 +140,38 @@ void main() {
     expect(transport.calls, 1);
   });
 
+  test(
+    'no sincroniza en el rebote si no queda nada pendiente (tras confirmar la subida)',
+    () async {
+      start();
+      await pumpEventQueue();
+      transport.calls = 0;
+
+      await h.local.notes.create(const NoteDraft(title: 'a'));
+      await pumpEventQueue();
+
+      // Primer rebote: pendingCount > 0, sincroniza y el transporte confirma la subida (la
+      // entrada de outbox se borra, lo que también es una escritura en «outbox»).
+      timers.advance(const Duration(seconds: 3));
+      await pumpEventQueue();
+      expect(transport.calls, 1);
+      expect(await h.local.syncStore.pendingCount(), 0);
+
+      // Ese borrado programó otro rebote: como ya no queda nada pendiente, no debe sincronizar.
+      timers.advance(const Duration(seconds: 3));
+      await pumpEventQueue();
+      expect(
+        transport.calls,
+        1,
+        reason: 'pendingCount es 0: el rebote no debe sincronizar de más',
+      );
+    },
+  );
+
   test('sincroniza cada 60 s', () async {
-    await startAndSettle();
+    start();
+    await pumpEventQueue();
+    transport.calls = 0;
 
     timers.advance(const Duration(seconds: 60));
     await pumpEventQueue();
@@ -150,7 +183,9 @@ void main() {
   });
 
   test('sincroniza al recuperar la red', () async {
-    await startAndSettle();
+    start();
+    await pumpEventQueue();
+    transport.calls = 0;
 
     connectivity.emit(const [ConnectivityResult.none]);
     await pumpEventQueue();
@@ -162,7 +197,9 @@ void main() {
   });
 
   test('se detiene al bloquear: un cambio local ya no sincroniza', () async {
-    await startAndSettle();
+    start();
+    await pumpEventQueue();
+    transport.calls = 0;
     triggers.stop();
 
     await h.local.notes.create(const NoteDraft(title: 'a'));
@@ -173,7 +210,9 @@ void main() {
   });
 
   test('con la sesión bloqueada no sincroniza aunque el disparador salte', () async {
-    await startAndSettle();
+    start();
+    await pumpEventQueue();
+    transport.calls = 0;
     container.read(sessionProvider.notifier).set(AxoSession.locked);
 
     timers.advance(const Duration(seconds: 60));
@@ -192,11 +231,6 @@ void main() {
     await writeSyncSettings(h.local.syncStore, const SyncSettings(wifiOnly: true));
     connectivity.current = const [ConnectivityResult.mobile];
     start();
-    await pumpEventQueue();
-    expect(transport.calls, 0);
-    // Consume también el rebote inicial de `watch()` (ver startAndSettle): sin wifi, tampoco
-    // sincroniza.
-    timers.advance(const Duration(seconds: 3));
     await pumpEventQueue();
     expect(transport.calls, 0);
 

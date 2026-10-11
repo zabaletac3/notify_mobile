@@ -24,9 +24,9 @@ const Duration syncPollInterval = Duration(seconds: 60);
 /// versión falsa para pruebas que no espera tiempo real) en vez de duplicarlo.
 ///
 /// No conoce `axonote_sync` ni `drift` directamente: solo las interfaces de `axonote_domain`
-/// ([NoteRepository]/[FolderRepository] como señal de "algo cambió en local", [SyncStore] para
-/// leer los ajustes) y [SyncController] (que es quien sabe hablar con el motor). [start] los
-/// recibe de quien abrió la base local (fase 8); antes de eso no hay nada que observar.
+/// (`SyncStore.localChanges` como señal de "algo cambió en la cola" y para leer los ajustes) y
+/// [SyncController] (que es quien sabe hablar con el motor). [start] recibe el almacén de quien
+/// abrió la base local (fase 8); antes de eso no hay nada que observar.
 class SyncTriggers {
   SyncTriggers({
     required this.ref,
@@ -39,8 +39,7 @@ class SyncTriggers {
   final ConnectivityProbe _connectivity;
 
   SyncStore? _store;
-  StreamSubscription<void>? _notesSub;
-  StreamSubscription<void>? _foldersSub;
+  StreamSubscription<void>? _localChangesSub;
   StreamSubscription<List<ConnectivityResult>>? _connectivitySub;
   CancelableTimer? _debounceTimer;
   CancelableTimer? _pollTimer;
@@ -50,16 +49,11 @@ class SyncTriggers {
   bool get _unlocked => ref.read(sessionProvider) == AxoSession.unlocked;
 
   /// Arranca los cuatro disparadores. Lo llama quien acaba de desbloquear (abrió la base local y
-  /// montó el `SyncEngine` en [SyncController.attach]), con los mismos repositorios de esa base.
-  void start({
-    required NoteRepository notes,
-    required FolderRepository folders,
-    required SyncStore store,
-  }) {
+  /// montó el `SyncEngine` en [SyncController.attach]), con el `SyncStore` de esa base.
+  void start({required SyncStore store}) {
     stop();
     _store = store;
-    _notesSub = notes.watch().listen((_) => _debounce());
-    _foldersSub = folders.watch().listen((_) => _debounce());
+    _localChangesSub = store.localChanges.listen((_) => _debounce());
     _connectivitySub = _connectivity.onChanged.listen((results) {
       if (hasAnyConnection(results)) unawaited(_maybeSync());
     });
@@ -70,13 +64,11 @@ class SyncTriggers {
   /// Para al bloquear o cerrar sesión (plan §7): sin base abierta no hay nada que observar ni que
   /// sincronizar (A3).
   void stop() {
-    _notesSub?.cancel();
-    _foldersSub?.cancel();
+    _localChangesSub?.cancel();
     _connectivitySub?.cancel();
     _debounceTimer?.cancel();
     _pollTimer?.cancel();
-    _notesSub = null;
-    _foldersSub = null;
+    _localChangesSub = null;
     _connectivitySub = null;
     _debounceTimer = null;
     _pollTimer = null;
@@ -87,8 +79,19 @@ class SyncTriggers {
     _debounceTimer?.cancel();
     _debounceTimer = timerFactory.schedule(
       syncDebounceDelay,
-      () => unawaited(_maybeSync()),
+      () => unawaited(_debouncedSync()),
     );
+  }
+
+  /// El rebote solo tiene sentido si hay algo que subir: `SyncStore.localChanges` avisa de
+  /// cualquier escritura en `outbox` (incluida la que hace `applyResult` al vaciar una entrada ya
+  /// aplicada), así que sin esta comprobación cada descarga remota programaría una sincronización
+  /// de más 3 s después.
+  Future<void> _debouncedSync() async {
+    final store = _store;
+    if (store == null) return;
+    if (await store.pendingCount() == 0) return;
+    await _maybeSync();
   }
 
   void _schedulePoll() {
