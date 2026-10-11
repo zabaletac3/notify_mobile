@@ -355,25 +355,22 @@ void main() {
       h.dispose();
     });
 
-    test(
-      'si la clave quedó invalidada (p. ej. se quitó el bloqueo de pantalla '
-      'seguro), devuelve false',
-      () async {
-        final h = _Harness();
-        await h.platform.storeMasterKey(
-          userId: 'u1',
-          bytes: Uint8List.fromList(List.filled(32, 3)),
-          requireAuth: true,
-        );
-        h.platform.invalidateStoredKey();
-        final ok = await h.controller.unlockWithStoredKey(
-          userId: 'u1',
-          prompt: 'x',
-        );
-        expect(ok, isFalse);
-        h.dispose();
-      },
-    );
+    test('si la clave quedó invalidada (p. ej. se quitó el bloqueo de pantalla '
+        'seguro), devuelve false', () async {
+      final h = _Harness();
+      await h.platform.storeMasterKey(
+        userId: 'u1',
+        bytes: Uint8List.fromList(List.filled(32, 3)),
+        requireAuth: true,
+      );
+      h.platform.invalidateStoredKey();
+      final ok = await h.controller.unlockWithStoredKey(
+        userId: 'u1',
+        prompt: 'x',
+      );
+      expect(ok, isFalse);
+      h.dispose();
+    });
 
     test('si se cancela la biometría, relanza AuthCancelled', () async {
       final h = _Harness();
