@@ -36,7 +36,7 @@ jobs:
       - name: Formato
         run: >
           dart format --output=none --set-exit-if-changed
-          app/lib app/test tool
+          app/lib app/test app/integration_test app/test_driver tool
           packages/axonote_domain/lib packages/axonote_crypto/lib
           packages/axonote_markdown/lib packages/axonote_api/lib
           packages/axonote_sync/lib packages/axonote_platform/lib

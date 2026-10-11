@@ -20,10 +20,7 @@ void main() {
 
     test('igualdad por valor', () {
       expect(const LockSettings(), const LockSettings());
-      expect(
-        const LockSettings(lockOnExit: true),
-        isNot(const LockSettings()),
-      );
+      expect(const LockSettings(lockOnExit: true), isNot(const LockSettings()));
     });
   });
 

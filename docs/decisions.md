@@ -413,3 +413,102 @@ nombre. Se usa `AndroidOptions()` (valores por defecto), que ya cumple lo que pe
   alternativa real en un teléfono sin biometría, y esa fase es quien construye la pantalla donde se
   podría comprobar de punta a punta.
 
+
+## Fase 6
+
+### 2026-10-11 · drift sin generación de código (SQL explícito), no `build_runner`
+
+- **Decisión:** `AppDatabase` extiende `GeneratedDatabase` (drift) con `allTables` vacío y todo el
+  esquema en SQL explícito (`app/lib/data/local/schema.dart`, `schemaV1`), en vez de tablas
+  generadas por `drift_dev`.
+- **Motivo:** la §6 exige un esquema exacto (columnas, FTS5 de contenido externo con disparadores,
+  índices) y migraciones versionadas explícitas. El SQL directo lo fija al detalle, evita la
+  dependencia `build_runner`/`drift_dev` y el archivo generado en el repo, y mantiene `drift`
+  dentro de `app/lib/data` (lo verifica `tool/check_imports.dart`). Las consultas reactivas se
+  hacen con `customSelect` + `tableUpdates`.
+
+### 2026-10-11 · La base local guarda el contenido en claro (dentro de la base cifrada)
+
+- **Decisión (aplica D3):** las columnas `notes(title, content, preview, tags_json)` y
+  `folders(name)` van en claro; la base entera está cifrada por SQLite3MultipleCiphers. La clave
+  del elemento (`wrapped_key`, A5) se guarda para reutilizarla; no se guarda el `payload` cifrado
+  salvo en las filas ilegibles (`raw_payload`, A6). Al subir (fase 7), el `payload` se cifra desde
+  la fila actual.
+- **Consecuencia frente a la web:** `LocalCodec` no cachea descifrados (no hacen falta) y el
+  `SyncStore` descifra un cambio remoto antes de escribir la fila. El códec sí sabe cifrar desde la
+  fila (`sealNoteForUpload`/`sealFolderForUpload`) y devolver el `raw_payload` de las ilegibles.
+
+### 2026-10-11 · Columna de etiquetas de FTS y `foldText`
+
+- La FTS5 es de **contenido externo** sobre `notes`; sus columnas se llaman como las de `notes`,
+  así que la de etiquetas es `tags_json` (la §6 dice `tags`, es la misma columna). El tokenizador
+  `unicode61 remove_diacritics 2` cubre la insensibilidad a tildes (A7).
+- `foldText` del dominio se implementa con una tabla de diacríticos latinos: `axonote_domain` es
+  Dart puro **sin dependencias** (no puede usar `unorm_dart` ni `\p{Diacritic}`, que Dart no
+  soporta). La búsqueda real de la app usa FTS5, no `foldText`.
+
+### 2026-10-11 · Índice añadido para la lista ordenada por `updated_at` (desvío de la §6)
+
+- **Motivo:** con 10 000 notas, la lista de la página inicial (200) superaba los 50 ms del
+  presupuesto (§11) porque el índice de la §6 `notes(deleted_at, pinned, updated_at)` no sirve para
+  `WHERE deleted_at IS NULL ORDER BY updated_at DESC` (tiene `pinned` en medio). Se añadió
+  `CREATE INDEX notes_deleted_updated ON notes(deleted_at, updated_at)` en la versión 1.
+- **Medición:** en el ZTE, la página inicial de 10 000 notas pasó de 74 ms a 4 ms. Ver
+  `docs/benchmarks.md`. La lista completa (sin límite) tarda ~270 ms y se mide pero no se afirma.
+
+### 2026-10-11 · La lista inicial es una página (`NoteQuery.limit`/`offset`)
+
+- **Decisión:** `NoteQuery` gana `limit`/`offset`; el filtro, el orden y la página se resuelven en
+  SQL y la lista devuelve **resúmenes sin `content`** (la §4.4 pide consultas ligeras). `get(id)`
+  sigue devolviendo la nota completa. La interfaz (fase 9) pedirá la primera página y cargará más
+  al desplazar; la prueba de rendimiento mide esa primera página.
+- **Consecuencia:** quien lea `content` de un resultado de `list()` obtendrá `''`; para editar hay
+  que usar `get`.
+
+### 2026-10-11 · Tipos del protocolo de sincronización duplicados en el dominio
+
+- `axonote_domain` define los tipos cifrados (`EncryptedNote`, `OutboxEntry`, `AppliedChange`,
+  `RemoteChange`, `ConflictReport`, `SyncEntity`, `SyncOp`) que necesita la interfaz `SyncStore`.
+  `axonote_api` ya tenía sus DTO (`EncryptedNoteDto`, `SyncEntity`…) de la fase 4, que **no se
+  tocan**; la fase 7 (motor) mapeará DTO ↔ dominio. Es una duplicación deliberada para respetar
+  las reglas de dependencia (§4.2: `axonote_domain` no puede depender de `axonote_api`).
+
+### 2026-10-11 · Herramientas de prueba y formato
+
+- **`app/test_driver/integration_test.dart`**: necesario para correr la prueba de rendimiento en
+  **perfil** (`flutter drive --profile`), que es la condición del presupuesto §11. Los directorios
+  `app/integration_test` y `app/test_driver` se añaden a la lista de formato de la CI (`.github/
+  workflows/ci.yml`), que antes no los revisaba.
+- **`app/test/flutter_test_config.dart`**: silencia el aviso de drift por abrir varias bases en
+  memoria a la vez en las pruebas (no es un problema real).
+- **Divergencia aceptada (A3):** con la app bloqueada no hay base abierta ni sincronización; no se
+  porta la prueba de la web que sincroniza bloqueada (allí guarda cifrado y aquí no).
+
+### 2026-10-11 · Revisión de la fase 6
+
+- **Cifrado verificado al abrir (fail-closed).** `AppDatabase.openEncrypted` comprueba en el
+  `setup` que `PRAGMA cipher` devuelva un nombre no vacío; si no, lanza y **no abre** la base. Sin
+  esa comprobación, un build que enlazara un `sqlite3` sin cifrado ignoraría `PRAGMA key` en
+  silencio y la base quedaría en claro. Además, `LocalDatabase.open` hace una lectura de prueba
+  (`SELECT count(*) FROM sqlite_master`) para que una clave incorrecta falle **al abrir** con un
+  `AppFailure(decrypt)` tipado, no en la primera consulta de un repositorio.
+- **La clave de la base se borra en cuanto la base está abierta** (`key.dispose()` en el `finally`
+  de `LocalDatabase.open`, también en el camino de error). La representación que usa el `PRAGMA`
+  es una **cadena hexadecimal** que no se puede poner a cero en Dart (los `String` son inmutables)
+  y que viaja a la clausura `setup` del isolate de drift (que no comparte memoria con el isolate
+  principal). Queda como limitación aceptada; el `SecretKeyBytes` sí se borra.
+- **`deviceName` en `LocalDeps`.** El nombre para mostrar en los conflictos es el **nombre** del
+  dispositivo, no su identificador (`deviceId`), como en la web (`device.name`). `LocalDatabase.open`
+  lo acepta; si no se pasa, se usa el `deviceId`.
+- **`applyResult` descifra los cambios remotos antes de la transacción.** Con páginas de 500
+  elementos, descifrar dentro de la transacción mantenía el bloqueo de escritura durante todo el
+  descifrado. Ahora se descifran las filas remotas antes de abrir la transacción (seguimos dentro
+  del Mutex, así que nada local cambia entre medias) y la transacción solo lee y escribe. Si el
+  cofre se bloquea a mitad del descifrado, no se aplica nada.
+- **WAL siempre** (`PRAGMA journal_mode = WAL` en `beforeOpen`, también al crear la base). Antes solo
+  se activaba al reabrir; en memoria es inocuo (responde `memory`).
+- **Fila ilegible sin `raw_payload`.** `sealNoteForUpload`/`sealFolderForUpload` lanzaban un payload
+  vacío (`rawPayload ?? ''`), lo que pisaría el dato en el servidor. Ahora es un `StateError`.
+- **Prueba de rendimiento con la base cifrada real** (archivo en el directorio de la app, clave del
+  Vault), en frío y en caliente, junto con una prueba de cifrado **en dispositivo** (ZTE). Ver
+  `docs/benchmarks.md`.
