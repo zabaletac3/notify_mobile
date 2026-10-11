@@ -42,6 +42,24 @@ const _deviceId = 'd_fase7_movil';
 const _deviceName = 'Móvil de prueba (fase 7)';
 const _apiUrl = 'http://localhost:8080/v1';
 
+/// `axonote_api` manda sus propios DTO (`KdfParamsDto`/`KeyBundleDto`, el texto tal cual del
+/// contrato); `axonote_crypto` no depende de `axonote_api` (plan §4.2) y usa sus propios tipos
+/// (`KdfParams`/`KeyBundle`). Esta prueba manual es la única que cruza ambos paquetes a mano.
+crypto.KdfParams _kdfParams(KdfParamsDto dto) => crypto.KdfParams(
+  alg: dto.alg,
+  memoryKiB: dto.memoryKiB,
+  iterations: dto.iterations,
+  parallelism: dto.parallelism,
+  salt: dto.salt,
+);
+
+crypto.KeyBundle _keyBundle(KeyBundleDto dto) => crypto.KeyBundle(
+  kdf: _kdfParams(dto.kdf),
+  wrappedMasterKey: dto.wrappedMasterKey,
+  recoveryWrappedMasterKey: dto.recoveryWrappedMasterKey,
+  keysVersion: dto.keysVersion,
+);
+
 void main() {
   IntegrationTestWidgetsFlutterBinding.ensureInitialized();
 
@@ -54,36 +72,29 @@ void main() {
       HttpClientOptions(baseUrl: _apiUrl, tokens: tokens),
     );
     final auth = AuthApi(http, deviceName: _deviceName);
-    final account = AccountApi(http);
+    final keysApi = KeysApi(http);
 
     crypto.SecretKeyBytes masterKey;
     try {
       // ¿Ya existe la cuenta? Si el correo no está registrado, esto falla (not-found/unauthorized)
       // y se sigue con el registro de abajo.
       final kdf = await auth.prelogin(_email);
-      final derived = await crypto.deriveFromPassword(_password, kdf, sodium);
+      final derived = await crypto.deriveFromPassword(
+        _password,
+        _kdfParams(kdf),
+        sodium,
+      );
       final loginResult = await auth.login(_email, derived.authKey);
       expect(
         loginResult,
         isA<LoginSession>(),
         reason: 'esta cuenta no debería tener verificación en dos pasos',
       );
-      final bundle = await account.keys();
+      final bundle = await keysApi.keys();
       final unlocked = await crypto.unlockWithPassword(
         password: _password,
         userId: _userId,
-        keys: KeyBundle(
-          kdf: KdfParams(
-            alg: bundle.kdf.alg,
-            memoryKiB: bundle.kdf.memoryKiB,
-            iterations: bundle.kdf.iterations,
-            parallelism: bundle.kdf.parallelism,
-            salt: bundle.kdf.salt,
-          ),
-          wrappedMasterKey: bundle.wrappedMasterKey,
-          recoveryWrappedMasterKey: bundle.recoveryWrappedMasterKey,
-          keysVersion: bundle.keysVersion,
-        ),
+        keys: _keyBundle(bundle),
         argon2id: sodium,
       );
       masterKey = unlocked.masterKey;
@@ -249,30 +260,23 @@ Future<_ReopenedEngine> _reopenAndSync() async {
   final tokens = MemoryTokenStore();
   final http = HttpClient(HttpClientOptions(baseUrl: _apiUrl, tokens: tokens));
   final auth = AuthApi(http, deviceName: _deviceName);
-  final account = AccountApi(http);
+  final keysApi = KeysApi(http);
 
   final kdf = await auth.prelogin(_email);
-  final derived = await crypto.deriveFromPassword(_password, kdf, sodium);
+  final derived = await crypto.deriveFromPassword(
+    _password,
+    _kdfParams(kdf),
+    sodium,
+  );
   final loginResult = await auth.login(_email, derived.authKey);
   if (loginResult is! LoginSession) {
     throw StateError('la cuenta de prueba no debería pedir segundo paso');
   }
-  final bundle = await account.keys();
+  final bundle = await keysApi.keys();
   final unlocked = await crypto.unlockWithPassword(
     password: _password,
     userId: _userId,
-    keys: KeyBundle(
-      kdf: KdfParams(
-        alg: bundle.kdf.alg,
-        memoryKiB: bundle.kdf.memoryKiB,
-        iterations: bundle.kdf.iterations,
-        parallelism: bundle.kdf.parallelism,
-        salt: bundle.kdf.salt,
-      ),
-      wrappedMasterKey: bundle.wrappedMasterKey,
-      recoveryWrappedMasterKey: bundle.recoveryWrappedMasterKey,
-      keysVersion: bundle.keysVersion,
-    ),
+    keys: _keyBundle(bundle),
     argon2id: sodium,
   );
 
