@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'dart:typed_data';
 
+import 'package:axonote_api/axonote_api.dart';
 import 'package:dio/dio.dart';
 
 /// Adaptador de dio guionizado para las pruebas (copia mínima de
@@ -43,3 +44,24 @@ ResponseBody jsonResponse(
 }
 
 Dio dioWith(FakeAdapter adapter) => Dio()..httpClientAdapter = adapter;
+
+/// `SyncApi` con una sesión ya guardada (token de acceso que no vence) y el adaptador
+/// guionizado [adapter], para probar `RemoteSyncTransport` sin red real.
+Future<SyncApi> apiWith(FakeAdapter adapter) async {
+  final tokens = MemoryTokenStore();
+  await tokens.write(
+    const StoredTokens(
+      accessToken: 'at',
+      refreshToken: 'rt',
+      expiresAt: '2099-01-01T00:00:00.000Z',
+    ),
+  );
+  final http = HttpClient(
+    HttpClientOptions(
+      baseUrl: 'http://localhost:8080/v1',
+      tokens: tokens,
+      dio: dioWith(adapter),
+    ),
+  );
+  return SyncApi(http);
+}

@@ -1,29 +1,9 @@
-import 'package:axonote_api/axonote_api.dart';
 import 'package:axonote_app/data/remote/remote_sync_transport.dart';
 import 'package:axonote_domain/axonote_domain.dart' as domain;
 import 'package:axonote_sync/axonote_sync.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'fake_dio.dart';
-
-Future<SyncApi> apiWith(FakeAdapter adapter) async {
-  final tokens = MemoryTokenStore();
-  await tokens.write(
-    const StoredTokens(
-      accessToken: 'at',
-      refreshToken: 'rt',
-      expiresAt: '2099-01-01T00:00:00.000Z',
-    ),
-  );
-  final http = HttpClient(
-    HttpClientOptions(
-      baseUrl: 'http://localhost:8080/v1',
-      tokens: tokens,
-      dio: dioWith(adapter),
-    ),
-  );
-  return SyncApi(http);
-}
 
 void main() {
   test(
