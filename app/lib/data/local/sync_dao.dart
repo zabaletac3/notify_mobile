@@ -58,8 +58,8 @@ class SyncDao {
     int baseRevision,
     int version,
     String changedAt,
-  ) {
-    return _db.customInsert(
+  ) async {
+    final seq = await _db.customInsert(
       'INSERT INTO outbox(entity, entity_id, op, base_revision, version, changed_at) '
       'VALUES (?, ?, ?, ?, ?, ?)',
       variables: [
@@ -71,6 +71,8 @@ class SyncDao {
         Variable<String>(changedAt),
       ],
     );
+    _db.notifyUpdates({const TableUpdate('outbox')});
+    return seq;
   }
 
   Future<void> updateOutbox(
@@ -90,6 +92,7 @@ class SyncDao {
         Variable<int>(seq),
       ],
     );
+    _db.notifyUpdates({const TableUpdate('outbox')});
   }
 
   Future<void> deleteOutbox(int seq) async {
@@ -97,6 +100,7 @@ class SyncDao {
       'DELETE FROM outbox WHERE seq = ?',
       variables: [Variable<int>(seq)],
     );
+    _db.notifyUpdates({const TableUpdate('outbox')});
   }
 
   // ── conflicts ───────────────────────────────────────────────────────────────────────────────

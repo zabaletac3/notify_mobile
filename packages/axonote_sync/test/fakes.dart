@@ -48,6 +48,11 @@ class FakeSyncStore implements SyncStore {
   final Map<String, String?> _meta = {};
   final Map<Id, Conflict> _conflicts = {};
   final Set<Id> _conflictedNotes = {};
+  final StreamController<void> _localChanges =
+      StreamController<void>.broadcast();
+
+  @override
+  Stream<void> get localChanges => _localChanges.stream;
 
   @override
   Future<void> enqueue(PendingChange change, IsoDate changedAt) async {
@@ -68,24 +73,28 @@ class FakeSyncStore implements SyncStore {
           changedAt: changedAt,
         ),
       );
+      _localChanges.add(null);
       return;
     }
     final existing = _outbox[idx];
     if (change.op == SyncOp.delete) {
       if (existing.baseRevision == 0) {
         _outbox.removeAt(idx);
+        _localChanges.add(null);
         return;
       }
       existing
         ..op = SyncOp.delete
         ..version += 1
         ..changedAt = changedAt;
+      _localChanges.add(null);
       return;
     }
     existing
       ..op = SyncOp.upsert
       ..version += 1
       ..changedAt = changedAt;
+    _localChanges.add(null);
   }
 
   @override
@@ -138,6 +147,7 @@ class FakeSyncStore implements SyncStore {
       } else {
         row.baseRevision = a.revision;
       }
+      _localChanges.add(null);
     }
     for (final c in conflicts) {
       _conflictedNotes.add(c.noteId);
@@ -169,6 +179,7 @@ class FakeSyncStore implements SyncStore {
     _conflicts.remove(noteId);
     _conflictedNotes.remove(noteId);
     _outbox.removeWhere((r) => r.entity == SyncEntity.note && r.entityId == noteId && resolution == ConflictResolution.remote);
+    _localChanges.add(null);
   }
 
   @override

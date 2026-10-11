@@ -1,4 +1,5 @@
 import 'package:axonote_domain/axonote_domain.dart';
+import 'package:drift/drift.dart' show TableUpdateQuery;
 
 import 'failures.dart';
 import 'local_deps.dart';
@@ -35,6 +36,16 @@ class LocalSyncStore implements SyncStore {
 
   @override
   Future<int> pendingCount() => _d.lock.run(_d.sync.outboxCount);
+
+  /// Señal barata de "algo cambió en la cola": las actualizaciones de la tabla `outbox` de
+  /// drift, sin volver a listar ni a contar nada y sin emitir nada al suscribirse (a diferencia
+  /// de `NoteRepository.watch()`/`FolderRepository.watch()`, pensados para listas en pantalla,
+  /// no para disparadores).
+  @override
+  Stream<void> get localChanges => _d.db
+      .tableUpdates(const TableUpdateQuery.any())
+      .where((updates) => updates.any((u) => u.table == 'outbox'))
+      .map((_) {});
 
   // ── meta ────────────────────────────────────────────────────────────────────────────────────
 

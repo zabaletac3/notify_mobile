@@ -18,6 +18,12 @@ abstract interface class SyncStore {
   /// Cuántos cambios hay pendientes de subir.
   Future<int> pendingCount();
 
+  /// Avisa cuando cambia la cola local (se añade, actualiza o borra una entrada de `outbox`).
+  /// Nunca emite nada al suscribirse ni el valor que cambió: es solo la señal de "algo cambió",
+  /// para que los disparadores (D7, fase 7) sepan cuándo reintentar sin tener que volver a listar
+  /// ni a contar la cola entera en cada cambio.
+  Stream<void> get localChanges;
+
   /// Último cursor recibido del servidor, o `null` la primera vez.
   Future<String?> cursor();
 
