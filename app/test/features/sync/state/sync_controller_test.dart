@@ -129,12 +129,14 @@ class _GatedStore implements SyncStore {
     if (gate != null) await gate.future;
     return _inner.conflicts();
   }
+
   @override
   Future<void> resolveConflict(Id noteId, ConflictResolution resolution) async {
     final gate = resolveConflictGate;
     if (gate != null) await gate.future;
     return _inner.resolveConflict(noteId, resolution);
   }
+
   @override
   Future<ShareRow?> share(Id noteId) => _inner.share(noteId);
   @override
@@ -436,32 +438,29 @@ void main() {
       expect(container.read(syncControllerProvider), SyncUiState.empty);
     });
 
-    test(
-      'attach de un motor nuevo durante una llamada del anterior: el resultado viejo no pisa',
-      () async {
-        final oldGate = Completer<SyncResponse>();
-        final oldEngine = engineWith((r) => oldGate.future);
-        controller.attach(oldEngine);
-        // Asienta el refresh inicial del motor viejo.
-        await pumpEventQueue();
+    test('attach de un motor nuevo durante una llamada del anterior: el resultado viejo no pisa', () async {
+      final oldGate = Completer<SyncResponse>();
+      final oldEngine = engineWith((r) => oldGate.future);
+      controller.attach(oldEngine);
+      // Asienta el refresh inicial del motor viejo.
+      await pumpEventQueue();
 
-        // Queda esperando transport.sync() del viejo.
-        final oldSync = controller.syncNow();
+      // Queda esperando transport.sync() del viejo.
+      final oldSync = controller.syncNow();
 
-        // Mientras tanto, se adjunta un motor nuevo (p. ej. se desbloqueó otra cuenta). Dispara
-        // su propio refresh(), con el motor nuevo.
-        final newEngine = engineWith((r) async => _ok());
-        controller.attach(newEngine);
-        // Deja que ESE refresh se asiente.
-        await pumpEventQueue();
-        final afterNewAttach = container.read(syncControllerProvider);
+      // Mientras tanto, se adjunta un motor nuevo (p. ej. se desbloqueó otra cuenta). Dispara
+      // su propio refresh(), con el motor nuevo.
+      final newEngine = engineWith((r) async => _ok());
+      controller.attach(newEngine);
+      // Deja que ESE refresh se asiente.
+      await pumpEventQueue();
+      final afterNewAttach = container.read(syncControllerProvider);
 
-        oldGate.complete(_ok(cursor: 'old'));
-        // El viejo termina tarde, pero no debe tocar el estado.
-        await oldSync;
+      oldGate.complete(_ok(cursor: 'old'));
+      // El viejo termina tarde, pero no debe tocar el estado.
+      await oldSync;
 
-        expect(container.read(syncControllerProvider), afterNewAttach);
-      },
-    );
+      expect(container.read(syncControllerProvider), afterNewAttach);
+    });
   });
 }
