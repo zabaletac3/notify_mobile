@@ -13,6 +13,7 @@ import 'package:axonote_app/features/sync/state/sync_controller.dart';
 import 'package:axonote_app/features/sync/state/sync_triggers.dart';
 import 'package:axonote_crypto/axonote_crypto.dart';
 import 'package:axonote_domain/axonote_domain.dart';
+import 'package:axonote_sync/axonote_sync.dart' show SyncEngine;
 import 'package:connectivity_plus/connectivity_plus.dart'
     show ConnectivityResult;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -57,33 +58,37 @@ Future<HttpClient> _httpClientWith(FakeAdapter adapter) async {
   );
 }
 
-/// Espera, con tiempo real (no un número fijo de vueltas del bucle de eventos), a que no haya
-/// ninguna sincronización en curso.
+/// Espera, con tiempo real y sin adivinar cuánto tarda nada, a que se asiente la
+/// sincronización «al desbloquear» que `SyncTriggers.start()` dispara sola (`unawaited`).
 ///
-/// `SyncTriggers.start()` dispara su propia sincronización «al desbloquear» sin esperarla
-/// (`unawaited`): antes de que esa llamada alcance a tocar `state` (su primer `await` real,
-/// `readSyncSettings`, ya es una lectura de la base protegida por el `Mutex`), `phase` sigue en
-/// `idle` sin más — por eso el primer respiro real, antes de mirar `phase`, no es opcional: sin
-/// él esta función podría devolver al instante sin haber esperado nada. `pumpEventQueue()` (un
-/// número fijo de vueltas) no sirve aquí porque la cadena real pasa por `dio`/`HttpClient` y por
-/// la base cifrada de verdad (`LocalDatabase.open`, con su propio isolate de E/S): en una máquina
-/// más cargada puede necesitar más vueltas de las que da, dejándola en vuelo justo cuando la
-/// prueba crea su propia nota y llama a su propio `syncNow()` — que, por el único vuelo del
-/// motor, se limitaría a esperar ESA sincronización vieja (sin la nota nueva).
+/// Usa [SyncEngine.isSyncing] directamente (no `syncControllerProvider.phase`, que solo cambia
+/// a `syncing` cuando `SyncController.syncNow()` ya está en marcha — y abrir por primera vez la
+/// base cifrada del isolate puede tardar más de lo que parece, así que un solo chequeo
+/// inmediato puede pillarla todavía en `idle` sin haber empezado). Primero espera a que
+/// [engine] se ponga a sincronizar de verdad; si el plazo se agota sin verlo, no es un fallo —
+/// puede que ya hubiera terminado tan rápido (nada pendiente, respuesta instantánea del
+/// servidor falso) que nunca se la vio en marcha, y entonces no hay nada que esperar. Si sí
+/// llegó a arrancar, entonces SÍ hace falta que termine a tiempo: eso es lo único que falla de
+/// verdad, con un mensaje claro.
 Future<void> _waitUntilSyncSettles(
-  ProviderContainer container, {
-  Duration timeout = const Duration(seconds: 5),
+  SyncEngine engine, {
+  Duration timeout = const Duration(seconds: 2),
 }) async {
-  await Future<void>.delayed(const Duration(milliseconds: 50));
-  final deadline = DateTime.now().add(timeout);
-  while (container.read(syncControllerProvider).phase == SyncPhase.syncing) {
-    if (DateTime.now().isAfter(deadline)) {
+  final startedBy = DateTime.now().add(timeout);
+  while (!engine.isSyncing && DateTime.now().isBefore(startedBy)) {
+    await Future<void>.delayed(const Duration(milliseconds: 10));
+  }
+  // Nunca llegó a verse en marcha: no hay nada que esperar.
+  if (!engine.isSyncing) return;
+  final finishedBy = DateTime.now().add(timeout);
+  while (engine.isSyncing) {
+    if (DateTime.now().isAfter(finishedBy)) {
       throw TestFailure(
         'la sincronización «al desbloquear» sigue en curso tras '
         '${timeout.inSeconds} s: no se puede seguir sin saber si terminó',
       );
     }
-    await Future<void>.delayed(const Duration(milliseconds: 20));
+    await Future<void>.delayed(const Duration(milliseconds: 10));
   }
 }
 
@@ -156,7 +161,7 @@ void main() {
     // Deja que se asiente el ciclo de sincronización que start() ya disparó solo (sin nada
     // pendiente): si no, podría seguir en vuelo cuando se llame a syncNow() más abajo y esa
     // llamada se limitaría a esperar ESE resultado (de antes de crear la nota).
-    await _waitUntilSyncSettles(container);
+    await _waitUntilSyncSettles(session.engine);
 
     // El controlador ya tiene el motor (attach lo adjunta y refresca el snapshot).
     await session.local.notes.create(const NoteDraft(title: 'x'));
