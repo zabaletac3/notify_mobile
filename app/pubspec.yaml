@@ -16,7 +16,6 @@ dependencies:
   axonote_api: ^0.1.0
   axonote_crypto: ^0.1.0
   axonote_domain: ^0.1.0
-  axonote_api: ^0.1.0
   axonote_platform: ^0.1.0
   axonote_sync: ^0.1.0
   connectivity_plus: ^7.3.2
