@@ -1,6 +1,7 @@
 import 'package:axonote_app/data/crypto/vault.dart';
 import 'package:axonote_app/data/local/local_account.dart';
 import 'package:axonote_crypto/axonote_crypto.dart';
+import 'package:axonote_domain/axonote_domain.dart' show Id;
 
 /// Vault de pruebas: clave maestra aleatoria, sin Argon2.
 Vault testVault({SecretKeyBytes? master}) {
@@ -18,6 +19,7 @@ class LocalHarness {
     SecretKeyBytes? master,
     String deviceId = 'd_test',
     String? deviceName,
+    Id Function([int?])? newId,
   }) {
     final vault = testVault(master: master);
     final local = LocalDatabase.memory(
@@ -25,6 +27,7 @@ class LocalHarness {
       deviceId: deviceId,
       deviceName: deviceName,
       now: now,
+      newId: newId,
     );
     return LocalHarness._(vault, local);
   }

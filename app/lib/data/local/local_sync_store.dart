@@ -1,8 +1,14 @@
-import 'package:axonote_domain/axonote_domain.dart';
+import 'dart:typed_data';
 
+import 'package:axonote_crypto/axonote_crypto.dart' as crypto;
+import 'package:axonote_domain/axonote_domain.dart';
+import 'package:drift/drift.dart' show TableUpdateQuery;
+
+import '../crypto/vault.dart' show VaultLockedError;
 import 'failures.dart';
 import 'local_deps.dart';
 import 'outbox.dart';
+import 'remote_decrypt_worker.dart';
 import 'rows.dart';
 
 /// Almacén de sincronización sobre drift (plan §7). Porta la semántica de
@@ -15,6 +21,18 @@ class LocalSyncStore implements SyncStore {
   final Outbox _outbox;
 
   String _iso() => isoFromDateTime(_d.now());
+
+  /// La clave maestra del vault, o `AppFailure(locked)` si el cofre está bloqueado — mismo fallo
+  /// que ya lanzan por su cuenta `_d.codec.noteRowFromRemote`/`folderRowFromRemote` (vía
+  /// `Vault.itemKey`), para que da igual qué camino de descifrado tome [applyResult] el resultado
+  /// sea el mismo tipo de fallo.
+  crypto.SecretKeyBytes _requireMasterKey() {
+    try {
+      return _d.vault.requireKey();
+    } on VaultLockedError {
+      failLocked();
+    }
+  }
 
   // ── cola ────────────────────────────────────────────────────────────────────────────────────
 
@@ -35,6 +53,16 @@ class LocalSyncStore implements SyncStore {
 
   @override
   Future<int> pendingCount() => _d.lock.run(_d.sync.outboxCount);
+
+  /// Señal barata de "algo cambió en la cola": las actualizaciones de la tabla `outbox` de
+  /// drift, sin volver a listar ni a contar nada y sin emitir nada al suscribirse (a diferencia
+  /// de `NoteRepository.watch()`/`FolderRepository.watch()`, pensados para listas en pantalla,
+  /// no para disparadores).
+  @override
+  Stream<void> get localChanges => _d.db
+      .tableUpdates(const TableUpdateQuery.any())
+      .where((updates) => updates.any((u) => u.table == 'outbox'))
+      .map((_) {});
 
   // ── meta ────────────────────────────────────────────────────────────────────────────────────
 
@@ -71,19 +99,45 @@ class LocalSyncStore implements SyncStore {
     // el descifrado de una página de 500 elementos bloquearía la base demasiado tiempo. Seguimos
     // dentro del Mutex, así que nada local cambia entre medias. Si el cofre se bloquea aquí, no se
     // aplica nada.
+    final toDecrypt = [
+      for (final ch in remoteChanges)
+        if (!ch.deleted &&
+            ((ch.entity == SyncEntity.note && ch.note != null) ||
+                (ch.entity == SyncEntity.folder && ch.folder != null)))
+          ch,
+    ];
     final remoteNoteRows = <String, NoteRow>{};
     final remoteFolderRows = <String, FolderRow>{};
-    for (final ch in remoteChanges) {
-      if (ch.deleted) continue;
-      if (ch.entity == SyncEntity.note && ch.note != null) {
-        remoteNoteRows[ch.id] = await _d.codec.noteRowFromRemote(
-          ch.note!,
-          NoteSyncStatus.synced,
+    if (toDecrypt.length > remoteDecryptIsolateThreshold) {
+      // Una página grande (típicamente la primera descarga de la cuenta): el AES-GCM software de
+      // `package:cryptography` sí bloquearía el isolate principal el tiempo suficiente para que se
+      // note (plan §4.4/§12, medido en el ZTE — ver docs/decisions.md «Fase 7»). Solo cruzan la
+      // frontera del isolate el userId y una COPIA de los bytes de la clave maestra, nunca el
+      // `Vault` ni su caché; ambas copias (esta y la del isolate) se borran al terminar.
+      final masterKeyBytes = Uint8List.fromList(_requireMasterKey().bytes);
+      try {
+        final batch = await decryptRemoteChangesInWorker(
+          userId: _d.vault.userId,
+          masterKeyBytes: masterKeyBytes,
+          changes: toDecrypt,
         );
-      } else if (ch.entity == SyncEntity.folder && ch.folder != null) {
-        remoteFolderRows[ch.id] = await _d.codec.folderRowFromRemote(
-          ch.folder!,
-        );
+        remoteNoteRows.addAll(batch.noteRows);
+        remoteFolderRows.addAll(batch.folderRows);
+      } finally {
+        masterKeyBytes.fillRange(0, masterKeyBytes.length, 0);
+      }
+    } else {
+      for (final ch in toDecrypt) {
+        if (ch.entity == SyncEntity.note && ch.note != null) {
+          remoteNoteRows[ch.id] = await _d.codec.noteRowFromRemote(
+            ch.note!,
+            NoteSyncStatus.synced,
+          );
+        } else if (ch.entity == SyncEntity.folder && ch.folder != null) {
+          remoteFolderRows[ch.id] = await _d.codec.folderRowFromRemote(
+            ch.folder!,
+          );
+        }
       }
     }
 
@@ -245,7 +299,7 @@ class LocalSyncStore implements SyncStore {
           final mine = localRow.toNote();
           copy = await _d.codec.noteRow(
             mine.copyWith(
-              id: newId(_d.now().millisecondsSinceEpoch),
+              id: _d.newId(_d.now().millisecondsSinceEpoch),
               title: '${mine.title} (conflicto)',
               pinned: false,
               createdAt: now,

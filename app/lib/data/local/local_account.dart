@@ -2,6 +2,7 @@ import 'dart:io';
 
 import 'package:axonote_crypto/axonote_crypto.dart' as crypto;
 import 'package:axonote_domain/axonote_domain.dart';
+import 'package:axonote_sync/axonote_sync.dart' show ItemCodec;
 
 import '../crypto/vault.dart';
 import 'app_database.dart';
@@ -9,10 +10,15 @@ import 'failures.dart';
 import 'local_codec.dart';
 import 'local_deps.dart';
 import 'local_folder_repository.dart';
+import 'local_item_codec.dart';
 import 'local_note_repository.dart';
 import 'local_sync_store.dart';
 import 'mutex.dart';
 import 'schema.dart';
+
+/// El generador real (`newId` de `axonote_domain`), para cuando `open`/`memory` no reciben uno:
+/// nombrarlo distinto evita que el parámetro homónimo de esos métodos lo tape.
+Id _defaultNewId([int? timestampMs]) => newId(timestampMs);
 
 /// Composición de la capa de datos local: abre la base cifrada de una cuenta y reparte los
 /// repositorios. Es lo único que conoce `drift` fuera de este directorio.
@@ -24,6 +30,7 @@ class LocalDatabase {
   late final NoteRepository notes = LocalNoteRepository(deps);
   late final FolderRepository folders = LocalFolderRepository(deps);
   late final SyncStore syncStore = LocalSyncStore(deps);
+  late final ItemCodec itemCodec = LocalItemCodec(deps);
 
   /// Abre la base cifrada de la cuenta [userId] en [directory]. La clave se deriva de la clave
   /// maestra del [vault] (A1/A2); con el cofre bloqueado esto lanza un `AppFailure(locked)`.
@@ -38,6 +45,7 @@ class LocalDatabase {
     required String deviceId,
     String? deviceName,
     DateTime Function()? now,
+    Id Function([int?])? newId,
   }) async {
     final key = await _localKey(vault);
     try {
@@ -62,6 +70,7 @@ class LocalDatabase {
           now: now ?? DateTime.now,
           deviceId: deviceId,
           deviceName: deviceName ?? deviceId,
+          newId: newId ?? _defaultNewId,
         ),
       );
     } finally {
@@ -75,6 +84,7 @@ class LocalDatabase {
     required String deviceId,
     String? deviceName,
     DateTime Function()? now,
+    Id Function([int?])? newId,
   }) {
     return LocalDatabase._(
       LocalDeps(
@@ -85,6 +95,7 @@ class LocalDatabase {
         now: now ?? DateTime.now,
         deviceId: deviceId,
         deviceName: deviceName ?? deviceId,
+        newId: newId ?? _defaultNewId,
       ),
     );
   }

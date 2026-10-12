@@ -1,3 +1,5 @@
+import 'package:axonote_app/data/local/remote_decrypt_worker.dart'
+    show remoteDecryptIsolateThreshold;
 import 'package:axonote_crypto/axonote_crypto.dart';
 import 'package:axonote_domain/axonote_domain.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -376,6 +378,44 @@ void main() {
           now: () => DateTime.utc(2026, 10, 7, 12),
         );
       }
+    });
+
+    test('una página mayor que el umbral se descifra en el isolate de trabajo y se aplica igual', () async {
+      final changes = <RemoteChange>[];
+      final titleById = <String, String>{};
+      for (var i = 0; i < remoteDecryptIsolateThreshold + 5; i++) {
+        final title = 'Nota $i';
+        final note = await a.local.notes.create(
+          NoteDraft(title: title, content: 'contenido $i'),
+        );
+        titleById[note.id] = title;
+        final enc = await remoteNote(a, note.id);
+        changes.add(
+          RemoteChange(
+            entity: SyncEntity.note,
+            id: note.id,
+            deleted: false,
+            revision: enc.revision,
+            note: enc,
+          ),
+        );
+      }
+
+      await b.local.syncStore.applyResult(
+        sent: const [],
+        applied: const [],
+        conflicts: const [],
+        remoteChanges: changes,
+        cursor: 'c-lote-grande',
+        now: _t,
+      );
+
+      for (final ch in changes) {
+        final got = await b.local.notes.get(ch.id);
+        expect(got.title, titleById[ch.id]);
+        expect(got.syncStatus, NoteSyncStatus.synced);
+      }
+      expect(await b.local.notes.list(), hasLength(changes.length));
     });
   });
 
