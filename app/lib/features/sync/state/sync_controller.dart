@@ -98,7 +98,10 @@ class SyncController extends Notifier<SyncUiState> {
   ///
   /// [attach] la llama sin esperarla (`unawaited`), así que un fallo sin capturar aquí se
   /// convertiría en un error de zona sin dueño en vez de quedar en el estado; por eso protege la
-  /// lectura igual que [syncNow] protege la suya: la fase pasa a `error`, nunca se propaga.
+  /// lectura igual que [syncNow] protege la suya: la fase pasa a `error`, nunca se propaga. Y, tras
+  /// el `await`, comprueba que sigue siendo el mismo motor con el que empezó: si [detach] (o un
+  /// [attach] con otro motor) ocurrió mientras tanto, no toca `state` — lo que haya dejado eso es
+  /// lo correcto, no el resultado de un motor que ya no es el actual.
   Future<void> refresh() async {
     final engine = _engine;
     if (engine == null) return;
@@ -109,6 +112,7 @@ class SyncController extends Notifier<SyncUiState> {
     } catch (_) {
       // se gestiona abajo: `snapshot` queda null.
     }
+    if (!identical(_engine, engine)) return;
     state = snapshot == null
         ? state.copyWith(
             phase: SyncPhase.error,
@@ -129,6 +133,11 @@ class SyncController extends Notifier<SyncUiState> {
   /// podría llevar datos de la persona. Por el mismo motivo se protege también el `snapshot()`
   /// posterior: si leer el almacén fallara, la fase pasa a `error` igualmente en vez de quedarse
   /// en `syncing` para siempre.
+  ///
+  /// Tras CADA `await` comprueba que `_engine` sigue siendo el mismo con el que empezó: un
+  /// [detach] (o un [attach] con otro motor) durante `engine.syncNow()` o durante el
+  /// `snapshot()` posterior no debe pisar el estado que haya dejado eso — ni con el resultado
+  /// viejo ni con un `error` que ya no describe nada vigente.
   Future<void> syncNow() async {
     final engine = _engine;
     if (engine == null) return;
@@ -149,30 +158,32 @@ class SyncController extends Notifier<SyncUiState> {
         error = null;
       }
     }
-    final engineAfter = _engine;
-    if (engineAfter == null) {
-      return; // se cerró sesión durante la sincronización.
+    if (!identical(_engine, engine)) {
+      return; // se soltó o se sustituyó el motor mientras sincronizaba.
     }
     SyncSnapshot? snapshot;
     try {
-      snapshot = await engineAfter.snapshot();
+      snapshot = await engine.snapshot();
       // ignore: avoid_catches_without_on_clauses
     } catch (_) {
       error ??= const UnknownError();
+    }
+    if (!identical(_engine, engine)) {
+      return; // se soltó o se sustituyó el motor mientras se leía el snapshot.
     }
     state = snapshot == null
         ? state.copyWith(phase: SyncPhase.error, lastError: error)
         : _toUiState(snapshot, error);
   }
 
-  /// Resuelve un conflicto (`local`, `remote` o `both`) y refresca el estado.
+  /// Resuelve un conflicto (`local`, `remote` o `both`) y refresca el estado. Mismo cuidado que
+  /// [syncNow]/[refresh]: si el motor cambió mientras se resolvía, no toca `state`.
   Future<void> resolveConflict(Id noteId, ConflictResolution resolution) async {
     final engine = _engine;
     if (engine == null) return;
-    state = _toUiState(
-      await engine.resolveConflict(noteId, resolution),
-      state.lastError,
-    );
+    final snapshot = await engine.resolveConflict(noteId, resolution);
+    if (!identical(_engine, engine)) return;
+    state = _toUiState(snapshot, state.lastError);
   }
 
   SyncUiState _toUiState(SyncSnapshot snapshot, AppError? lastError) {
