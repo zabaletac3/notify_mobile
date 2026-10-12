@@ -110,6 +110,15 @@ class FakeAxonotePlatform extends AxonotePlatform {
   }
 
   @override
+  Future<bool> hasStoredMasterKey({
+    required String userId,
+    required bool requireAuth,
+  }) async {
+    final stored = _store[userId];
+    return stored != null && stored.requireAuth == requireAuth;
+  }
+
+  @override
   Future<AuthAvailability> authAvailability() async => authAvailabilityValue;
 
   @override
@@ -125,4 +134,10 @@ class FakeAxonotePlatform extends AxonotePlatform {
   Future<void> copySensitive(String text) async {
     lastCopiedSensitive = text;
   }
+
+  /// Nombre de modelo que devuelve [deviceModel] en las pruebas.
+  String deviceModelValue = 'Dispositivo de prueba';
+
+  @override
+  Future<String> deviceModel() async => deviceModelValue;
 }

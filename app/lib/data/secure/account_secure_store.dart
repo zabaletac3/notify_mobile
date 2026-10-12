@@ -14,6 +14,7 @@ class SessionData {
     required this.accessToken,
     required this.refreshToken,
     required this.keyBundleJson,
+    this.expiresAt = '',
   });
 
   final String userId;
@@ -24,6 +25,9 @@ class SessionData {
   /// `KeyBundle` tal como lo sirve el servidor, en JSON (su forma la fija `axonote_api`; este
   /// paquete solo lo guarda y lo devuelve, nunca lo interpreta).
   final String keyBundleJson;
+
+  /// Cuándo vence el token de acceso (ISO 8601), para el `TokenStore` de `axonote_api`.
+  final String expiresAt;
 }
 
 /// Almacén seguro de la cuenta (plan §5.1): tokens, identidad y `KeyBundle` en
@@ -38,16 +42,21 @@ class AccountSecureStore {
   static const _emailKey = 'session.email';
   static const _accessTokenKey = 'session.accessToken';
   static const _refreshTokenKey = 'session.refreshToken';
+  static const _expiresAtKey = 'session.expiresAt';
   static const _keyBundleKey = 'session.keyBundle';
   static const _lockPrefsPrefix = 'lockPrefs.';
+  static const _lastActivePrefix = 'lastActiveAt.';
 
   static String _lockPrefsKey(String userId) => '$_lockPrefsPrefix$userId';
+
+  static String _lastActiveKey(String userId) => '$_lastActivePrefix$userId';
 
   Future<void> saveSession(SessionData session) async {
     await _store.write(_userIdKey, session.userId);
     await _store.write(_emailKey, session.email);
     await _store.write(_accessTokenKey, session.accessToken);
     await _store.write(_refreshTokenKey, session.refreshToken);
+    await _store.write(_expiresAtKey, session.expiresAt);
     await _store.write(_keyBundleKey, session.keyBundleJson);
   }
 
@@ -61,15 +70,28 @@ class AccountSecureStore {
 
   Future<String?> readRefreshToken() => _store.read(_refreshTokenKey);
 
+  Future<String?> readExpiresAt() => _store.read(_expiresAtKey);
+
   Future<String?> readKeyBundleJson() => _store.read(_keyBundleKey);
 
   /// Tras renovar la sesión con el servidor.
   Future<void> updateTokens({
     required String accessToken,
     required String refreshToken,
+    String? expiresAt,
   }) async {
     await _store.write(_accessTokenKey, accessToken);
     await _store.write(_refreshTokenKey, refreshToken);
+    if (expiresAt != null) await _store.write(_expiresAtKey, expiresAt);
+  }
+
+  /// Borra solo los tokens (y su vencimiento), conservando identidad y `KeyBundle`: lo usa el
+  /// `TokenStore` de `axonote_api` cuando el servidor rechaza la renovación, sin perder la
+  /// capacidad de desbloquear sin red.
+  Future<void> clearTokens() async {
+    await _store.delete(_accessTokenKey);
+    await _store.delete(_refreshTokenKey);
+    await _store.delete(_expiresAtKey);
   }
 
   /// Tras cambiar la contraseña o la clave de recuperación (sube `keysVersion`).
@@ -84,7 +106,24 @@ class AccountSecureStore {
     await _store.delete(_emailKey);
     await _store.delete(_accessTokenKey);
     await _store.delete(_refreshTokenKey);
+    await _store.delete(_expiresAtKey);
     await _store.delete(_keyBundleKey);
+  }
+
+  /// Última actividad real de `userId` (plan §5.3), o `null` si nunca se guardó. Sobrevive a que el
+  /// sistema mate el proceso, para poder recalcular el tiempo de bloqueo al arrancar en frío.
+  Future<DateTime?> readLastActiveAt(String userId) async {
+    final raw = await _store.read(_lastActiveKey(userId));
+    if (raw == null) return null;
+    return DateTime.tryParse(raw);
+  }
+
+  Future<void> writeLastActiveAt(String userId, DateTime? at) async {
+    if (at == null) {
+      await _store.delete(_lastActiveKey(userId));
+    } else {
+      await _store.write(_lastActiveKey(userId), at.toUtc().toIso8601String());
+    }
   }
 
   /// Preferencias de bloqueo de `userId` (§5.3), o los valores por defecto si nunca se guardaron.
@@ -128,5 +167,6 @@ class AccountSecureStore {
   Future<void> forgetAccount(String userId) async {
     await clearSession();
     await _store.delete(_lockPrefsKey(userId));
+    await _store.delete(_lastActiveKey(userId));
   }
 }

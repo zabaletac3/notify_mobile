@@ -163,13 +163,53 @@ class AxoColors extends ThemeExtension<AxoColors> {
 abstract final class AxoType {
   static const String family = 'Inter';
 
-  /// Título de autenticación (p. ej. «Verifica tu correo»). 28/700, int. 34, ls -0.56.
+  /// Título de autenticación (p. ej. «Verifica tu correo»). 28/700, int. 34/28, ls 0 (medido en
+  /// el tablero).
   static const TextStyle title = TextStyle(
     fontFamily: family,
     fontSize: 28,
     fontWeight: FontWeight.w700,
     height: 34 / 28,
-    letterSpacing: -0.56,
+  );
+
+  /// Marca en la bienvenida («Apunte»/«AxoNote»). 34/700, int. 1.2, ls 0.
+  static const TextStyle brand = TextStyle(
+    fontFamily: family,
+    fontSize: 34,
+    fontWeight: FontWeight.w700,
+    height: 1.2,
+  );
+
+  /// Etiqueta de botón. 16/600, ls 0 (medido en los tableros).
+  static const TextStyle button = TextStyle(
+    fontFamily: family,
+    fontSize: 16,
+    fontWeight: FontWeight.w600,
+    height: 1.2,
+  );
+
+  /// Texto de lectura grande (eslogan de la bienvenida). 16/400, int. 1.5.
+  static const TextStyle bodyReading = TextStyle(
+    fontFamily: family,
+    fontSize: 16,
+    fontWeight: FontWeight.w400,
+    height: 1.5,
+  );
+
+  /// Texto de apoyo (subtítulos de auth, cuerpo de estados). 14/400, int. 1.5.
+  static const TextStyle bodySmall = TextStyle(
+    fontFamily: family,
+    fontSize: 14,
+    fontWeight: FontWeight.w400,
+    height: 1.5,
+  );
+
+  /// Etiqueta de casilla / términos. 13/400, int. 1.2 (medido en el tablero).
+  static const TextStyle bodyLabel = TextStyle(
+    fontFamily: family,
+    fontSize: 13,
+    fontWeight: FontWeight.w400,
+    height: 1.2,
   );
 
   /// Título de pantalla (p. ej. «Crea tu cuenta»). 24/700, int. 1.2.
@@ -290,4 +330,31 @@ abstract final class AxoSizes {
   static const double menuItem = 48;
   static const double toast = 388;
   static const double tapTarget = 44;
+}
+
+/// Colores del resplandor decorativo de las pantallas de autenticación (medidos en el tablero
+/// «Registro»: tres elipses difuminadas). Son tokens propios porque el diseño los usa; no se
+/// derivan de otros. Solo aparecen en los tableros claros.
+abstract final class AxoGlow {
+  /// `#2a5db0` al 20 %.
+  static const Color accent = Color(0x332A5DB0);
+
+  /// `#7b4b8a` al 14 %.
+  static const Color plum = Color(0x247B4B8A);
+
+  /// `#b7791f` al 12 %.
+  static const Color amber = Color(0x1FB7791F);
+}
+
+/// Sombras del diseño. La de tarjeta es la de los tableros «Registro» e «Inicio de sesión»
+/// (`#1f1a14` al 10 %, blur 64, desplazada 24 abajo, spread -8).
+abstract final class AxoShadows {
+  static const List<BoxShadow> card = [
+    BoxShadow(
+      color: Color(0x1A1F1A14),
+      blurRadius: 64,
+      offset: Offset(0, 24),
+      spreadRadius: -8,
+    ),
+  ];
 }

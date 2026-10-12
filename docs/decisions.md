@@ -844,3 +844,134 @@ de 15 s. Se revisó el código (sin ejecutar nada) buscando trabajo real de más
   originales, confirma que era el estado del teléfono. Si sigue por encima de ~10 s con el
   teléfono en reposo, sí merece la pena el isolate de trabajo persistente de arriba (y entonces
   haría falta ampliar `SyncStore` con el lifecycle que le falta).
+
+## Fase 8
+
+### 2026-10-11 · Arquitectura de la cuenta (interfaces en el dominio, implementación en `data`)
+
+- **Decisión:** las interfaces nuevas viven en `axonote_domain` (`AuthRepository`,
+  `VaultPrefsRepository`, `VaultActivityStore`, `LocalDataCleaner`) y un `Result<T>` (`Ok`/`Err`,
+  §4.3); sus implementaciones HTTP/seguras, en `app/lib/data/auth`. El estado
+  (`features/auth/state/AuthController`, Riverpod) solo conoce esas interfaces y `axonote_crypto`
+  (para derivar claves), igual que el `auth.svelte.ts` de la web.
+- **Motivo:** §4.2 (la `ui` solo habla con `state`; `state` solo con interfaces de dominio) y no
+  meter `dio`/`drift` fuera de `app/lib/data`.
+
+### 2026-10-11 · Forma de `KeyBundle`/`KdfParams` en el dominio
+
+- El contrato los da como DTO (`axonote_api`); `axonote_domain` no puede importar
+  `axonote_crypto` ni `axonote_api`. Se definen copias del dominio (`KdfParams`, `KeyBundle`,
+  `LoginResult`, `MfaChallenge`…) y `app/lib/data` mapea DTO ↔ dominio. El estado convierte
+  dominio ↔ `axonote_crypto` con funciones locales. **Aviso de nombres:** el `LoginSession` del
+  dominio chocaba con el `LoginSession` de `axonote_api` dentro de `auth_api.dart`; se renombró a
+  `LoginSucceeded`/`LoginMfaRequired` (el conflicto rompía la compilación del paquete de API).
+
+### 2026-10-11 · Google fuera de v1 (D5) y sin tablero de cuenta con Google
+
+- Los tableros «Registro» e «Inicio de sesión» de Penpot incluyen «Continuar con Google»; D5 lo
+  deja fuera de v1. Se omite el botón **y** su divisor «o». El tablero «Registro (oscuro)» ya viene
+  sin Google y sin tarjeta; el claro sí usa tarjeta. Se sigue el **tablero claro** para Registro e
+  Inicio de sesión (tarjeta 372×533, radio 28) por coherencia y porque es el principal; el oscuro
+  se usa solo para verificar el set oscuro. Diferencia anotada en el informe.
+
+### 2026-10-11 · Marca: «AxoNote» (no «Apunte»)
+
+- Los tableros usan «Apunte» (nombre del archivo). El producto es **AxoNote** (`com.axonote.app`);
+  se muestra «AxoNote» en la bienvenida y en los textos. La forma (logotipo «A», color `accent`) es
+  la del diseño.
+
+### 2026-10-11 · `deviceModel()` en `axonote_platform` (A8)
+
+- Para el nombre del dispositivo del login (modelo + `android`), se añadió `deviceModel()` (Kotlin
+  `Build.MANUFACTURER`/`Build.MODEL`) al único módulo nativo propio (A8), en vez de traer
+  `device_info_plus`. `hasStoredMasterKey({userId, requireAuth})` se añadió igualmente (ver más
+  abajo).
+
+### 2026-10-11 · Argon2id en isolate (`IsolateArgon2id`)
+
+- §4.4: la derivación va en un isolate de trabajo (`app/lib/data/crypto/argon2id_isolate.dart`); la
+  librería `sodium` se carga una vez dentro y las peticiones se atienden en serie. La interfaz
+  muestra progreso (`AuthState.deriving`). En el arranque (`main.dart`) se arranca el isolate; si
+  falla, se usa `SodiumArgon2id` directo como último recurso.
+
+### 2026-10-11 · Arranque en frío y tiempo de bloqueo persistente (pendiente de la Fase 5)
+
+- `AuthController.bootstrap()` decide **con qué cuenta** intentar `unlockWithStoredKey`
+  (`VaultPrefsRepository.cachedSession()` = `AccountSecureStore.readUserId()`) y **si el tiempo de
+  bloqueo ya venció**, leyendo la última actividad guardada
+  (`VaultActivityStore` = `AccountSecureStore.readLastActiveAt`). Se persiste en
+  `VaultLockController` (actividad, segundo plano, bloqueo y cierre de sesión). Reglas de
+  auto-desbloqueo: `lockOnExit` o `immediately` → no; `never` → sí; con tiempo → comparar con la
+  última actividad. Sin red, `currentSession()` falla con `network` y se continúa en local
+  (desbloqueo sin red). `session-expired` → `expired`; `device-revoked` → cierre y borrado (A1).
+
+### 2026-10-11 · `unlock` ya **no** re-guarda si la clave está con la misma política (pendiente Fase 5)
+
+- **Decisión:** `VaultLockController._applyRememberPolicy` consulta
+  `AxonotePlatform.hasStoredMasterKey(userId, requireAuth)` y **omite** el re-guardado cuando ya hay
+  una clave guardada con la misma política. Así, desbloquear con contraseña con `biometricLock:
+  true` **no** vuelve a mostrar el cuadro de biometría/credencial si la clave ya estaba recordada.
+  Ante error de la consulta, se comporta como antes (guarda). Cubierto por las pruebas de la fase 5
+  (siguen en verde) y por la nueva consulta nativa.
+
+### 2026-10-11 · `FLAG_SECURE` por defecto y en las pantallas «siempre» (pendiente Fase 5)
+
+- La raíz de la app envuelve el router en `SecureScreen(restoreOnDispose: false)`: `FLAG_SECURE`
+  **activado por defecto** (privacidad). Además, las pantallas de **clave de recuperación** y
+  **desbloqueo** lo fuerzan mientras están montadas. (Códigos de respaldo y secreto TOTP son de la
+  fase 11.) El ajuste que lo podrá desactivar llega en la fase 11.
+
+### 2026-10-11 · Punto de extensión con la Fase 7 (`onUnlocked`/`onSignedOut`)
+
+- `features/auth/state/vault_lifecycle.dart` define `VaultLifecycle` (callbacks `onUnlocked(userId,
+  Vault)` y `onSignedOut(userId)`) y el proveedor `vaultLifecycleProvider` (no-op por defecto). El
+  `AuthController` los llama al desbloquear y al cerrar sesión / `device-revoked`. **La fase 7 no se
+  implementa aquí**: la fase 7 sobrescribirá el proveedor para abrir `LocalDatabase.open` y disparar
+  la sincronización. A1: cerrar sesión y `device-revoked` borran lo local
+  (`VaultLockController.signOut` + `LocalDatabase.wipe` vía `LocalDataCleaner` + `AccountSecureStore`).
+
+### 2026-10-11 · Registro: se usa la tarjeta del tablero claro (no el full-screen del oscuro)
+
+- El tablero «Registro» (claro) usa una tarjeta (radio 28) y el «Registro (oscuro)» es full-screen.
+  Se implementa la **tarjeta del claro** para Registro y para Inicio de sesión (coherencia entre
+  ambas pantallas de autenticación y porque el claro es el principal); el oscuro verifica el set
+  oscuro. En ambos se omite Google (D5). Diferencia anotada en el informe.
+
+### 2026-10-11 · Toast como componente (tablero «Toasts»)
+
+- Se creó `app/lib/ui/components/toast.dart` (`AxoToast` + `showAxoToast`): 388 de ancho, radio 12,
+  `bgEditor`, punto de color + mensaje 14/500 + acción 14/600. Se usa para confirmar la copia de la
+  clave de recuperación y el reenvío del código.
+
+### 2026-10-11 · Lectura de Penpot de la Fase 8 (leída tablero a tablero)
+
+- Todos los tableros de la fase 8 se leyeron por el MCP (ver `docs/design/penpot-progress.md`), con
+  varias paradas por la regla de conexión (dos timeouts seguidos → parar). Cada pantalla indica en
+  el informe el tablero que la respalda.
+
+### 2026-10-11 · Revisión de fidelidad de la Fase 8 (tokens y pantallas)
+
+Tras comparar los goldens con los tableros, se corrigió pantalla por pantalla leyendo cada tablero
+por el MCP (detalle en `docs/design/penpot-progress.md`).
+
+- **Tokens nuevos** en `app/lib/ui/tokens.dart`:
+  - `AxoGlow.accent/plum/amber` (`#2a5db0` 20 %, `#7b4b8a` 14 %, `#b7791f` 12 %): los tres
+    resplandores del fondo de Registro e Inicio de sesión (medidos).
+  - `AxoShadows.card` (`#1f1a14` al 10 %, blur 64, y 24, spread −8): sombra de la tarjeta.
+  - Roles tipográficos medidos: `button` (16/600), `bodyReading` (16/400), `bodySmall` (14/400);
+    `title` pasa a `letterSpacing` 0 (el tablero lo mide 0; se corregía a −0.56 por la ficha
+    antigua). No se sustituyó ningún rol existente.
+- **Fondos por tablero:** Bienvenida, Onboarding, Verificación y Recuperar usan `bgEditor`
+  (`#fffdf8`); Registro (claro) e Inicio de sesión usan `bgApp` (`#f6f2ea`) con resplandores y
+  tarjeta `bgEditor`. **Registro (oscuro)** es a pantalla completa con `bgEditor` oscuro, sin
+  tarjeta ni resplandores (tablero «8 · Modo oscuro — Registro (oscuro)»); la pantalla de registro
+  ramifica por tema (claro = tarjeta, oscuro = pantalla completa).
+- **Etiquetas de campo** en `textPrimary` (el tablero mide `#1f1d1a`), no `textSecondary`; casilla
+  sin marcar con borde `textTertiary` (`#675f55`).
+- **Medidor de contraseña:** una sola barra continua (pista `borderDefault`, progreso `accent`,
+  alto 4, radio 2), no cuatro segmentos.
+- **Logo:** 96 radio 24 (bienvenida), 48 radio 14 (tarjeta).
+- **Goldens:** el arnés emula el chasis del tablero (`MediaQuery` con barra de estado 39 y de gestos
+  26) para comparar como el diseño.
+- **Pendiente de relectura:** «Error de servidor» (dos timeouts seguidos → parada; se dejó como
+  estaba) y `Registro (oscuro)` (leído en la primera pasada, no re-leído en esta).

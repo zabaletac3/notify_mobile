@@ -58,6 +58,14 @@ abstract class AxonotePlatform {
   /// Borra la clave de Keystore y lo guardado de `userId`. No lanza si no había nada.
   Future<void> deleteMasterKey({required String userId});
 
+  /// `true` si hay una clave guardada para `userId` y su `requireAuth` coincide con el pedido. Lo
+  /// usa el gestor de bloqueo para no volver a guardar (y no volver a pedir autenticación) cuando
+  /// la clave ya está guardada con la misma política (ver `docs/decisions.md`, Fase 8).
+  Future<bool> hasStoredMasterKey({
+    required String userId,
+    required bool requireAuth,
+  });
+
   /// Qué puede usar este dispositivo, ahora mismo, para autenticar (plan §5.2).
   Future<AuthAvailability> authAvailability();
 
@@ -71,4 +79,8 @@ abstract class AxonotePlatform {
   /// normal. Usar en vez de `Clipboard.setData` de Flutter para la clave de recuperación, los
   /// códigos de respaldo y el secreto TOTP.
   Future<void> copySensitive(String text);
+
+  /// Nombre legible del modelo del dispositivo (p. ej. «ZTE A2022L»), para la lista de
+  /// dispositivos al iniciar sesión (plan §10, Fase 8: «nombre del modelo y plataforma android»).
+  Future<String> deviceModel();
 }

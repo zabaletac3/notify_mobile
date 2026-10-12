@@ -62,6 +62,22 @@ class MethodChannelAxonotePlatform extends AxonotePlatform {
   }
 
   @override
+  Future<bool> hasStoredMasterKey({
+    required String userId,
+    required bool requireAuth,
+  }) async {
+    try {
+      final result = await _channel.invokeMethod<bool>('hasStoredMasterKey', {
+        'userId': userId,
+        'requireAuth': requireAuth,
+      });
+      return result ?? false;
+    } on PlatformException catch (e) {
+      throw _mapError(e);
+    }
+  }
+
+  @override
   Future<AuthAvailability> authAvailability() async {
     try {
       final result = await _channel.invokeMapMethod<String, Object?>(
@@ -93,6 +109,16 @@ class MethodChannelAxonotePlatform extends AxonotePlatform {
   Future<void> copySensitive(String text) async {
     try {
       await _channel.invokeMethod<void>('copySensitive', {'text': text});
+    } on PlatformException catch (e) {
+      throw _mapError(e);
+    }
+  }
+
+  @override
+  Future<String> deviceModel() async {
+    try {
+      final result = await _channel.invokeMethod<String>('deviceModel');
+      return (result == null || result.isEmpty) ? 'Android' : result;
     } on PlatformException catch (e) {
       throw _mapError(e);
     }

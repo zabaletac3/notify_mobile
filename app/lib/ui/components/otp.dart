@@ -30,7 +30,7 @@ class AxoOtpField extends StatelessWidget {
             height: AxoSizes.otpHeight,
             alignment: Alignment.center,
             decoration: BoxDecoration(
-              color: c.bgInput,
+              color: i == focus ? c.bgEditor : c.bgInput,
               borderRadius: BorderRadius.circular(AxoRadii.lg),
               border: i == focus
                   ? Border.all(color: c.accentDefault, width: 2)

@@ -23,12 +23,17 @@ class VaultLockController {
     AxonotePlatform? platform,
     this._clock = const SystemClock(),
     this._timerFactory = const RealTimerFactory(),
+    this._activityStore,
   }) : _platform = platform ?? AxonotePlatform.instance;
 
   final Ref _ref;
   final AxonotePlatform _platform;
   final Clock _clock;
   final TimerFactory _timerFactory;
+
+  /// Guarda la hora de la última actividad (plan §5.3), para que el tiempo de bloqueo sobreviva a
+  /// que el sistema mate el proceso. Opcional: si falta, el tiempo solo vive en memoria.
+  final VaultActivityStore? _activityStore;
 
   Vault? _vault;
   LockSettings _settings = const LockSettings();
@@ -123,6 +128,7 @@ class VaultLockController {
     }
     switch (_rememberPolicy(_settings)) {
       case _RememberPolicy.requireAuth:
+        if (await _alreadyStored(userId, requireAuth: true)) return;
         await _platform.storeMasterKey(
           userId: userId,
           bytes: masterKey.bytes,
@@ -130,6 +136,7 @@ class VaultLockController {
         );
         break;
       case _RememberPolicy.noAuth:
+        if (await _alreadyStored(userId, requireAuth: false)) return;
         await _platform.storeMasterKey(
           userId: userId,
           bytes: masterKey.bytes,
@@ -139,6 +146,25 @@ class VaultLockController {
       case _RememberPolicy.dontRemember:
         await _platform.deleteMasterKey(userId: userId);
         break;
+    }
+  }
+
+  /// `true` si ya hay una clave guardada para `userId` con el `requireAuth` pedido: entonces no
+  /// hace falta volver a guardarla (ni volver a pedir autenticación). Decisión de la Fase 8 (ver
+  /// `docs/decisions.md`): evita el cuadro de biometría redundante al desbloquear con contraseña
+  /// cuando la clave ya está recordada con la misma política. Ante cualquier error de la consulta,
+  /// se trata como «no guardada» y se guarda (comportamiento previo).
+  Future<bool> _alreadyStored(
+    String userId, {
+    required bool requireAuth,
+  }) async {
+    try {
+      return await _platform.hasStoredMasterKey(
+        userId: userId,
+        requireAuth: requireAuth,
+      );
+    } catch (_) {
+      return false;
     }
   }
 
@@ -182,6 +208,7 @@ class VaultLockController {
     _vault?.lock();
     _stopTimer();
     _lastActiveAt = null;
+    _persistActivity(null);
     _setSession(AxoSession.locked);
   }
 
@@ -196,6 +223,7 @@ class VaultLockController {
   Future<void> signOut({required String userId}) async {
     lock();
     _vault = null;
+    await _activityStore?.write(userId, null);
     await _platform.deleteMasterKey(userId: userId);
     _setSession(AxoSession.noSession);
   }
@@ -209,13 +237,24 @@ class VaultLockController {
 
   void _noteActivityNow() {
     _lastActiveAt = _clock.now();
+    _persistActivity(_lastActiveAt);
     if (_isUnlocked) _rescheduleTimer();
+  }
+
+  /// Escribe la hora de la última actividad (o la borra) si hay un almacén inyectado. No debe
+  /// romper el flujo si falla la escritura: es best-effort.
+  void _persistActivity(DateTime? at) {
+    final store = _activityStore;
+    final userId = _vault?.userId;
+    if (store == null || userId == null) return;
+    store.write(userId, at).catchError((_) {});
   }
 
   /// La app pasó a segundo plano (`AppLifecycleState.paused` o `.hidden`).
   void appBackgrounded() {
     _inBackground = true;
     if (!_isUnlocked) return;
+    _persistActivity(_lastActiveAt);
     if (_settings.lockOnExit ||
         _settings.lockTimeout == LockTimeout.immediately) {
       lock();
@@ -266,8 +305,23 @@ class VaultLockController {
   }
 }
 
+/// Almacén de la última actividad (§5.3). Por defecto ninguno; la raíz de composición lo
+/// sobrescribe con el almacén seguro real (`SecureVaultPrefs`) para que el tiempo de bloqueo
+/// sobreviva a que el sistema mate el proceso.
+final vaultActivityStoreProvider = Provider<VaultActivityStore?>((ref) => null);
+
+/// Fábrica de temporizadores (§5.3). Por defecto, reales; las pruebas la sustituyen por una falsa
+/// que avanza con el reloj inyectado.
+final vaultTimerFactoryProvider = Provider<TimerFactory>(
+  (ref) => const RealTimerFactory(),
+);
+
 final vaultLockControllerProvider = Provider<VaultLockController>((ref) {
-  final controller = VaultLockController(ref: ref);
+  final controller = VaultLockController(
+    ref: ref,
+    activityStore: ref.read(vaultActivityStoreProvider),
+    timerFactory: ref.read(vaultTimerFactoryProvider),
+  );
   ref.onDispose(controller.dispose);
   return controller;
 });
