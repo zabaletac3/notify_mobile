@@ -52,6 +52,43 @@ class SyncUiState {
   );
 
   static const Object _unset = Object();
+
+  /// Compara por valor (fase, pendientes, ids de los conflictos, última sincronización y
+  /// `kind` del error — nunca el contenido de un `Conflict`/`AppError`, que podría llevar texto
+  /// de notas), para que las pruebas puedan comparar estados reconstruidos sin depender de que
+  /// sea exactamente la misma instancia.
+  @override
+  bool operator ==(Object other) =>
+      other is SyncUiState &&
+      other.phase == phase &&
+      other.pendingCount == pendingCount &&
+      other.lastSyncedAt == lastSyncedAt &&
+      other.lastError?.kind == lastError?.kind &&
+      _sameConflictIds(other.conflicts, conflicts);
+
+  @override
+  int get hashCode => Object.hash(
+    phase,
+    pendingCount,
+    lastSyncedAt,
+    lastError?.kind,
+    Object.hashAll(conflicts.map((c) => c.noteId)),
+  );
+
+  /// Sin contenido de notas: solo lo que hace falta para leer un fallo de prueba de un vistazo.
+  @override
+  String toString() =>
+      'SyncUiState(phase: $phase, pendingCount: $pendingCount, '
+      'conflicts: ${conflicts.length}, lastSyncedAt: $lastSyncedAt, '
+      'lastError: ${lastError?.kind})';
+}
+
+bool _sameConflictIds(List<Conflict> a, List<Conflict> b) {
+  if (a.length != b.length) return false;
+  for (var i = 0; i < a.length; i++) {
+    if (a[i].noteId != b[i].noteId) return false;
+  }
+  return true;
 }
 
 /// Controlador de la sincronización (plan §7). No sabe nada de `Timer` ni de conectividad: eso
