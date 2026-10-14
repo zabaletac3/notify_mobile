@@ -1,12 +1,17 @@
+import 'dart:async';
+
 import 'package:axonote_crypto/axonote_crypto.dart'
     show Argon2idDeriver, SodiumArgon2id;
 import 'package:axonote_platform/axonote_platform.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:path_provider/path_provider.dart';
 
+import 'app/local_session.dart';
 import 'bootstrap/providers.dart';
 import 'data/crypto/argon2id_isolate.dart';
 import 'features/auth/state/auth_controller.dart';
+import 'features/auth/state/vault_lifecycle.dart';
 import 'features/auth/ui/session_expired_dialog.dart';
 import 'features/vault/state/vault_lock.dart';
 import 'features/vault/ui/vault_activity_gate.dart';
@@ -27,9 +32,43 @@ Future<void> main() async {
         vaultActivityStoreProvider.overrideWith(
           (ref) => ref.watch(secureVaultPrefsProvider),
         ),
+        vaultLifecycleProvider.overrideWith(_vaultLifecycle),
       ],
       child: const AxoNoteApp(),
     ),
+  );
+}
+
+/// Cierra la costura entre las fases 7 y 8 que quedó pendiente: al desbloquear, abre la base local
+/// de la cuenta y monta el motor de sincronización (fase 9); al bloquear o cerrar sesión, la
+/// cierra (A3). Si la base no se puede abrir, la lista de notas se queda en carga y el resto de la
+/// app sigue funcionando.
+VaultLifecycle _vaultLifecycle(Ref ref) {
+  return VaultLifecycle(
+    onUnlocked: (userId, vault) async {
+      try {
+        final directory = await getApplicationSupportDirectory();
+        final deviceId = await ref.read(deviceIdProvider.future);
+        await ref
+            .read(localSessionProvider.notifier)
+            .open(
+              ref: ref,
+              vault: vault,
+              userId: userId,
+              directory: directory,
+              http: ref.read(httpClientProvider),
+              deviceId: deviceId,
+              deviceName: ref.read(deviceNameProvider),
+            );
+      } catch (_) {
+        // Sin base local no se pueden leer ni editar notas; se ignora aquí para no romper el
+        // desbloqueo (la interfaz muestra el estado de carga).
+      }
+    },
+    onLocked: () {
+      unawaited(ref.read(localSessionProvider.notifier).close());
+    },
+    onSignedOut: (_) => ref.read(localSessionProvider.notifier).close(),
   );
 }
 

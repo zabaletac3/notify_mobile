@@ -32,6 +32,7 @@ class Note {
     required this.syncStatus,
     required this.lastEditedDeviceId,
     this.unreadable = false,
+    this.preview = '',
   });
 
   static const Object _unset = Object();
@@ -63,6 +64,10 @@ class Note {
   /// sin contenido, y no se puede editar para no pisar lo guardado.
   final bool unreadable;
 
+  /// Vista previa de una línea (columna `preview` de la base, §6). En un resultado de `list()` el
+  /// [content] viene vacío (§4.4) y es la única forma de pintar la tarjeta de la lista.
+  final String preview;
+
   Note copyWith({
     Id? id,
     Object? folderId = _unset,
@@ -77,6 +82,7 @@ class Note {
     NoteSyncStatus? syncStatus,
     Id? lastEditedDeviceId,
     bool? unreadable,
+    String? preview,
   }) {
     return Note(
       id: id ?? this.id,
@@ -94,6 +100,7 @@ class Note {
       syncStatus: syncStatus ?? this.syncStatus,
       lastEditedDeviceId: lastEditedDeviceId ?? this.lastEditedDeviceId,
       unreadable: unreadable ?? this.unreadable,
+      preview: preview ?? this.preview,
     );
   }
 
@@ -112,7 +119,8 @@ class Note {
       other.revision == revision &&
       other.syncStatus == syncStatus &&
       other.lastEditedDeviceId == lastEditedDeviceId &&
-      other.unreadable == unreadable;
+      other.unreadable == unreadable &&
+      other.preview == preview;
 
   @override
   int get hashCode => Object.hash(
@@ -129,6 +137,7 @@ class Note {
     syncStatus,
     lastEditedDeviceId,
     unreadable,
+    preview,
   );
 
   static bool _sameTags(List<String> a, List<String> b) {

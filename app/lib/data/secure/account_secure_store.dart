@@ -46,6 +46,7 @@ class AccountSecureStore {
   static const _keyBundleKey = 'session.keyBundle';
   static const _lockPrefsPrefix = 'lockPrefs.';
   static const _lastActivePrefix = 'lastActiveAt.';
+  static const _deviceIdKey = 'device.id';
 
   static String _lockPrefsKey(String userId) => '$_lockPrefsPrefix$userId';
 
@@ -73,6 +74,19 @@ class AccountSecureStore {
   Future<String?> readExpiresAt() => _store.read(_expiresAtKey);
 
   Future<String?> readKeyBundleJson() => _store.read(_keyBundleKey);
+
+  /// Identificador de este dispositivo (el que viaja en la sincronización y queda en
+  /// `lastEditedDeviceId`). Se genera una vez con [generate] y se guarda; sobrevive a reinicios y a
+  /// cierres de sesión (es del dispositivo, no de la cuenta). Decisión de la fase 9 (ver
+  /// `docs/decisions.md`): el plan lo situaba en la tabla `meta`, pero `LocalDatabase.open` lo
+  /// necesita **antes** de abrir la base, así que vive en el almacén seguro.
+  Future<String> readOrCreateDeviceId(String Function() generate) async {
+    final existing = await _store.read(_deviceIdKey);
+    if (existing != null && existing.isNotEmpty) return existing;
+    final id = generate();
+    await _store.write(_deviceIdKey, id);
+    return id;
+  }
 
   /// Tras renovar la sesión con el servidor.
   Future<void> updateTokens({

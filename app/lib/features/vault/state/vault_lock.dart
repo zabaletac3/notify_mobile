@@ -7,6 +7,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../app/session.dart';
 import '../../../data/crypto/vault.dart';
+import '../../auth/state/vault_lifecycle.dart';
 import 'clock.dart';
 import 'timer_factory.dart';
 
@@ -203,13 +204,15 @@ class VaultLockController {
 
   /// Bloquea (manual, por tiempo o al salir): borra la clave maestra y las de elemento de la
   /// memoria. No cierra la sesión: los tokens y el `KeyBundle` siguen guardados, así que se puede
-  /// volver a desbloquear con la contraseña o la biometría.
+  /// volver a desbloquear con la contraseña o la biometría. Avisa al ciclo de vida (A3): con el
+  /// cofre bloqueado no debe quedar la base local abierta.
   void lock() {
     _vault?.lock();
     _stopTimer();
     _lastActiveAt = null;
     _persistActivity(null);
     _setSession(AxoSession.locked);
+    _ref.read(vaultLifecycleProvider).onLocked?.call();
   }
 
   /// Cierra la sesión: bloquea y borra además la clave maestra guardada en `axonote_platform`

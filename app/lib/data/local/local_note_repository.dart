@@ -51,7 +51,7 @@ class LocalNoteRepository implements NoteRepository {
         changedAt: _iso(),
       );
     });
-    return note;
+    return note.copyWith(preview: row.preview);
   }
 
   /// La papelera se vacía sola a los 30 días. Debe ir dentro del candado, sin abrir transacción
