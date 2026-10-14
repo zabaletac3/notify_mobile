@@ -41,7 +41,11 @@ void main() {
 
     container.read(sessionProvider.notifier).set(AxoSession.unlocked);
     await tester.pumpAndSettle();
-    expect(find.text('Notas'), findsWidgets, reason: 'desbloqueado → notas');
+    expect(
+      find.text('Todas las notas'),
+      findsWidgets,
+      reason: 'desbloqueado → notas',
+    );
 
     container.read(sessionProvider.notifier).set(AxoSession.locked);
     await tester.pumpAndSettle();
