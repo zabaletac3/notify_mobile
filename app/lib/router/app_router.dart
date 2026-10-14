@@ -16,8 +16,9 @@ import '../features/auth/ui/two_factor_screen.dart';
 import '../features/auth/ui/unlock_screen.dart';
 import '../features/auth/ui/verify_screen.dart';
 import '../features/auth/ui/welcome_screen.dart';
-import '../features/auth/state/auth_controller.dart';
-import '../features/vault/state/vault_lock.dart';
+import '../features/notes/ui/notes_screen.dart';
+import '../features/notes/ui/search_screen.dart';
+import '../features/notes/ui/trash_screen.dart';
 import '../ui/components.dart';
 import '../ui/placeholder_screen.dart';
 import '../ui/tokens.dart';
@@ -39,10 +40,10 @@ const _devRoute = '/dev/components';
 
 PlaceholderScreen _p(String title) => PlaceholderScreen(title: title);
 
-/// Pantalla provisional de notas (fase 9) con las acciones de sesión de esta fase: bloquear y
-/// cerrar sesión, para poder recorrer el ciclo completo mientras no existe la lista real.
-class _NotesHome extends ConsumerWidget {
-  const _NotesHome();
+/// Pantalla provisional del editor de notas (fase 10) con las acciones de sesión, para poder
+/// recorrer el ciclo completo mientras no existe el editor real.
+class _EditorHome extends ConsumerWidget {
+  const _EditorHome();
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -50,7 +51,7 @@ class _NotesHome extends ConsumerWidget {
     return Scaffold(
       appBar: AppBar(
         title: Text(
-          'Notas',
+          'Nota',
           style: AxoType.heading.copyWith(color: c.textPrimary),
         ),
         backgroundColor: c.bgApp,
@@ -61,35 +62,19 @@ class _NotesHome extends ConsumerWidget {
           mainAxisSize: MainAxisSize.min,
           children: [
             Text(
-              'Notas',
+              'Editor',
               style: AxoType.screenTitle.copyWith(color: c.textPrimary),
             ),
             const SizedBox(height: AxoSpacing.sm),
             Text(
-              '(lista en la fase 9)',
+              '(editor en la fase 10)',
               style: AxoType.body.copyWith(color: c.textTertiary),
             ),
             const SizedBox(height: AxoSpacing.xl),
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: AxoSpacing.xxxl),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  AxoButton(
-                    label: 'Bloquear',
-                    variant: AxoButtonVariant.outline,
-                    onPressed: () =>
-                        ref.read(vaultLockControllerProvider).lock(),
-                  ),
-                  const SizedBox(height: AxoSpacing.md),
-                  AxoButton(
-                    label: 'Cerrar sesión',
-                    variant: AxoButtonVariant.outline,
-                    onPressed: () =>
-                        ref.read(authControllerProvider.notifier).logout(),
-                  ),
-                ],
-              ),
+            AxoButton(
+              label: 'Volver a las notas',
+              variant: AxoButtonVariant.outline,
+              onPressed: () => context.go('/notes'),
             ),
           ],
         ),
@@ -146,15 +131,19 @@ final routerProvider = Provider<GoRouter>((ref) {
         builder: (_, _) => const ForgotPasswordSentScreen(),
       ),
       GoRoute(path: '/unlock', builder: (_, _) => const UnlockScreen()),
-      // Notas (lista real en la fase 9).
+      // Notas (fase 9).
       GoRoute(
         path: '/notes',
-        builder: (_, _) => const _NotesHome(),
-        routes: [GoRoute(path: ':id', builder: (_, _) => _p('Editor'))],
+        builder: (_, _) => const NotesScreen(),
+        routes: [GoRoute(path: ':id', builder: (_, _) => const _EditorHome())],
       ),
-      GoRoute(path: '/folders/:id', builder: (_, _) => _p('Carpeta')),
-      GoRoute(path: '/trash', builder: (_, _) => _p('Papelera')),
-      GoRoute(path: '/search', builder: (_, _) => _p('Búsqueda')),
+      GoRoute(
+        path: '/folders/:id',
+        builder: (_, state) =>
+            NotesScreen(folderId: state.pathParameters['id']),
+      ),
+      GoRoute(path: '/trash', builder: (_, _) => const TrashScreen()),
+      GoRoute(path: '/search', builder: (_, _) => const SearchScreen()),
       // Ajustes.
       GoRoute(path: '/settings/menu', builder: (_, _) => _p('Ajustes')),
       GoRoute(

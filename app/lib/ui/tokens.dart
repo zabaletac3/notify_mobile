@@ -292,6 +292,86 @@ abstract final class AxoType {
     fontWeight: FontWeight.w400,
     height: 1.2,
   );
+
+  /// Texto del buscador. 16/400 (tablero «Android — Lista de notas», «Search bar»).
+  static const TextStyle search = TextStyle(
+    fontFamily: family,
+    fontSize: 16,
+    fontWeight: FontWeight.w400,
+  );
+
+  /// Etiqueta de chip de carpeta. 14/500 (tablero «Android — Lista de notas», «Chip»).
+  static const TextStyle chip = TextStyle(
+    fontFamily: family,
+    fontSize: 14,
+    fontWeight: FontWeight.w500,
+    height: 1.2,
+  );
+
+  /// Chip de carpeta activo / drawer activo. 14/600 (mismo tablero).
+  static const TextStyle chipActive = TextStyle(
+    fontFamily: family,
+    fontSize: 14,
+    fontWeight: FontWeight.w600,
+    height: 1.2,
+  );
+
+  /// Elemento del menú lateral. 14/500 (tablero «Android — Menú lateral», «SidebarItem»).
+  static const TextStyle navItem = TextStyle(
+    fontFamily: family,
+    fontSize: 14,
+    fontWeight: FontWeight.w500,
+    height: 1.2,
+  );
+
+  /// Cabecera de grupo de la lista. 13/600 (tablero «Android — Lista de notas», «Group»).
+  static const TextStyle groupHeader = TextStyle(
+    fontFamily: family,
+    fontSize: 13,
+    fontWeight: FontWeight.w600,
+    height: 1.2,
+  );
+
+  /// Opción de hoja inferior. 15/500 (tablero «Android — Menú contextual de nota», «Opción»).
+  static const TextStyle option = TextStyle(
+    fontFamily: family,
+    fontSize: 15,
+    fontWeight: FontWeight.w500,
+    height: 1.2,
+  );
+
+  /// Encabezado de sección del drawer, en mayúsculas. 11/600 (tablero «Android — Menú lateral»).
+  static const TextStyle sectionLabel = TextStyle(
+    fontFamily: family,
+    fontSize: 11,
+    fontWeight: FontWeight.w600,
+    height: 1.2,
+  );
+
+  /// Etiqueta de 11 (carpeta en la tarjeta de nota). 11/500 (tablero «Android — Lista de notas»).
+  static const TextStyle meta11 = TextStyle(
+    fontFamily: family,
+    fontSize: 11,
+    fontWeight: FontWeight.w500,
+    height: 1.2,
+  );
+
+  /// Fecha de la tarjeta de nota. 12/500 (tablero «Android — Lista de notas», «Date»).
+  static const TextStyle meta12med = TextStyle(
+    fontFamily: family,
+    fontSize: 12,
+    fontWeight: FontWeight.w500,
+    height: 1.2,
+  );
+
+  /// Etiqueta de botón secundario de diálogo y del FAB. 15/600 (tableros «Confirmar eliminación»,
+  /// «Modal mover nota», «FAB · Nueva nota»).
+  static const TextStyle buttonSm = TextStyle(
+    fontFamily: family,
+    fontSize: 15,
+    fontWeight: FontWeight.w600,
+    height: 1.2,
+  );
 }
 
 /// Radios del diseño (Penpot incluye el del marco del dispositivo, 28, y el de las tarjetas/buscador).
@@ -302,6 +382,12 @@ abstract final class AxoRadii {
   static const double xxl = 20;
   static const double sheet = 24;
   static const double card = 28;
+
+  /// Chip de carpeta y tarjeta de nota. 10 (tablero «Android — Lista de notas»).
+  static const double chip = 10;
+
+  /// FAB «Nueva nota». 18 (tablero «Android — Lista de notas», «FAB · Nueva nota»).
+  static const double fab = 18;
 }
 
 /// Escala de espaciado (múltiplos de 4).
@@ -330,6 +416,30 @@ abstract final class AxoSizes {
   static const double menuItem = 48;
   static const double toast = 388;
   static const double tapTarget = 44;
+
+  /// Buscador de la lista. 48 (tablero «Android — Lista de notas», «Search bar»).
+  static const double searchBar = 48;
+
+  /// Chip de carpeta. 33 (tablero «Android — Lista de notas», «Chip»).
+  static const double chip = 33;
+
+  /// Cabecera de grupo. 38 (tablero «Android — Lista de notas», «Group»).
+  static const double groupHeader = 38;
+
+  /// Elemento del menú lateral. 34 (tablero «Android — Menú lateral», «SidebarItem»).
+  static const double sidebarItem = 34;
+
+  /// Ancho del menú lateral. 304 (tablero «Android — Menú lateral», «Drawer»).
+  static const double drawer = 304;
+
+  /// Esqueleto de nota (carga). 92 (tablero «Android — Cargando (skeletons)»).
+  static const double noteSkeleton = 92;
+
+  /// Ilustración circular de los estados vacíos y de error. 80 (tableros de estado).
+  static const double illustration = 80;
+
+  /// Opción de una hoja inferior. 48 (tablero «Android — Menú contextual de nota»).
+  static const double optionRow = 48;
 }
 
 /// Colores del resplandor decorativo de las pantallas de autenticación (medidos en el tablero

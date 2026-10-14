@@ -2,7 +2,9 @@ import 'package:flutter/material.dart';
 
 import '../tokens.dart';
 
-/// Hoja inferior del diseño: radio superior 24, relleno 12/20/36/20 y hueco 16.
+/// Hoja inferior del diseño: radio superior 24, relleno 12/20/36/20, hueco 16 y relleno
+/// `bgEditor` (tablero «Android — Menú contextual de nota»). El contenedor de acciones, cuando lo
+/// hay, va dentro con `bgApp` (ver `AxoSheetActions`).
 class AxoBottomSheet extends StatelessWidget {
   const AxoBottomSheet({super.key, this.title, required this.children});
 
@@ -14,7 +16,7 @@ class AxoBottomSheet extends StatelessWidget {
     final c = Theme.of(context).extension<AxoColors>()!;
     return Container(
       decoration: BoxDecoration(
-        color: c.bgApp,
+        color: c.bgEditor,
         borderRadius: const BorderRadius.vertical(
           top: Radius.circular(AxoRadii.sheet),
         ),
