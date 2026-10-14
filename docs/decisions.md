@@ -975,3 +975,124 @@ por el MCP (detalle en `docs/design/penpot-progress.md`).
   26) para comparar como el diseño.
 - **Pendiente de relectura:** «Error de servidor» (dos timeouts seguidos → parada; se dejó como
   estaba) y `Registro (oscuro)` (leído en la primera pasada, no re-leído en esta).
+
+## Fase 9 · Notas (2026-10-14)
+
+### 2026-10-14 · El diseño pasa a Pencil (`axonote.pen`) y se lee tablero a tablero
+
+- La fuente de verdad del diseño deja de ser Penpot y pasa a ser el documento de **Pencil**
+  «axonote» (`~/.pencil/documents/31878e13-9a73-448f-891e-9066150ee94e/axonote.pen`), sección
+  **Móvil** (tableros `Android — …` de 412×915). Se leyeron los 18 tableros de la fase con el MCP
+  `pencil` (`Get` con visitante + `TakeScreenshot`); el detalle de medidas está en
+  `docs/design/pencil-measurements.md`.
+- El documento usa el nombre viejo «Apunte»; en la app se escribe **AxoNote**.
+- Los iconos del documento son de Lucide, pero el set vendorizado en `assets/icons/` es un
+  subconjunto anterior y **no tiene** algunos que el diseño usa: `compose`, `more`, `share`,
+  `notes`, `close`, `sidebar`. Se mapean a los existentes (`pencil`, `ellipsis`, `share-2`,
+  `file-text`, `x`, `menu`), sin dibujar SVG nuevos a mano. Diferencia anotada en el informe.
+
+### 2026-10-14 · Tokens nuevos de la fase 9 (medidos, con su tablero)
+
+- En `app/lib/ui/tokens.dart`: `AxoType.search` (16/400), `chip` (14/500), `chipActive` (14/600),
+  `navItem` (14/500), `groupHeader` (13/600), `option` (15/500), `sectionLabel` (11/600), `meta11`
+  (11/500), `meta12med` (12/500), `buttonSm` (15/600); `AxoRadii.chip` (10, chip y tarjeta de
+  nota) y `AxoRadii.fab` (18); `AxoSizes.searchBar` (48), `chip` (33), `groupHeader` (38),
+  `sidebarItem` (34), `drawer` (304), `noteSkeleton` (92), `illustration` (80), `optionRow` (48).
+  No se sustituyó ningún token existente.
+
+### 2026-10-14 · Componentes: cambios y altas
+
+- **`AxoNoteCard`** pasa a la tarjeta del diseño nuevo: 80 de alto, radio 10, relleno [12,14], hueco
+  4 y **sin relleno de fondo** (fila plana sobre `bgApp`; antes tenía `bgEditor`). Tres filas:
+  pin + título 14/600, fecha 12/500 + vista previa 12/400, y carpeta 11/500. Acepta `highlight`
+  (resalta coincidencias de la búsqueda con `bgSelected`, color no medido en el tablero),
+  `folderLabel` y `unreadable`.
+- **`AxoBottomSheet`** usa `bgEditor` (el tablero «Menú contextual de nota» lo mide `#fffdf8`); el
+  contenedor de acciones va dentro con `bgApp` (`AxoSheetActions`).
+- **`AxoDialog`** se rellena a 24 (antes 28) y su ilustración es 56 en `statusDangerBg` con icono
+  `statusDanger` (peligro) o 64 en `bgSelected` con icono `accent`.
+- **`AxoBanner`** gana la variante `note` (relleno `bgSelected`, texto `textPrimary`, sin icono),
+  la del aviso de la papelera.
+- **Nuevos componentes** en `app/lib/ui/components/`: `folder_chip`, `note_group_header`,
+  `search_field`, `fab`, `skeleton`, `empty_state`, `offline_banner`, `option_row`, `radio`,
+  `drawer`.
+- **Goldens** nuevos de las 14 pantallas de la fase en claro y oscuro
+  (`app/test/features/notes/goldens/`, `notes_screens_golden_test.dart`).
+
+### 2026-10-14 · `Note.preview` en el dominio
+
+- `list()` devuelve resúmenes **sin** `content` (§4.4), así que la tarjeta no podía pintar la vista
+  previa. Se añade `Note.preview` (opcional, `''` por defecto) y se rellena desde la columna
+  `preview` de la §6 (`rows.toNote()`, `local_note_repository._save`). Es solo de lectura para la
+  interfaz; no viaja en el payload cifrado.
+
+### 2026-10-14 · Se cierra la costura entre las fases 7 y 8 que quedó suelta
+
+- Nadie abría la base local al desbloquear (la fase 7 dejó `SyncSession.open` listo y la fase 8 solo
+  definió los ganchos). La fase 9, que necesita los repositorios, la cierra:
+  `app/lib/app/local_session.dart` (`LocalSessionController`) abre `SyncSession` en `onUnlocked` y
+  la cierra en `onSignedOut`/al bloquear, y `main.dart` sobrescribe `vaultLifecycleProvider`.
+- **A3:** se añade `VaultLifecycle.onLocked` (síncrono) y `VaultLockController.lock()` lo llama, para
+  que con el cofre bloqueado no quede la base abierta.
+- **`deviceId`:** el plan lo situaba en la tabla `meta`, pero `LocalDatabase.open` lo necesita
+  *antes* de abrir la base. Se genera una vez y se guarda en el almacén seguro
+  (`AccountSecureStore.readOrCreateDeviceId`, clave `device.id`), expuesto por `deviceIdProvider`.
+
+### 2026-10-14 · Lista por páginas y sin jank evitable
+
+- La lista pide **páginas de 200** (`notesPageSize`) y se pinta con `ListView.builder` sobre filas ya
+  aplanadas (`NoteListRow`), cargando la página siguiente al acercarse al final (§4.4).
+- El agrupado se calcula una vez por cambio de datos en `notesRowsProvider` (no en cada
+  reconstrucción). `noteCountsProvider` se apoya en `notesChangedProvider` (consulta fija barata) en
+  vez de en la lista paginada: reagregar en cada página era trabajo inútil por página.
+- Aun así, **el presupuesto de la §11 no se cumple** (p99 de cuadro 16,4–18,3 ms con 10 000 notas;
+  el pendiente y las cifras están en `docs/benchmarks.md`).
+
+### 2026-10-14 · Alcance de la fase 9 en el menú contextual y la sesión
+
+- El menú contextual del diseño incluye **Compartir**, que es de la fase 11 (enlaces públicos): se
+  omite aquí (una entrada menos que el tablero, anotado en el informe).
+- Mientras no existan los ajustes (fase 11), «Bloquear» y «Cerrar sesión» viven en el menú del
+  botón «más» de la lista (compuesto con componentes base, sin tablero propio), para no perder el
+  ciclo de sesión de la fase 8. El menú de orden (Última edición · Fecha de creación · Título) no
+  tiene tablero y se compone igual.
+
+### 2026-10-14 · Gestos de la lista (deslizar): decisión propia, documentada
+
+- El plan §10 pide «acciones por menú **y por gesto**», pero **ni el documento de Pencil ni
+  `notify_web` los definen**: el documento no tiene nodos de nota/contexto con instrucciones ni
+  ningún texto que mencione deslizar (comprobado nodo a nodo), y la tarjeta de la web solo responde
+  a `click` (no hay `pointerdown`/`touchmove` de arrastre; el único `touchstart` es el contador de
+  actividad para el bloqueo). Así que se decide aquí, siguiendo la convención de Android y el
+  vocabulario del propio diseño:
+  - **Lista (nota activa):** deslizar **a la derecha** fija/desfija (fondo `bgSelected`, icono
+    `pin`; la tarjeta vuelve a su sitio) · deslizar **a la izquierda** la manda a la papelera (fondo
+    `statusDanger`, icono `trash`) con el aviso «Deshacer» de la web.
+  - **Papelera:** deslizar **a la derecha** restaura · deslizar **a la izquierda** elimina
+    definitivamente, pero **con confirmación** (no se puede deshacer): la tarjeta vuelve a su sitio
+    y se abre el diálogo.
+- Es el mismo reparto que el menú contextual (que sí tiene tablero), para que gesto y menú no
+  discrepen. Componente: `app/lib/ui/components/swipe_tile.dart` (`AxoSwipeTile` +
+  `AxoSwipeAction`); pruebas en `app/test/features/notes/notes_swipe_test.dart`.
+- **No hay golden** de los gestos: el tablero no muestra ningún estado deslizado (la instrucción
+  era poner golden solo si el tablero lo muestra).
+
+### 2026-10-14 · Papelera y avisos: textos y regla iguales a `notify_web`
+
+- La **regla** y el **texto** de los días restantes ya coincidían y se dejan igual, con prueba que
+  los fija: `daysUntilPurge(deletedAt, now, trashRetentionDays)` es el mismo cálculo que
+  `src/lib/domain/note-groups.ts` (suelo, mínimo 0) y el texto es
+  `` `Se elimina en ${formatCount(days, 'día', 'días')}` `` de
+  `src/routes/(app)/notes/+page.svelte` (`Se elimina en 1 día`, `Se elimina en 29 días`).
+  Pruebas: `packages/axonote_domain/test/note_query_test.dart` (29/16/9/0) y
+  `app/test/features/notes/note_dates_test.dart` (texto) + el golden de la papelera.
+- Se alinean además los textos de los avisos y diálogos con el código de la web (`note-dialogs.svelte`
+  y `notes/+page.svelte`): «Nota movida a la papelera» (con **Deshacer**) en vez de «Nota enviada a
+  la papelera», «Papelera vaciada», «Nota eliminada definitivamente», «Nota movida a {carpeta}» y
+  «Se eliminarán definitivamente N notas. No podrás recuperarlas.» en el diálogo de vaciar, más los
+  mensajes de error por acción («No se pudo mover la nota», …).
+- **Crear una carpeta desde «Mover a carpeta» mueve la nota a la carpeta nueva**, como la web
+  (`note-dialogs.svelte`: «Si se creó desde "Mover a carpeta", la nota se mueve a la carpeta
+  nueva»).
+
+
