@@ -104,3 +104,35 @@ válidas** como medición de producción y quedan solo como histórico:
 | Lista inicial (página de 200) | 6 ms | 4 ms |
 | Búsqueda (página de 200) | 6 ms | 7 ms |
 | Lista completa sin límite | 46 ms | 271 ms |
+
+## Fase 10 · Nota grande en el editor
+
+**ZTE 8050 (Android 13, API 33), `--profile`, 2026-10-14.** Comando:
+
+```
+flutter drive --driver=test_driver/integration_test.dart \
+  --target=integration_test/editor_performance_test.dart -d LZ0V50COPBC002769 --profile
+```
+
+Genera una nota de **100 KB** combinando todos los bloques soportados (títulos, párrafos con las
+cinco marcas y enlaces, viñetas anidadas, numeradas, tareas, cita, bloque de código, separador y
+salto duro) y mide, con el códec y el adaptador reales:
+
+- **apertura** = analizar el Markdown (`MarkdownParser.parse`) + montar el árbol de AppFlowy
+  (`EditorAdapter.toDocument`);
+- **escritura** = recoger los bloques del editor (`EditorAdapter.toBlocks`) + serializar de nuevo
+  (`MarkdownSerializer.serialize`).
+
+| Medida | Valor (2026-10-14) | Límite §10 (d) |
+| --- | --- | --- |
+| Apertura (100,4 KB, 1901 bloques) | **94 ms** | < 300 ms |
+| Escritura (los mismos bloques) | **68 ms** | sin retraso perceptible |
+
+```
+Fase 10 · nota 100.4KB (1901 bloques): apertura=94ms escritura=68ms
+```
+
+Cumple el presupuesto con holgura. La escritura va precedida de una espera de 400 ms sin escribir
+(«espera de guardado», A10/§8.3), así que el trabajo real del serializador (68 ms) queda muy por
+debajo de un parpadeo perceptible.
+
