@@ -1,54 +1,33 @@
 import 'package:appflowy_editor/src/editor/util/file_picker/file_picker_service.dart';
-import 'package:file_picker/file_picker.dart' as fp;
 
+/// En AxoNote la selección de archivos está fuera de alcance: las imágenes se tratan como bloque
+/// opaco y no se insertan. El editor no usa este servicio (ver `PATCHES.md`).
 class FilePicker implements FilePickerService {
   @override
-  Future<String?> getDirectoryPath({String? title}) {
-    return fp.FilePicker.platform.getDirectoryPath();
-  }
+  Future<String?> getDirectoryPath({String? title}) async =>
+      throw UnsupportedError('AxoNote no elige archivos');
 
   @override
   Future<FilePickerResult?> pickFiles({
     String? dialogTitle,
     String? initialDirectory,
-    fp.FileType type = fp.FileType.any,
+    PickedFileType type = PickedFileType.any,
     List<String>? allowedExtensions,
-    Function(fp.FilePickerStatus p1)? onFileLoading,
     bool allowMultiple = false,
     bool withData = false,
     bool withReadStream = false,
     bool lockParentWindow = false,
-  }) async {
-    final result = await fp.FilePicker.platform.pickFiles(
-      dialogTitle: dialogTitle,
-      initialDirectory: initialDirectory,
-      type: type,
-      allowedExtensions: allowedExtensions,
-      onFileLoading: onFileLoading,
-      allowMultiple: allowMultiple,
-      withData: withData,
-      withReadStream: withReadStream,
-      lockParentWindow: lockParentWindow,
-    );
-    return FilePickerResult(result?.files ?? []);
-  }
+  }) async =>
+      throw UnsupportedError('AxoNote no elige archivos');
 
   @override
   Future<String?> saveFile({
     String? dialogTitle,
     String? fileName,
     String? initialDirectory,
-    fp.FileType type = fp.FileType.any,
+    PickedFileType type = PickedFileType.any,
     List<String>? allowedExtensions,
     bool lockParentWindow = false,
-  }) {
-    return fp.FilePicker.platform.saveFile(
-      dialogTitle: dialogTitle,
-      fileName: fileName,
-      initialDirectory: initialDirectory,
-      type: type,
-      allowedExtensions: allowedExtensions,
-      lockParentWindow: lockParentWindow,
-    );
-  }
+  }) async =>
+      throw UnsupportedError('AxoNote no elige archivos');
 }
