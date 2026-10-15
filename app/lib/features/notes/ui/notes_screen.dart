@@ -18,7 +18,7 @@ import 'notes_widgets.dart';
 /// Pantalla de la lista de notas (`/notes` y `/folders/:id`). Tableros «Android — Lista de notas»,
 /// «Primera vez (vacío)», «Carpeta vacía», «Cargando (skeletons)», «Sin conexión» y «Error de
 /// servidor».
-class NotesScreen extends ConsumerWidget {
+class NotesScreen extends ConsumerStatefulWidget {
   const NotesScreen({super.key, this.folderId});
 
   /// Si viene, la pantalla es la de una carpeta (`/folders/:id`): título, chips y FAB apuntan a esa
@@ -26,13 +26,23 @@ class NotesScreen extends ConsumerWidget {
   final Id? folderId;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<NotesScreen> createState() => _NotesScreenState();
+}
+
+class _NotesScreenState extends ConsumerState<NotesScreen> {
+  /// Se necesita la clave del `Scaffold` para abrir el drawer desde la barra superior: el `context`
+  /// del `build` está por encima del `Scaffold` y `Scaffold.of(context)` fallaría.
+  final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
+
+  @override
+  Widget build(BuildContext context) {
+    final folderId = widget.folderId;
     final c = Theme.of(context).extension<AxoColors>()!;
     final folders = ref.watch(foldersProvider).value ?? const <Folder>[];
     final counts = ref.watch(noteCountsProvider).value;
     final notesAsync = folderId == null
         ? ref.watch(notesListProvider)
-        : ref.watch(folderNotesProvider(folderId!));
+        : ref.watch(folderNotesProvider(folderId));
     final offline =
         ref.watch(syncControllerProvider).phase == SyncPhase.offline;
     final now = ref.watch(clockProvider).now();
@@ -49,9 +59,7 @@ class NotesScreen extends ConsumerWidget {
       });
     });
 
-    final folderName = folderId == null
-        ? null
-        : _folderName(folders, folderId!);
+    final folderName = folderId == null ? null : _folderName(folders, folderId);
     final title = folderId == null
         ? 'Todas las notas'
         : (folderName ?? 'Carpeta');
@@ -211,8 +219,15 @@ class NotesScreen extends ConsumerWidget {
     }
 
     return Scaffold(
+      key: _scaffoldKey,
       backgroundColor: c.bgApp,
-      drawer: _buildDrawer(context, ref, folders: folders, counts: counts),
+      drawer: _buildDrawer(
+        context,
+        ref,
+        folderId: folderId,
+        folders: folders,
+        counts: counts,
+      ),
       floatingActionButton: AxoFab(
         label: 'Nueva nota',
         onPressed: () => _newNote(context, ref, folderId),
@@ -223,8 +238,8 @@ class NotesScreen extends ConsumerWidget {
           children: [
             NotesTopBar(
               title: title,
-              onMenu: () => Scaffold.of(context).openDrawer(),
-              onTitleTap: () => Scaffold.of(context).openDrawer(),
+              onMenu: () => _scaffoldKey.currentState?.openDrawer(),
+              onTitleTap: () => _scaffoldKey.currentState?.openDrawer(),
               actions: [
                 NotesIconButton(
                   icon: 'ellipsis',
@@ -299,22 +314,25 @@ Future<void> _newNote(BuildContext context, WidgetRef ref, Id? folderId) async {
 Widget _buildDrawer(
   BuildContext context,
   WidgetRef ref, {
+  required Id? folderId,
   required List<Folder> folders,
   required NoteCounts? counts,
 }) {
+  final filter = ref.watch(notesViewProvider).filter;
   final countsByFolder = counts?.byFolder ?? const <Id, int>{};
   final tags = (counts?.byTag ?? const <String, int>{}).entries.toList()
     ..sort((a, b) => a.key.compareTo(b.key));
+  final loading = counts == null;
   return AxoDrawer(
-    onNewFolder: () => showNewFolderSheet(context, ref),
     onClose: () => Navigator.of(context).pop(),
     sections: [
       const AxoDrawerSection(label: 'Biblioteca'),
       AxoDrawerItem(
         label: 'Todas las notas',
         icon: 'file-text',
-        count: '${counts?.all ?? 0}',
-        selected: folderIdIsAll(ref, null),
+        count: counts?.all.toString(),
+        loading: loading,
+        selected: folderId == null && filter is NotesFilterAll,
         onTap: () {
           Navigator.of(context).pop();
           _goFolder(context, ref, null);
@@ -323,7 +341,9 @@ Widget _buildDrawer(
       AxoDrawerItem(
         label: 'Fijadas',
         icon: 'pin',
-        count: '${counts?.pinned ?? 0}',
+        count: counts?.pinned.toString(),
+        loading: loading,
+        selected: filter is NotesFilterPinned,
         onTap: () {
           Navigator.of(context).pop();
           ref
@@ -337,7 +357,11 @@ Widget _buildDrawer(
         AxoDrawerItem(
           label: folder.name,
           icon: 'folder',
-          count: '${countsByFolder[folder.id] ?? 0}',
+          count: countsByFolder[folder.id]?.toString(),
+          loading: loading,
+          selected:
+              folderId == folder.id ||
+              (filter is NotesFilterFolder && filter.folderId == folder.id),
           onTap: () {
             Navigator.of(context).pop();
             _goFolder(context, ref, folder.id);
@@ -350,6 +374,7 @@ Widget _buildDrawer(
             label: '#${tag.key}',
             icon: 'tag',
             count: '${tag.value}',
+            selected: filter is NotesFilterTag && filter.tag == tag.key,
             onTap: () {
               Navigator.of(context).pop();
               ref
@@ -360,23 +385,38 @@ Widget _buildDrawer(
           ),
       ],
       const SizedBox(height: AxoSpacing.lg),
+    ],
+    footer: [
       AxoDrawerItem(
         label: 'Papelera',
         icon: 'trash',
-        count: '${counts?.trash ?? 0}',
+        count: counts?.trash.toString(),
+        loading: loading,
+        selected: filter is NotesFilterTrash,
         onTap: () {
           Navigator.of(context).pop();
-          context.go('/trash');
+          context.push('/trash');
+        },
+      ),
+      AxoDrawerNewFolder(
+        onTap: () {
+          // Se cierra el drawer y el diálogo se abre con el context estable de la pantalla, no el
+          // del drawer, que se desmonta.
+          Navigator.of(context).pop();
+          showNewFolderSheet(context, ref);
+        },
+      ),
+      const SizedBox(height: AxoSpacing.xs),
+      AxoDrawerItem(
+        label: 'Ajustes',
+        icon: 'settings',
+        onTap: () {
+          Navigator.of(context).pop();
+          context.push('/settings/menu');
         },
       ),
     ],
   );
-}
-
-/// `true` si el filtro actual de la lista es «Todas las notas».
-bool folderIdIsAll(WidgetRef ref, Id? _) {
-  final filter = ref.watch(notesViewProvider).filter;
-  return filter is NotesFilterAll;
 }
 
 class _SearchBarButton extends StatelessWidget {

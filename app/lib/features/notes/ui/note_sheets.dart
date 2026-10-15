@@ -2,6 +2,7 @@ import 'package:axonote_domain/axonote_domain.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../bootstrap/providers.dart';
 import '../../../ui/app_icon.dart';
 import '../../../ui/components.dart';
 import '../../../ui/tokens.dart';
@@ -342,15 +343,13 @@ Future<void> showNewFolderSheet(
   WidgetRef ref, {
   Id? moveNoteId,
 }) async {
-  final controller = TextEditingController();
   final created = await showDialog<String>(
     context: context,
-    builder: (dialogContext) => Dialog(
+    builder: (dialogContext) => const Dialog(
       backgroundColor: Colors.transparent,
-      child: _NewFolderDialog(controller: controller),
+      child: _NewFolderDialog(),
     ),
   );
-  controller.dispose();
   if (created == null || !context.mounted) return;
   final actions = ref.read(notesActionsProvider);
   final result = await actions.createFolder(created);
@@ -394,15 +393,24 @@ String _folderNameOf(List<Folder> folders, Id id) {
 }
 
 class _NewFolderDialog extends StatefulWidget {
-  const _NewFolderDialog({required this.controller});
-
-  final TextEditingController controller;
+  const _NewFolderDialog();
 
   @override
   State<_NewFolderDialog> createState() => _NewFolderDialogState();
 }
 
 class _NewFolderDialogState extends State<_NewFolderDialog> {
+  // El controlador vive en el State del diálogo: se crea y se destruye con él, después de que el
+  // `TextField` se desmonte. Crearlo fuera y destruirlo al volver `showDialog` lo usaba el
+  // `TextField` durante la animación de cierre (`used after being disposed`).
+  final TextEditingController _controller = TextEditingController();
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
   @override
   Widget build(BuildContext context) {
     final c = Theme.of(context).extension<AxoColors>()!;
@@ -430,7 +438,7 @@ class _NewFolderDialogState extends State<_NewFolderDialog> {
               children: [
                 Expanded(
                   child: TextField(
-                    controller: widget.controller,
+                    controller: _controller,
                     autofocus: true,
                     maxLength: folderNameMaxLength,
                     onChanged: (_) => setState(() {}),
@@ -448,7 +456,7 @@ class _NewFolderDialogState extends State<_NewFolderDialog> {
           ),
           const SizedBox(height: AxoSpacing.xs),
           Text(
-            '${widget.controller.text.characters.length}/$folderNameMaxLength',
+            '${_controller.text.characters.length}/$folderNameMaxLength',
             style: AxoType.caption.copyWith(color: c.textTertiary),
           ),
         ],
@@ -464,7 +472,7 @@ class _NewFolderDialogState extends State<_NewFolderDialog> {
           label: 'Crear',
           labelStyle: AxoType.buttonSm,
           onPressed: () {
-            final name = widget.controller.text.trim();
+            final name = _controller.text.trim();
             if (name.isEmpty) return;
             Navigator.of(context).pop(name);
           },
@@ -580,38 +588,10 @@ Future<void> showRenameDialog(
   WidgetRef ref, {
   required Note note,
 }) async {
-  final controller = TextEditingController(text: note.title);
   final name = await showDialog<String>(
     context: context,
-    builder: (dialogContext) {
-      return Dialog(
-        backgroundColor: Colors.transparent,
-        child: AxoDialog(
-          title: 'Cambiar nombre',
-          content: AxoField(
-            label: 'Título',
-            controller: controller,
-            autofocus: true,
-          ),
-          actions: [
-            AxoButton(
-              label: 'Cancelar',
-              labelStyle: AxoType.buttonSm,
-              variant: AxoButtonVariant.outline,
-              onPressed: () => Navigator.of(dialogContext).pop(),
-            ),
-            AxoButton(
-              label: 'Guardar',
-              labelStyle: AxoType.buttonSm,
-              onPressed: () =>
-                  Navigator.of(dialogContext).pop(controller.text.trim()),
-            ),
-          ],
-        ),
-      );
-    },
+    builder: (dialogContext) => _RenameDialog(initial: note.title),
   );
-  controller.dispose();
   if (name == null || name.isEmpty || !context.mounted) return;
   await runNoteAction(
     context,
@@ -620,6 +600,57 @@ Future<void> showRenameDialog(
     successMessage: 'Nombre cambiado',
     errorMessage: 'No se pudo cambiar el nombre',
   );
+}
+
+/// El controlador del campo vive en el `State` del diálogo (se destruye con él, no al volver
+/// `showDialog`), para no usarlo durante la animación de cierre.
+class _RenameDialog extends StatefulWidget {
+  const _RenameDialog({required this.initial});
+
+  final String initial;
+
+  @override
+  State<_RenameDialog> createState() => _RenameDialogState();
+}
+
+class _RenameDialogState extends State<_RenameDialog> {
+  late final TextEditingController _controller = TextEditingController(
+    text: widget.initial,
+  );
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Dialog(
+      backgroundColor: Colors.transparent,
+      child: AxoDialog(
+        title: 'Cambiar nombre',
+        content: AxoField(
+          label: 'Título',
+          controller: _controller,
+          autofocus: true,
+        ),
+        actions: [
+          AxoButton(
+            label: 'Cancelar',
+            labelStyle: AxoType.buttonSm,
+            variant: AxoButtonVariant.outline,
+            onPressed: () => Navigator.of(context).pop(),
+          ),
+          AxoButton(
+            label: 'Guardar',
+            labelStyle: AxoType.buttonSm,
+            onPressed: () => Navigator.of(context).pop(_controller.text.trim()),
+          ),
+        ],
+      ),
+    );
+  }
 }
 
 /// Menú de la lista desde el botón «más»: orden (sin tablero propio, compuesto con los componentes
@@ -722,7 +753,10 @@ Future<void> runNoteAction<T>(
   }
 }
 
-/// Hora actual para las etiquetas de las hojas (evita arrastrar el reloj a cada sitio).
+/// Hora actual para las etiquetas de las hojas (evita arrastrar el reloj a cada sitio). Sale del
+/// reloj inyectado, no del del sistema: si no, los textos relativos («Hoy», «09:12») cambian con el
+/// día real y los goldens dejan de ser deterministas.
 final clockNowProvider = Provider<DateTime Function()>((ref) {
-  return DateTime.now;
+  final clock = ref.watch(clockProvider);
+  return clock.now;
 });

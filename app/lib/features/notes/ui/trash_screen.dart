@@ -1,9 +1,9 @@
 import 'package:axonote_domain/axonote_domain.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:go_router/go_router.dart';
 
 import '../../../bootstrap/providers.dart';
+import '../../../router/navigation.dart';
 import '../../../ui/components.dart';
 import '../../../ui/tokens.dart';
 import '../state/note_dates.dart';
@@ -25,129 +25,136 @@ class TrashScreen extends ConsumerWidget {
     final loading = notesAsync.isLoading && !notesAsync.hasValue;
     final now = ref.watch(clockProvider).now();
 
-    return Scaffold(
-      backgroundColor: c.bgApp,
-      body: SafeArea(
-        bottom: false,
-        child: Column(
-          children: [
-            NotesTopBar(
-              title: 'Papelera',
-              leadingIcon: 'arrow-left',
-              leadingSize: 24,
-              onMenu: () => context.pop(),
-              actions: [
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 8),
-                  child: TextButton(
-                    onPressed: notes.isEmpty
-                        ? null
-                        : () => _confirmEmptyTrash(context, ref, notes.length),
-                    style: TextButton.styleFrom(
-                      minimumSize: const Size(0, 40),
-                      padding: const EdgeInsets.symmetric(horizontal: 8),
-                    ),
-                    child: Text(
-                      'Vaciar',
-                      style: AxoType.chipActive.copyWith(
-                        color: c.accentDefault,
+    return PopScope(
+      canPop: canGoBack(context),
+      onPopInvokedWithResult: (didPop, _) {
+        if (!didPop) goBack(context);
+      },
+      child: Scaffold(
+        backgroundColor: c.bgApp,
+        body: SafeArea(
+          bottom: false,
+          child: Column(
+            children: [
+              NotesTopBar(
+                title: 'Papelera',
+                leadingIcon: 'arrow-left',
+                leadingSize: 24,
+                onMenu: () => goBack(context),
+                actions: [
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 8),
+                    child: TextButton(
+                      onPressed: notes.isEmpty
+                          ? null
+                          : () =>
+                                _confirmEmptyTrash(context, ref, notes.length),
+                      style: TextButton.styleFrom(
+                        minimumSize: const Size(0, 40),
+                        padding: const EdgeInsets.symmetric(horizontal: 8),
+                      ),
+                      child: Text(
+                        'Vaciar',
+                        style: AxoType.chipActive.copyWith(
+                          color: c.accentDefault,
+                        ),
                       ),
                     ),
                   ),
-                ),
-              ],
-            ),
-            Expanded(
-              child: loading
-                  ? const Padding(
-                      padding: EdgeInsets.symmetric(horizontal: 12),
-                      child: Column(
-                        children: [
-                          AxoNoteSkeleton(),
-                          AxoNoteSkeleton(),
-                          AxoNoteSkeleton(),
-                        ],
-                      ),
-                    )
-                  : notes.isEmpty
-                  ? const AxoEmptyState(
-                      icon: 'trash',
-                      title: 'La papelera está vacía',
-                      subtitle: 'Las notas que muevas a la papelera aparecerán aquí durante 30 días.',
-                    )
-                  : ListView(
-                      padding: const EdgeInsets.symmetric(horizontal: 12),
-                      children: [
-                        const Padding(
-                          padding: EdgeInsets.only(bottom: 12),
-                          child: AxoBanner(
-                            variant: AxoBannerVariant.note,
-                            message: 'Las notas de la papelera se eliminan definitivamente después de 30 días.',
-                          ),
+                ],
+              ),
+              Expanded(
+                child: loading
+                    ? const Padding(
+                        padding: EdgeInsets.symmetric(horizontal: 12),
+                        child: Column(
+                          children: [
+                            AxoNoteSkeleton(),
+                            AxoNoteSkeleton(),
+                            AxoNoteSkeleton(),
+                          ],
                         ),
-                        for (final note in notes)
-                          AxoSwipeTile(
-                            itemKey: ValueKey('trash-${note.id}'),
-                            startAction: AxoSwipeAction(
-                              label: 'Restaurar',
-                              icon: 'arrow-left',
-                              color: c.bgSelected,
-                              foreground: c.accentDefault,
-                              onInvoke: () => runNoteAction(
-                                context,
-                                ref,
-                                () => ref
-                                    .read(notesActionsProvider)
-                                    .restore(note.id),
-                                successMessage: 'Nota restaurada',
-                                errorMessage: 'No se pudo restaurar la nota',
-                              ),
+                      )
+                    : notes.isEmpty
+                    ? const AxoEmptyState(
+                        icon: 'trash',
+                        title: 'La papelera está vacía',
+                        subtitle: 'Las notas que muevas a la papelera aparecerán aquí durante 30 días.',
+                      )
+                    : ListView(
+                        padding: const EdgeInsets.symmetric(horizontal: 12),
+                        children: [
+                          const Padding(
+                            padding: EdgeInsets.only(bottom: 12),
+                            child: AxoBanner(
+                              variant: AxoBannerVariant.note,
+                              message: 'Las notas de la papelera se eliminan definitivamente después de 30 días.',
                             ),
-                            endAction: AxoSwipeAction(
-                              label: 'Eliminar',
-                              icon: 'trash',
-                              color: c.statusDanger,
-                              foreground: c.accentOn,
-                              // La eliminación definitiva no se deshace: se confirma.
-                              stays: true,
-                              onInvoke: () async => showDeleteForeverDialog(
-                                context,
-                                ref,
-                                note: note,
-                              ),
-                            ),
-                            child: AxoNoteCard(
-                              title: note.title.isEmpty
-                                  ? 'Sin título'
-                                  : note.title,
-                              preview: notePreview(note),
-                              date: trashDate(note.updatedAt, now),
-                              unreadable: note.unreadable,
-                              folderLabel: purgeLabel(
-                                daysUntilPurge(
-                                  note.deletedAt ?? note.updatedAt,
-                                  now,
-                                  trashRetentionDays,
+                          ),
+                          for (final note in notes)
+                            AxoSwipeTile(
+                              itemKey: ValueKey('trash-${note.id}'),
+                              startAction: AxoSwipeAction(
+                                label: 'Restaurar',
+                                icon: 'arrow-left',
+                                color: c.bgSelected,
+                                foreground: c.accentDefault,
+                                onInvoke: () => runNoteAction(
+                                  context,
+                                  ref,
+                                  () => ref
+                                      .read(notesActionsProvider)
+                                      .restore(note.id),
+                                  successMessage: 'Nota restaurada',
+                                  errorMessage: 'No se pudo restaurar la nota',
                                 ),
                               ),
-                              onTap: () => showNoteContextSheet(
-                                context,
-                                ref,
-                                note: note,
-                                trashed: true,
+                              endAction: AxoSwipeAction(
+                                label: 'Eliminar',
+                                icon: 'trash',
+                                color: c.statusDanger,
+                                foreground: c.accentOn,
+                                // La eliminación definitiva no se deshace: se confirma.
+                                stays: true,
+                                onInvoke: () async => showDeleteForeverDialog(
+                                  context,
+                                  ref,
+                                  note: note,
+                                ),
                               ),
-                              onLongPress: () => showNoteContextSheet(
-                                context,
-                                ref,
-                                note: note,
-                                trashed: true,
+                              child: AxoNoteCard(
+                                title: note.title.isEmpty
+                                    ? 'Sin título'
+                                    : note.title,
+                                preview: notePreview(note),
+                                date: trashDate(note.updatedAt, now),
+                                unreadable: note.unreadable,
+                                folderLabel: purgeLabel(
+                                  daysUntilPurge(
+                                    note.deletedAt ?? note.updatedAt,
+                                    now,
+                                    trashRetentionDays,
+                                  ),
+                                ),
+                                onTap: () => showNoteContextSheet(
+                                  context,
+                                  ref,
+                                  note: note,
+                                  trashed: true,
+                                ),
+                                onLongPress: () => showNoteContextSheet(
+                                  context,
+                                  ref,
+                                  note: note,
+                                  trashed: true,
+                                ),
                               ),
                             ),
-                          ),
-                      ],
-                    ),
-            ),
-          ],
+                        ],
+                      ),
+              ),
+            ],
+          ),
         ),
       ),
     );

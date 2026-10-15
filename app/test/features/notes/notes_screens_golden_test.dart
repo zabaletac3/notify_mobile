@@ -3,6 +3,8 @@ import 'package:axonote_app/features/notes/ui/notes_screen.dart';
 import 'package:axonote_app/features/notes/ui/search_screen.dart';
 import 'package:axonote_app/features/notes/ui/trash_screen.dart';
 import 'package:axonote_app/ui/components.dart';
+import 'package:axonote_domain/axonote_domain.dart';
+import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'support/notes_harness.dart';
@@ -10,6 +12,20 @@ import 'support/notes_harness.dart';
 /// Tarjeta de nota de la lista, por su título (para abrir el menú contextual).
 Finder noteCard(String title) =>
     find.byWidgetPredicate((w) => w is AxoNoteCard && w.title == title);
+
+/// Semilla del golden del menú lateral: las notas de la fase más una etiqueta, para que el drawer
+/// muestre las tres secciones («Biblioteca», «Carpetas», «Etiquetas»).
+Future<NotesHarness> _drawerHarness() async {
+  final h = await buildNotesHarness();
+  await h.local.local.notes.create(
+    const NoteDraft(
+      title: 'Con etiqueta',
+      content: 'cuerpo',
+      tags: ['parcial'],
+    ),
+  );
+  return h;
+}
 
 /// Goldens de las pantallas de notas de la fase 9, en claro y oscuro (tableros «Android — …» de
 /// Pencil). Ver `docs/design/pencil-measurements.md`.
@@ -32,6 +48,19 @@ void main() {
       'primera-vez',
       () => buildNotesHarness(seed: false),
       (_) => const NotesScreen(),
+    );
+  });
+
+  testWidgets('menú lateral', (t) async {
+    await notesGolden(
+      t,
+      'menu-lateral',
+      _drawerHarness,
+      (_) => const NotesScreen(),
+      afterPump: (tester, _) async {
+        tester.state<ScaffoldState>(find.byType(Scaffold).first).openDrawer();
+        await tester.pumpAndSettle();
+      },
     );
   });
 

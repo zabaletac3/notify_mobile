@@ -2,16 +2,19 @@ import 'package:flutter/material.dart';
 
 import '../app_icon.dart';
 import '../tokens.dart';
+import 'skeleton.dart';
 
 /// Una entrada del menú lateral (tablero «Android — Menú lateral», «SidebarItem»): 34 de alto,
 /// radio 8, relleno [7,10], hueco 10, icono 18, etiqueta 14/500 y contador 12/500. Activa: relleno
-/// `bgSelected` y todo en `accent` (etiqueta 14/600).
+/// `bgSelected` y todo en `accent` (etiqueta 14/600). Con [loading] el contador se sustituye por un
+/// esqueleto para no pintar «0» mientras no hay conteos.
 class AxoDrawerItem extends StatelessWidget {
   const AxoDrawerItem({
     super.key,
     required this.label,
     this.icon,
     this.count,
+    this.loading = false,
     this.selected = false,
     this.onTap,
   });
@@ -19,6 +22,7 @@ class AxoDrawerItem extends StatelessWidget {
   final String label;
   final String? icon;
   final String? count;
+  final bool loading;
   final bool selected;
   final VoidCallback? onTap;
 
@@ -60,7 +64,9 @@ class AxoDrawerItem extends StatelessWidget {
                     style: AxoType.meta12med.copyWith(
                       color: selected ? c.accentDefault : c.textTertiary,
                     ),
-                  ),
+                  )
+                else if (loading)
+                  const AxoSkeleton(width: 14, height: 12),
               ],
             ),
           ),
@@ -90,20 +96,55 @@ class AxoDrawerSection extends StatelessWidget {
   }
 }
 
+/// Fila «Nueva carpeta» del pie del menú lateral (tablero «Android — Menú lateral»): signo «+» y
+/// etiqueta 15/600 en `accent`.
+class AxoDrawerNewFolder extends StatelessWidget {
+  const AxoDrawerNewFolder({super.key, this.onTap});
+
+  final VoidCallback? onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final c = Theme.of(context).extension<AxoColors>()!;
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(AxoRadii.sm),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
+        child: Row(
+          children: [
+            Text('+', style: AxoType.heading.copyWith(color: c.accentDefault)),
+            const SizedBox(width: AxoSpacing.sm),
+            Text(
+              'Nueva carpeta',
+              style: AxoType.label.copyWith(
+                color: c.accentDefault,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
 /// Menú lateral (tablero «Android — Menú lateral», «Drawer»): 304 de ancho, relleno `bgSidebar`,
-/// radios [0,20,20,0], relleno [54,12,14,12], hueco 2 y borde derecho 1. Marca arriba y, al pie,
-/// «Nueva carpeta».
+/// radios [0,20,20,0], relleno [54,12,14,12], hueco 2 y borde derecho 1. Marca arriba; [sections]
+/// scrollea y [footer] queda siempre a la vista al pie.
 class AxoDrawer extends StatelessWidget {
   const AxoDrawer({
     super.key,
     required this.sections,
-    this.onNewFolder,
+    this.footer = const [],
     this.onClose,
   });
 
-  /// Bloques del menú (encabezados y entradas), en orden.
+  /// Bloques desplazables del menú (encabezados y entradas), en orden.
   final List<Widget> sections;
-  final VoidCallback? onNewFolder;
+
+  /// Bloques fijos al pie (Papelera, «Nueva carpeta», Ajustes), fuera del scroll.
+  final List<Widget> footer;
   final VoidCallback? onClose;
 
   @override
@@ -156,35 +197,7 @@ class AxoDrawer extends StatelessWidget {
               ),
               const SizedBox(height: AxoSpacing.sm),
               Expanded(child: ListView(children: sections)),
-              if (onNewFolder != null)
-                InkWell(
-                  onTap: onNewFolder,
-                  borderRadius: BorderRadius.circular(AxoRadii.sm),
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 10,
-                      vertical: 10,
-                    ),
-                    child: Row(
-                      children: [
-                        Text(
-                          '+',
-                          style: AxoType.heading.copyWith(
-                            color: c.accentDefault,
-                          ),
-                        ),
-                        const SizedBox(width: AxoSpacing.sm),
-                        Text(
-                          'Nueva carpeta',
-                          style: AxoType.label.copyWith(
-                            color: c.accentDefault,
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
+              ...footer,
             ],
           ),
         ),
