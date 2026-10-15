@@ -1,0 +1,289 @@
+import 'document.dart';
+
+/// Política de tratamiento de datos personales. BORRADOR: la revisa un abogado antes de publicarse.
+/// Portado de `notify_web/src/lib/legal/privacy.ts`.
+final LegalDocument privacy = LegalDocument(
+  title: 'Política de privacidad',
+  version: 'borrador-2',
+  effectiveDate: null,
+  status: legalDraft ? LegalStatus.draft : LegalStatus.inForce,
+  intro:
+      'Esta política explica qué datos personales trata AxoNote, para qué, por cuánto tiempo y '
+      'cómo puedes ejercer tus derechos conforme a la Ley 1581 de 2012 y sus normas reglamentarias '
+      '(Colombia). Es un borrador: un abogado revisa estos textos antes de su publicación.',
+  sections: [
+    LegalSection(
+      id: 'responsable',
+      title: '1. Responsable del tratamiento',
+      blocks: [
+        LegalList([
+          'Razón social: ${responsible.name}',
+          'NIT: ${responsible.nit}',
+          'Domicilio: ${responsible.address}, ${responsible.city}, ${responsible.country}',
+          'Correo para consultas, reclamos y solicitudes sobre tus datos: ${responsible.email}',
+        ]),
+      ],
+    ),
+    const LegalSection(
+      id: 'resumen',
+      title: '2. En pocas palabras',
+      blocks: [
+        LegalList([
+          'El contenido de tus notas y carpetas se cifra en tu dispositivo antes de salir de él. '
+              'Nosotros no tenemos la clave y no podemos leerlo.',
+          'No recibimos tu contraseña: tu dispositivo envía una prueba derivada de ella que no '
+              'permite reconstruirla.',
+          'Sí tratamos tu correo, tu nombre y algunos datos técnicos (por ejemplo, fechas y '
+              'dispositivos) para que el servicio funcione y sea seguro.',
+          'Si entras con Google, recibimos de Google únicamente tu correo, tu nombre y un '
+              'identificador de cuenta; nada más. Google no accede a tus notas ni a tu contraseña.',
+          'Puedes activar la verificación en dos pasos (una app de autenticación y códigos de '
+              'respaldo); el servidor guarda el secreto TOTP cifrado y solo pruebas irreversibles '
+              'de los códigos de respaldo.',
+          'No vendemos tus datos ni los usamos para publicidad.',
+        ]),
+      ],
+    ),
+    const LegalSection(
+      id: 'datos',
+      title: '3. Datos que tratamos',
+      blocks: [
+        LegalParagraph('Datos de la cuenta:'),
+        LegalList([
+          'Correo electrónico (en minúsculas) y nombre que indicas al registrarte.',
+          'Fecha de creación de la cuenta y de verificación del correo.',
+          'Un resumen irreversible (hash) de la prueba de tu contraseña y, si existe, de la prueba '
+              'de tu clave de recuperación. No guardamos tu contraseña ni tu clave de recuperación.',
+          'Los parámetros de derivación de claves y las claves de tu cuenta ya cifradas con tu '
+              'contraseña. Sin tu contraseña no sirven para leer tus notas.',
+          'Tus preferencias (tema, tamaño del texto, orden de las notas, idioma, sincronización y '
+              'bloqueo de la app).',
+        ]),
+        LegalParagraph('Datos de tus notas y carpetas:'),
+        LegalList([
+          'Identificadores, fechas de creación y modificación, número de revisión, carpeta a la '
+              'que pertenecen, si están en la papelera y cuándo, y el dispositivo que hizo la '
+              'última edición.',
+          'El título, el texto y demás contenido, siempre cifrado (formato «a1.…»). Nosotros no '
+              'vemos su contenido, pero sí su tamaño aproximado.',
+          'Si compartes una nota con un enlace público: el identificador del enlace y una copia '
+              'cifrada con una clave propia. Esa clave va en la parte «#» del enlace, que no llega a '
+              'nuestros servidores.',
+        ]),
+        LegalParagraph('Datos de sesión, dispositivos y seguridad:'),
+        LegalList([
+          'Por cada dispositivo: un nombre, su plataforma (web, escritorio, iOS o Android) y las '
+              'fechas de alta, último uso y revocación.',
+          'Fichas de sesión y códigos de verificación, guardados solo como hash, con su fecha de '
+              'vencimiento.',
+          'Contadores contra abusos (intentos de acceso, reenvíos de códigos, etc.), identificados '
+              'con una huella criptográfica del correo o de la dirección IP; no almacenamos la IP en '
+              'claro en la base de datos.',
+          'Un registro de eventos sensibles (por ejemplo, cambio de contraseña o eliminación de '
+              'cuenta) con fecha y una huella de la IP que cambia cada día, sin contenido de tus '
+              'notas.',
+          'Si activas la verificación en dos pasos: el secreto de tu app de autenticación, cifrado; '
+              'la fecha de activación; el último código aceptado (para no reutilizarlo) y únicamente '
+              'hashes irreversibles de tus códigos de respaldo.',
+          'Si entras con Google: un identificador de tu cuenta de Google y el correo de esa cuenta, '
+              'para reconocerte en los siguientes accesos. No vinculamos cuentas por coincidencia de '
+              'correo.',
+        ]),
+        LegalParagraph(
+          '[[REVISAR: confirmar si los registros técnicos del servidor y de los proveedores de '
+          'infraestructura (Cloudflare, servidor) conservan direcciones IP y por cuánto tiempo.]]',
+        ),
+        LegalParagraph('Datos de comunicaciones:'),
+        LegalList([
+          'Te enviamos correos transaccionales: código de verificación, restablecimiento de '
+              'contraseña, avisos de cambios de seguridad y de eliminación de cuenta. No enviamos '
+              'publicidad.',
+          'Si nos escribes a soporte, tratamos tu mensaje y tu correo para responderte.',
+        ]),
+        LegalParagraph(
+          'Acceso con Google y verificación en dos pasos (opcionales):',
+        ),
+        LegalList([
+          'El acceso con Google solo sirve para identificarte. De Google recibimos tu correo, tu '
+              'nombre y un identificador de cuenta; nada más. No pedimos acceso a tus correos, '
+              'contactos ni a ningún otro dato, y Google no puede leer tus notas.',
+          'La verificación en dos pasos añade un código temporal al iniciar sesión. El secreto de tu '
+              'app de autenticación se guarda cifrado y los códigos de respaldo solo como hash '
+              'irreversible; ninguno de los dos permite leer tus notas.',
+          'Ni Google ni el segundo factor sustituyen a tu contraseña de AxoNote: sin ella (o sin tu '
+              'clave de recuperación) las notas siguen cifradas.',
+        ]),
+      ],
+    ),
+    const LegalSection(
+      id: 'cifrado',
+      title: '4. Cifrado de extremo a extremo',
+      blocks: [
+        LegalParagraph(
+          'Tus notas se cifran en tu dispositivo con una clave que se deriva de tu contraseña. Por '
+          'eso AXONOTE no puede leer, recuperar ni descifrar el contenido de tus notas, ni siquiera '
+          'por orden interna o de una autoridad: solo podríamos entregar los datos cifrados y los '
+          'metadatos descritos arriba.',
+        ),
+        LegalCallout(
+          'Si pierdes tu contraseña y tu clave de recuperación, nadie podrá recuperar tus notas, '
+          'tampoco nosotros. Restablecer la contraseña sin la clave de recuperación borra las notas '
+          'guardadas. Guarda tu clave de recuperación en un lugar seguro.',
+        ),
+      ],
+    ),
+    const LegalSection(
+      id: 'finalidades',
+      title: '5. Para qué usamos tus datos',
+      blocks: [
+        LegalList([
+          'Crear y administrar tu cuenta, verificar tu correo y autenticarte.',
+          'Guardar y sincronizar tus notas entre tus dispositivos, y aplicar el límite de '
+              'almacenamiento.',
+          'Mostrar y gestionar tus dispositivos y permitirte cerrar sesiones.',
+          'Proteger el servicio y tu cuenta frente a abusos y accesos no autorizados.',
+          'Enviarte los correos necesarios para operar la cuenta.',
+          'Atender tus consultas y reclamos, y cumplir obligaciones legales.',
+        ]),
+        LegalParagraph(
+          'El tratamiento se hace con tu autorización previa, expresa e informada, que otorgas al '
+          'aceptar los términos y esta política al registrarte. Puedes revocarla eliminando tu '
+          'cuenta o escribiéndonos, salvo que exista un deber legal o contractual que nos obligue a '
+          'conservar algún dato.',
+        ),
+      ],
+    ),
+    const LegalSection(
+      id: 'terceros',
+      title: '6. Encargados y terceros',
+      blocks: [
+        LegalParagraph(
+          'Para prestar el servicio usamos proveedores que tratan datos por nuestra cuenta '
+          '(encargados): envío de correo transaccional, red y protección de tráfico, alojamiento '
+          'del servidor y almacenamiento de copias de seguridad cifradas. Si usas el acceso con '
+          'Google, Google actúa como proveedor de identidad y nos entrega tu correo, tu nombre y un '
+          'identificador de cuenta. No les permitimos usar tus datos para fines propios.',
+        ),
+        LegalParagraph(
+          '[[REVISAR: nombrar a cada proveedor definitivo (p. ej. Resend, Cloudflare, el proveedor '
+          'del servidor y del almacenamiento de copias), su país y la base legal de la transmisión '
+          'o transferencia internacional.]]',
+        ),
+        LegalParagraph(
+          'Algunos proveedores pueden estar fuera de Colombia. Cuando sea así, la transmisión o '
+          'transferencia internacional se hará conforme al artículo 26 de la Ley 1581 de 2012 y sus '
+          'normas reglamentarias.',
+        ),
+        LegalParagraph(
+          'Solo compartiremos datos con autoridades cuando una norma o una orden válida nos lo '
+          'exija.',
+        ),
+      ],
+    ),
+    const LegalSection(
+      id: 'conservacion',
+      title: '7. Cuánto tiempo conservamos tus datos',
+      blocks: [
+        LegalList([
+          'Notas en la papelera: se borran definitivamente a los 30 días.',
+          'Cuenta eliminada: tus datos se conservan 30 días por si cambias de opinión y luego se '
+              'borran.',
+          'Registro de elementos borrados (para mantener sincronizados tus dispositivos): 90 días.',
+          'Dispositivos revocados: 30 días.',
+          'Registro de eventos sensibles: 365 días.',
+          'Contadores contra abusos: se limpian automáticamente, normalmente en menos de 48 horas.',
+          'Códigos de verificación y fichas de sesión: hasta su vencimiento o uso.',
+          'Copias de seguridad: [[REVISAR: indicar el período de retención de las copias]]. '
+              'Contienen únicamente los datos cifrados y metadatos descritos arriba.',
+        ]),
+      ],
+    ),
+    const LegalSection(
+      id: 'derechos',
+      title: '8. Tus derechos',
+      blocks: [
+        LegalParagraph('Como titular de los datos tienes derecho a:'),
+        LegalList([
+          'Conocer, actualizar y rectificar tus datos.',
+          'Solicitar prueba de la autorización que nos diste.',
+          'Ser informado del uso que damos a tus datos.',
+          'Presentar quejas ante la Superintendencia de Industria y Comercio (SIC) por infracciones '
+              'a la ley.',
+          'Revocar la autorización y solicitar la supresión de tus datos cuando no se respeten los '
+              'principios y garantías legales.',
+          'Acceder de forma gratuita a tus datos personales.',
+        ]),
+        LegalParagraph(
+          'Dentro de la app puedes cambiar tu nombre y tu correo, cerrar sesión en tus dispositivos '
+          'y eliminar tu cuenta con tu contraseña (Ajustes → Eliminar cuenta).',
+        ),
+      ],
+    ),
+    LegalSection(
+      id: 'consultas',
+      title: '9. Consultas y reclamos',
+      blocks: [
+        LegalParagraph(
+          'Escríbenos a ${responsible.email} indicando tu nombre, el correo de tu cuenta y qué '
+          'necesitas. Podemos pedirte verificar tu identidad.',
+        ),
+        const LegalList([
+          'Consultas: las respondemos en máximo 10 días hábiles. Si no es posible, te avisaremos el '
+              'motivo y la nueva fecha, que no superará 5 días hábiles adicionales.',
+          'Reclamos (rectificación, actualización o supresión): los atendemos en máximo 15 días '
+              'hábiles. Si no es posible, te avisaremos el motivo y la nueva fecha, que no superará '
+              '8 días hábiles adicionales.',
+        ]),
+        const LegalParagraph(
+          'Antes de acudir a la SIC debes haber agotado este trámite con nosotros.',
+        ),
+      ],
+    ),
+    const LegalSection(
+      id: 'seguridad',
+      title: '10. Seguridad',
+      blocks: [
+        LegalParagraph(
+          'Aplicamos medidas técnicas y organizativas razonables: cifrado de extremo a extremo del '
+          'contenido, derivación de claves con Argon2id, cifrado en tránsito (HTTPS), aislamiento '
+          'de los datos de cada cuenta en la base de datos, límites de intentos y revocación de '
+          'sesiones. Ningún sistema es infalible; si ocurre un incidente que afecte tus datos, te '
+          'informaremos y a la autoridad competente conforme a la ley.',
+        ),
+      ],
+    ),
+    const LegalSection(
+      id: 'almacenamiento-local',
+      title: '11. Almacenamiento en tu dispositivo y cookies',
+      blocks: [
+        LegalParagraph(
+          'AxoNote guarda en tu dispositivo una copia local cifrada de tus notas, tu sesión y tus '
+          'preferencias (tema, tamaño del texto). Esto es necesario para funcionar sin conexión. No '
+          'usamos cookies de publicidad ni de seguimiento. [[REVISAR: confirmar que no se añadirá '
+          'analítica de terceros; si se añade, declararla aquí.]]',
+        ),
+      ],
+    ),
+    const LegalSection(
+      id: 'menores',
+      title: '12. Menores de edad',
+      blocks: [
+        LegalParagraph(
+          'AxoNote está dirigido a personas mayores de 18 años. No tratamos conscientemente datos '
+          'de menores de edad; si detectamos una cuenta de un menor sin autorización de su '
+          'representante legal, la eliminaremos. [[REVISAR: confirmar la edad mínima.]]',
+        ),
+      ],
+    ),
+    const LegalSection(
+      id: 'cambios',
+      title: '13. Cambios a esta política',
+      blocks: [
+        LegalParagraph(
+          'Si cambiamos esta política de forma sustancial te lo avisaremos en la app o por correo '
+          'antes de que aplique. La versión vigente y su fecha aparecen al inicio de esta página.',
+        ),
+      ],
+    ),
+  ],
+);
