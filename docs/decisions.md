@@ -1095,4 +1095,97 @@ por el MCP (detalle en `docs/design/penpot-progress.md`).
   (`note-dialogs.svelte`: «Si se creó desde "Mover a carpeta", la nota se mueve a la carpeta
   nueva»).
 
+### 2026-10-14 · Fase 10 · Códec Markdown propio (D2) en `packages/axonote_markdown`
+
+- El códec es **propio** (decisión D2), Dart puro, sin Flutter. Reproduce byte a byte el Markdown
+  de `notify_web` (TipTap 3 con `StarterKit` + `TaskList`): **320 pruebas** verifican los 82 casos
+  de `contract/vectors/markdown.json` (conservación + serialización forzada de los soportados) y
+  los 64 casos de `serialize` (documento → Markdown), más la propiedad de conservación por bloque
+  (editar un bloque no toca los bytes de los demás) y el bloque opaco. Cobertura 99 %.
+- **No se usa `package:markdown`** (aparecía en la §9 como analizador): su modelo de bloques y su
+  normalización (líneas en blanco, entidades, escapes, listas) no reproducen el canónico de TipTap,
+  y D2 ya pide un códec propio. La dependencia no se añadió. El analizador es una pasada propia
+  sobre líneas, con un sub‑analizador en línea (marcas, código, enlaces, autolinks, entidades,
+  escapes y saltos duros).
+- **Divergencia de lectura conocida:** los títulos con subrayado (`Título` + `====`) y otras
+  normalizaciones que solo afectan a Markdown «crudo» (no al canónico que escribe la web) **no se
+  normalizan** al leer; solo importarían al importar `.md` (fase 11). No afecta a los criterios de
+  la fase (los vectores usan el canónico). Anotado en el traspaso.
+- **Bloque opaco (§8.2.5):** el analizador detecta tabla, HTML de bloque, nota al pie e imagen en
+  línea como bloque `opaque`, que se conserva intacto y viaja como nodo propio de solo lectura.
+
+### 2026-10-14 · Fase 10 · Editor: adaptador, format bar y dependencias
+
+- El adaptador `axonote_markdown` ↔ `appflowy_editor` vive en `app/lib/features/editor/state/`
+  (§8.2.6); el códec no importa AppFlowy. La interfaz (`ui/`) solo habla con `state/`.
+- **Barra de formato** (tablero «Android — Editor»): estilo de párrafo, negrita, cursiva, lista y
+  tareas, con las medidas del diseño (`FormatBar` `#EDE7DC` r24, botones 40×40 r8, activo
+  `bgSelected`). El tablero muestra un **botón de imagen** que se **omite** (las imágenes son
+  bloque opaco, fuera de alcance) y el **«deshacer» está en la barra superior**, como en el
+  diseño (el plan §8.2.7 lo listaba en la barra de formato). El set de iconos vendorizado no trae
+  `bold`/`italic`/`list`: se usan glifos «B»/«I» (lo que dibuja el diseño) y el icono más cercano
+  para las listas.
+- **Estados sin tablero propio:** «conflicto» reutiliza la hoja de la fase 9; «nota ilegible» abre
+  el editor en **solo lectura** (aviso + `editableNotifier` en falso); «sincronizando» se cubre con
+  el indicador de la fase 7. Se componen con componentes base, sin tablero nuevo.
+- **Dependencias:** se añaden `appflowy_editor` (path a `packages/third_party`), `axonote_markdown`
+  y `provider` (lo necesita el componente del bloque opaco). El paquete vendorizado suma dos
+  parches (retirar `device_info_plus` y `file_picker`, que chocan con `win32` 6 y `dbus` 0.8; ver
+  `PATCHES.md`). La §9 no listaba `provider`; se anota aquí.
+- **Guardado y recarga:** el contenido se guarda **400 ms** después de la última edición (A10) y al
+  ir a segundo plano; al llegar una revisión nueva por sincronización se **recarga** el editor solo
+  si no hay cambios locales pendientes (§8.3). El **enlace público** es fase 11 (menú «Compartir»
+  presente pero sin acción todavía).
+
+### 2026-10-15 · Fase 9 · Menú lateral: apertura, estado activo y entrada «Ajustes»
+
+- **Desviación deliberada del tablero:** se añade al pie del drawer móvil una fila **«Ajustes»**
+  (icono `settings` del set vendorizado, `assets/icons/settings.svg`) que navega a `/settings/menu`.
+  El tablero «Android — Menú lateral» no la trae, pero la barra lateral de la **web** sí tiene
+  «Ajustes» al pie (`notify_web/src/routes/(app)/app-nav.svelte`), y se busca paridad funcional. El
+  contenido de las pantallas de Ajustes es de la **fase 11**: la ruta existe hoy como
+  `PlaceholderScreen` en `app/lib/router/app_router.dart` y así se deja.
+- **El drawer no abría:** el botón de menú y el toque en el título llamaban a `Scaffold.of(context)`
+  con el `context` del propio `NotesScreen` (por encima del `Scaffold` que su `build` devuelve), lo
+  que lanzaba `Scaffold.of() called with a context that does not contain a Scaffold` y no hacía nada.
+  Se resuelve con un `GlobalKey<ScaffoldState>` (`NotesScreen` pasa a `ConsumerStatefulWidget`); no
+  se cambia el diseño de la barra superior.
+- **Estado activo:** ahora cada entrada del drawer (`Todas las notas`, `Fijadas`, cada carpeta, cada
+  etiqueta, `Papelera`) deriva su `selected` del filtro/ruta actuales, según la variante
+  `State=Selected` del `SidebarItem` (`bgSelected` + `accent`, 14/600). Antes solo se marcaba
+  «Todas las notas».
+- **Pie fuera del scroll:** `Papelera` y «Nueva carpeta» pasan a un pie fijo del `AxoDrawer` (fuera
+  del `ListView`), junto a la nueva fila `Ajustes`, de modo que ningún botón del pie puede quedar
+  tapado por el desplazamiento, como en la web.
+- **Carga:** mientras `counts` es `null` no se pinta «0»; el contador se reserva con un
+  `AxoSkeleton`.
+- **Pruebas:** `app/test/features/notes/notes_drawer_test.dart` (apertura, navegación de cada
+  entrada, cierre, estado activo y contador en carga) y golden nuevo `notes-menu-lateral-{light,dark}`
+  en `notes_screens_golden_test.dart`. Informe: `docs/review-sidebar.md`.
+
+### 2026-10-15 · Arranque en frío: restaurar la sesión y la introducción solo la primera vez
+
+- **Fallo:** la app mostraba siempre onboarding/bienvenida aunque hubiera cuenta iniciada.
+  `SessionController.build()` devolvía `noSession` y el redirect mandaba `/` a `/onboarding`; además
+  `AuthController.bootstrap`, cuando el servidor no confirmaba la sesión (sin red, `currentSession()`
+  nulo o token caducado), dejaba el estado en `noSession` sin ofrecer el desbloqueo local aunque
+  hubiera sesión guardada.
+- **Decisión:** `SessionController` arranca en `AxoSession.restoring` (nuevo estado) y el router
+  muestra `/splash` mientras se lee el almacén seguro; así no parpadea ninguna pantalla.
+  `AuthController.bootstrap` resuelve el estado terminal en todos los caminos:
+  `noSession` (sin sesión guardada, sesión caducada o `device-revoked`), `locked` (hay cuenta
+  guardada pero el bloqueo exige desbloquear: se permite el **desbloqueo local sin red**, §5.3) o
+  `unlocked` (clave recordada y bloqueo no vencido). Ante un error inesperado cae a `noSession`
+  para no quedarse en el arranque.
+- **Introducción solo la primera vez:** se guarda una marca global del dispositivo
+  (`VaultPrefsRepository.readOnboardingSeen`/`writeOnboardingSeen`, clave `app.onboardingSeen` en el
+  almacén seguro). Sin sesión y sin la marca → `/onboarding`; con la marca → `/welcome`. La
+  introducción la marca al terminar o saltar (`OnboardingScreen._finish`).
+- **Navegación:** el redirect decide por `restoring`/`noSession`+marca/`locked`/`unlocked`; no se
+  registra ninguna clave ni token en ningún punto del arranque.
+- **Pruebas:** `app/test/features/auth/startup_routing_test.dart` (sesión guardada → `/unlock`; sin
+  red con sesión → `/unlock`; sin sesión primera vez → `/onboarding`; introducción vista →
+  `/welcome`; tras desbloquear → `/notes`) y `app/test/router/router_test.dart` (arranque → splash).
+
+
 
