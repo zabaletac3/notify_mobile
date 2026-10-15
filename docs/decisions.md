@@ -1187,5 +1187,125 @@ por el MCP (detalle en `docs/design/penpot-progress.md`).
   red con sesión → `/unlock`; sin sesión primera vez → `/onboarding`; introducción vista →
   `/welcome`; tras desbloquear → `/notes`) y `app/test/router/router_test.dart` (arranque → splash).
 
+### 2026-10-15 · Fase 11.1 · Maqueta de Ajustes y navegación
+
+- **Primero maqueta, después servicios** (estrategia obligatoria de la fase 11): las pantallas de
+  Ajustes se montan con datos de muestra en memoria (`features/settings/state/settings_mock.dart`) y
+  sin servicios; los interruptores y las opciones cambian estado local, «Cerrar sesión» usa el
+  cierre de sesión real y el resto de acciones avisan de su subfase. Las puertas y el patrón de la
+  fase 10 se repiten: tokens, goldens claro/oscuro y comparación geométrica (±4 px por banda) contra
+  los tableros de Pencil.
+- **`/settings/menu` no tiene tablero** en «Movil v2»: se reproduce el menú de secciones de
+  `notify_web/.../settings/menu` (ocho filas) y se anota en el informe.
+- **«Eliminar cuenta»: el tablero pide escribir «ELIMINAR», pero la app pide la contraseña.** El
+  contrato (`POST /me/delete`, `authKey`) y la §7 (operaciones sensibles piden contraseña) mandan
+  sobre el tablero; la maquetación es la del tablero salvo el texto de la confirmación. Anotado en
+  `docs/design/fase11-comparacion.md`.
+- **Tokens**: se añaden las medidas de las filas de ajustes (52/54/46/66), el avatar (56), el
+  logotipo (72) y la barra de uso (8). El interruptor tiene un tap target de 44 que **no** debe
+  hinchar la fila: la fila fija su altura y el control se centra.
+- **Navegación**: `goBack`/`canGoBack` y `PopScope` en el armazón de Ajustes; botón «atrás» con
+  tooltip «Atrás» para las pruebas. Todo con `push`; nada de `go` que deje al usuario atrapado.
+
+### 2026-10-15 · Fase 11.2 · Cuenta sobre la UI aprobada
+
+- **Servicios sobre la maqueta, sin cambiar el aspecto.** El dominio gana `Device`/`DevicePlatform`/
+  `StorageUsage` y los métodos de cuenta en `AuthRepository` (`updateProfile`, `requestEmailChange`,
+  `confirmEmailChange`, `changePassword`, `deleteAccount`), más `DeviceRepository` y
+  `StorageRepository`. La UI de 11.1 se conserva; solo se conecta a los servicios.
+- **`DevicePlatform` duplicado:** el dominio define su enum y `axonote_api` ya tenía el suyo;
+  `auth_api.dart` (que importa ambos) usa ahora `import '...axonote_domain.dart' hide
+  DevicePlatform` para quedarse con el del DTO. Anotado aquí porque toca `axonote_api`.
+- **Cambio de contraseña:** la clave maestra no cambia; `axonote_crypto.changePasswordKeys` la
+  re-cifra con la contraseña nueva y sube `keysVersion` (las notas no se vuelven a cifrar). El
+  controlador nunca registra la contraseña ni la clave.
+- **Borrar cuenta** exige la contraseña (`POST /me/delete`, `authKey`); al terminar se cierra la
+  sesión local y el router vuelve a la bienvenida. (El tablero pedía escribir «ELIMINAR»; manda el
+  contrato.)
+- **Golden de «Almacenamiento»:** se regeneró porque la barra usa el porcentaje real
+  (180 MB / 1 GB = 0,1758) en vez del 0,18 de la muestra. El resto de goldens de 11.1 no cambian.
+
+### 2026-10-15 · Fase 11.2b · Ajustes de Generales/Privacidad/Sincronización reales
+
+- **Las preferencias de la app son locales por cuenta, no sincronizadas.** La web las guarda en
+  `localStorage` (`LocalSettingsRepository`), no en `/settings`; el móvil hace lo mismo en el
+  almacén seguro (`AccountSecureStore`, clave `appSettings.<userId>`), reutilizando
+  `VaultPrefsRepository`. La carga ocurre en el arranque en frío.
+- **Tema y tamaño de letra con efecto real.** `themeMode` sale de `settingsProvider`; el tamaño se
+  aplica con `textScaler` (0,9 / 1,0 / 1,15). `medium` = 1,0 para no mover los goldens.
+- **Bloqueo y sincronización: reutilizar, no duplicar.** El bloqueo usa `VaultLockController` +
+  `VaultPrefsRepository`; la sincronización usa `SyncSettings` (tabla `meta` de la base local), que
+  el motor ya respeta.
+- **«Cifrar notas en este dispositivo» pasa a informativo.** La base local va cifrada siempre
+  (§6, fases 5/6): no hay un interruptor que la active o desactive. Se quita el interruptor falso y
+  se deja una fila de descripción; la golden de Privacidad se regenera por ese cambio (el resto no).
+- **«Abrir con una nota nueva» y «Mostrar vista previa en la lista» se cablean** (antes eran
+  interruptores de la maqueta) para no dejar interruptores falsos. «Solo con Wi-Fi» ya lo respeta
+  el motor.
+- **Contadores reales:** 2FA desde `GET /mfa` (`AuthRepository.mfaStatus`) y sesiones desde
+  `/devices`.
+
+### 2026-10-15 · Fase 11.3 · Verificación en dos pasos y rotación de clave
+
+- **Pantalla propia para 2FA** (`/settings/two-factor`) porque el tablero móvil no la trae: activar
+  (QR + secreto + código), desactivar y regenerar códigos, con contraseña + código en las sensibles.
+- **QR sin `qr_flutter`**: se pinta la matriz del paquete `qr` (declarado en `app/pubspec.yaml`).
+- **Rotación de clave de recuperación** reutiliza `axonote_crypto.rotateRecoveryKeys` y
+  `PUT /keys/recovery`; se muestra una sola vez.
+- **Desviación de diseño**: el tablero de Privacidad no incluye «Clave de recuperación»; la app la
+  añade (lo pide el plan/web) y esa zona queda fuera de la puerta de bandas de Privacidad.
 
 
+
+
+### 2026-10-15 · Fase 11.4 · Enlaces públicos y «Compartir»
+
+- **La clave del enlace se envuelve con `Vault.requireKey()`.** El plan §5.1 solo prevé que la clave
+  maestra salga de memoria para las claves de elemento; el enlace es el mismo caso: la web envuelve
+  la clave del enlace con `vault.requireKey()` (`share-codec.ts`). Se reutiliza ese método (no se
+  añade `Vault.wrapWithMaster`): la copia se cifra con una clave propia del enlace y esa clave se
+  guarda envuelta con la maestra, ligada a `apunte/v1/sharekey/<userId>/<noteId>`.
+- **`SHARE_ORIGIN` por `--dart-define`** (plan §4.5), por defecto `https://apunte.app` (el de la
+  web de producción). La URL es `<origen>/n/<slug>#k=<clave>`; la clave va en el fragmento.
+- **Sin `beforeCreate`**: la web sube la nota antes de crear el enlace; el móvil no lo necesita
+  (el enlace es un recurso aparte y `createLink` no depende de que la nota esté sincronizada).
+- **Republicar al guardar:** el guardado del editor (400 ms) actualiza la copia pública si la nota
+  tiene enlace (§8.3, plan §385). Es best-effort: un fallo se reintenta con la siguiente edición.
+- La hoja sigue el tablero «Android — Compartir nota»; se añade «Compartir» al menú contextual.
+
+### 2026-10-15 · Fase 11.5 · Importar/exportar Markdown
+
+- **Dependencias nuevas: `file_picker ^13.1.0` y `archive ^4.4.0`.** `file_picker` resuelve sin
+  tocar `win32` (6.4.0) ni `dbus` (0.8.0), que ya venían transitivos: no hubo el choque que obligó a
+  retirar `file_picker` del `appflowy_editor` vendorizado. Se usa la API estática de 13.x
+  (`FilePicker.pickFiles` / `FilePicker.saveFile`, con `bytes`), así que no hace falta canal de
+  plataforma propio.
+- **Las reglas de importación son de dominio** (`axonote_domain/markdown_import.dart`, portadas de
+  `markdown-import.ts`): título de la primera línea `# …` o del nombre del archivo, ≤ 200
+  caracteres, ≤ 2 MB por archivo, BOM y CRLF normalizados.
+- **Exportar todas** produce un `.zip` con un `.md` por nota (`# título\n\ncontenido\n`); exportar
+  una nota produce su `.md`. En el zip, los caracteres inválidos de un nombre se cambian por `-` y
+  los nombres repetidos se desambiguan (`Nota (2).md`).
+
+### 2026-10-15 · Fase 11.6 · Acerca de y textos legales
+
+- **Los textos legales son datos de dominio** (`axonote_domain/lib/src/legal/`): `LegalDocument`,
+  `LegalSection` y bloques sellados (`LegalParagraph`, `LegalList`, `LegalCallout`), portados de
+  `notify_web/src/lib/legal/{terms,privacy,changelog,meta}.ts`. La app los pinta en
+  `/terms`, `/privacy` y `/changelog`.
+- **Licencias de código abierto con la página de Flutter** (`showLicensePage`): las del móvil son
+  las de sus paquetes Dart, no las JS de la web; no se porta `licenses.json`.
+- **Versión leída del paquete con `package_info_plus`** (dependencia nueva, decisión anotada aquí
+  por el plan §9). Si el plugin no responde (pruebas), se cae a la versión del `pubspec`.
+
+### 2026-10-15 · Fase 11.7 · Pendientes de la fase 10 y repaso de la fase 9
+
+- **Estados de conflicto y sincronización en el editor real.** `NoteEditorController` es de solo
+  lectura si la nota está en conflicto; la pantalla del editor abre la hoja de conflicto (la misma
+  de la fase 9) para la nota abierta y muestra la barra «Sincronizando…» cuando el motor sincroniza.
+- **La barra «Sincronizando» pasa dentro del `Scaffold` del editor** (bajo la barra superior), en
+  vez de por encima: se unifica con la maqueta y se regeneran sus dos goldens.
+- **Repaso de la fase 9 contra «Movil v2».** Se comprobó que los fondos y los tokens clave de las
+  pantallas de la fase 9 coinciden con los tableros (p. ej. `bgApp` claro `#F6F2EA` y oscuro
+  `#1B1A18`, muestreados en los PNG de Pencil). No se encontraron diferencias de token/estilo que
+  corregir. Detalle en `docs/design/fase11-comparacion.md`.
