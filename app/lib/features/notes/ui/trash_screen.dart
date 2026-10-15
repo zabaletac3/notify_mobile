@@ -161,57 +161,6 @@ class TrashScreen extends ConsumerWidget {
   }
 
   void _confirmEmptyTrash(BuildContext context, WidgetRef ref, int count) {
-    showDialog<void>(
-      context: context,
-      builder: (dialogContext) {
-        final c = Theme.of(dialogContext).extension<AxoColors>()!;
-        return Dialog(
-          backgroundColor: Colors.transparent,
-          child: AxoDialog(
-            danger: true,
-            icon: 'trash',
-            title: '¿Vaciar la papelera?',
-            content: Text(
-              'Se eliminarán definitivamente ${count == 1 ? '1 nota' : '$count notas'}. No podrás recuperarlas.',
-              style: AxoType.bodySmall.copyWith(color: c.textSecondary),
-            ),
-            actions: [
-              AxoButton(
-                label: 'Cancelar',
-                labelStyle: AxoType.buttonSm,
-                variant: AxoButtonVariant.outline,
-                onPressed: () => Navigator.of(dialogContext).pop(),
-              ),
-              AxoButton(
-                label: 'Vaciar',
-                labelStyle: AxoType.buttonSm,
-                variant: AxoButtonVariant.destructive,
-                onPressed: () async {
-                  Navigator.of(dialogContext).pop();
-                  final result = await ref
-                      .read(notesActionsProvider)
-                      .emptyTrash();
-                  if (!context.mounted) return;
-                  switch (result) {
-                    case Ok():
-                      showAxoToast(
-                        context,
-                        message: 'Papelera vaciada',
-                        variant: AxoToastVariant.success,
-                      );
-                    case Err():
-                      showAxoToast(
-                        context,
-                        message: 'No se pudo vaciar la papelera',
-                        variant: AxoToastVariant.error,
-                      );
-                  }
-                },
-              ),
-            ],
-          ),
-        );
-      },
-    );
+    showConfirmEmptyTrashDialog(context, ref, count: count);
   }
 }

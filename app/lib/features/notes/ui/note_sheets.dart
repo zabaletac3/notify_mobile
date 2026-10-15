@@ -7,6 +7,7 @@ import '../../../ui/app_icon.dart';
 import '../../../ui/components.dart';
 import '../../../ui/tokens.dart';
 import '../../auth/state/auth_controller.dart';
+import '../../share/ui/share_sheet.dart';
 import '../../vault/state/vault_lock.dart';
 import '../state/note_dates.dart';
 import '../state/notes_actions.dart';
@@ -23,6 +24,63 @@ void showErrorToast(BuildContext context, AppError error) {
     _ => 'No se pudo completar la acción. Inténtalo de nuevo.',
   };
   showAxoToast(context, message: message, variant: AxoToastVariant.error);
+}
+
+/// Muestra el diálogo de «¿Vaciar la papelera?» y, al confirmar, la vacía. Lo usan la papelera y
+/// «Almacenamiento y exportación» (fase 11.5).
+Future<void> showConfirmEmptyTrashDialog(
+  BuildContext context,
+  WidgetRef ref, {
+  required int count,
+}) async {
+  await showDialog<void>(
+    context: context,
+    builder: (dialogContext) {
+      final c = Theme.of(dialogContext).extension<AxoColors>()!;
+      return Dialog(
+        backgroundColor: Colors.transparent,
+        child: AxoDialog(
+          danger: true,
+          icon: 'trash',
+          title: '¿Vaciar la papelera?',
+          content: Text(
+            'Se eliminarán definitivamente ${count == 1 ? '1 nota' : '$count notas'}. No podrás recuperarlas.',
+            style: AxoType.bodySmall.copyWith(color: c.textSecondary),
+          ),
+          actions: [
+            AxoButton(
+              label: 'Cancelar',
+              labelStyle: AxoType.buttonSm,
+              variant: AxoButtonVariant.outline,
+              onPressed: () => Navigator.of(dialogContext).pop(),
+            ),
+            AxoButton(
+              label: 'Vaciar',
+              labelStyle: AxoType.buttonSm,
+              variant: AxoButtonVariant.destructive,
+              onPressed: () async {
+                Navigator.of(dialogContext).pop();
+                final result = await ref
+                    .read(notesActionsProvider)
+                    .emptyTrash();
+                if (!context.mounted) return;
+                switch (result) {
+                  case Ok():
+                    showAxoToast(
+                      context,
+                      message: 'Papelera vaciada',
+                      variant: AxoToastVariant.success,
+                    );
+                  case Err(error: final error):
+                    showErrorToast(context, error);
+                }
+              },
+            ),
+          ],
+        ),
+      );
+    },
+  );
 }
 
 /// Menú contextual de una nota (tablero «Android — Menú contextual de nota»). En la papelera
@@ -122,6 +180,20 @@ Future<void> showNoteContextSheet(
                       onTap: () {
                         Navigator.of(sheetContext).pop();
                         showMoveSheet(context, ref, note: note);
+                      },
+                    ),
+                    AxoOptionRow(
+                      label: 'Compartir',
+                      icon: 'share',
+                      onTap: () {
+                        Navigator.of(sheetContext).pop();
+                        showShareSheet(
+                          context,
+                          ref,
+                          note: note,
+                          onExportMarkdown: () =>
+                              exportNoteAsMarkdown(context, ref, note.id),
+                        );
                       },
                     ),
                     AxoOptionRow(

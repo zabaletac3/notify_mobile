@@ -19,6 +19,7 @@ class AxoNoteCard extends StatelessWidget {
     this.pinned = false,
     this.folderLabel,
     this.unreadable = false,
+    this.showPreview = true,
     this.highlight,
     this.onTap,
     this.onLongPress,
@@ -30,6 +31,7 @@ class AxoNoteCard extends StatelessWidget {
   final bool pinned;
   final String? folderLabel;
   final bool unreadable;
+  final bool showPreview;
   final String? highlight;
   final VoidCallback? onTap;
   final VoidCallback? onLongPress;
@@ -79,14 +81,15 @@ class AxoNoteCard extends StatelessWidget {
                     ),
                     const SizedBox(width: AxoSpacing.sm),
                   ],
-                  Expanded(
-                    child: _HighlightedText(
-                      text: preview,
-                      highlight: highlight,
-                      style: AxoType.caption.copyWith(color: c.textTertiary),
-                      maxLines: 1,
+                  if (showPreview)
+                    Expanded(
+                      child: _HighlightedText(
+                        text: preview,
+                        highlight: highlight,
+                        style: AxoType.caption.copyWith(color: c.textTertiary),
+                        maxLines: 1,
+                      ),
                     ),
-                  ),
                 ],
               ),
               if (folder != null) ...[
