@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 
 import '../app/session.dart';
 import '../dev/components_gallery.dart';
+import '../dev/editor_gallery.dart';
 import '../features/auth/ui/forgot_password_screen.dart';
 import '../features/auth/ui/forgot_password_sent_screen.dart';
 import '../features/auth/ui/login_screen.dart';
@@ -12,16 +13,16 @@ import '../features/auth/ui/onboarding_screen.dart';
 import '../features/auth/ui/recovery_key_screen.dart';
 import '../features/auth/ui/register_screen.dart';
 import '../features/auth/ui/server_error_screen.dart';
+import '../features/auth/ui/splash_screen.dart';
 import '../features/auth/ui/two_factor_screen.dart';
 import '../features/auth/ui/unlock_screen.dart';
 import '../features/auth/ui/verify_screen.dart';
 import '../features/auth/ui/welcome_screen.dart';
+import '../features/editor/ui/editor_screen.dart';
 import '../features/notes/ui/notes_screen.dart';
 import '../features/notes/ui/search_screen.dart';
 import '../features/notes/ui/trash_screen.dart';
-import '../ui/components.dart';
 import '../ui/placeholder_screen.dart';
-import '../ui/tokens.dart';
 
 /// Rutas de introducción y autenticación (accesibles sin sesión).
 const _publicRoutes = {
@@ -38,50 +39,13 @@ const _publicRoutes = {
 /// Ruta de la galería de componentes, solo en modo debug.
 const _devRoute = '/dev/components';
 
+/// Ruta de arranque (mientras se restaura la sesión desde el almacén seguro).
+const _splashRoute = '/splash';
+
+/// Ruta de la maqueta del editor (datos falsos), solo en modo debug.
+const _devEditorRoute = '/dev/editor';
+
 PlaceholderScreen _p(String title) => PlaceholderScreen(title: title);
-
-/// Pantalla provisional del editor de notas (fase 10) con las acciones de sesión, para poder
-/// recorrer el ciclo completo mientras no existe el editor real.
-class _EditorHome extends ConsumerWidget {
-  const _EditorHome();
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final c = Theme.of(context).extension<AxoColors>()!;
-    return Scaffold(
-      appBar: AppBar(
-        title: Text(
-          'Nota',
-          style: AxoType.heading.copyWith(color: c.textPrimary),
-        ),
-        backgroundColor: c.bgApp,
-        surfaceTintColor: Colors.transparent,
-      ),
-      body: Center(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Text(
-              'Editor',
-              style: AxoType.screenTitle.copyWith(color: c.textPrimary),
-            ),
-            const SizedBox(height: AxoSpacing.sm),
-            Text(
-              '(editor en la fase 10)',
-              style: AxoType.body.copyWith(color: c.textTertiary),
-            ),
-            const SizedBox(height: AxoSpacing.xl),
-            AxoButton(
-              label: 'Volver a las notas',
-              variant: AxoButtonVariant.outline,
-              onPressed: () => context.go('/notes'),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
 
 final routerProvider = Provider<GoRouter>((ref) {
   final refresh = ValueNotifier<AxoSession>(ref.read(sessionProvider));
@@ -96,21 +60,31 @@ final routerProvider = Provider<GoRouter>((ref) {
       final session = refresh.value;
       final loc = state.matchedLocation;
       // La galería de componentes está accesible en cualquier estado, solo en debug.
-      if (kDebugMode && loc == _devRoute) return null;
+      if (kDebugMode && (loc == _devRoute || loc == _devEditorRoute)) {
+        return null;
+      }
       final isPublic = _publicRoutes.contains(loc);
-      final isLocked = loc == '/unlock';
+      final isUnlock = loc == '/unlock';
+      final isSplash = loc == _splashRoute;
       switch (session) {
+        case AxoSession.restoring:
+          // Mientras se lee el almacén seguro no se decide pantalla: solo el arranque.
+          return isSplash ? null : _splashRoute;
         case AxoSession.noSession:
-          if (loc == '/') return '/onboarding';
-          if (!isPublic) return '/welcome';
+          if (isPublic) return null;
+          final seen = ref.read(onboardingSeenProvider);
+          return seen ? '/welcome' : '/onboarding';
         case AxoSession.locked:
-          if (!isLocked) return '/unlock';
+          if (isUnlock) return null;
+          return '/unlock';
         case AxoSession.unlocked:
-          if (isPublic || isLocked || loc == '/') return '/notes';
+          if (isPublic || isUnlock || loc == '/' || isSplash) return '/notes';
       }
       return null;
     },
     routes: [
+      // Arranque: se muestra mientras se restaura la sesión desde el almacén seguro.
+      GoRoute(path: _splashRoute, builder: (_, _) => const SplashScreen()),
       // Introducción y autenticación.
       GoRoute(path: '/welcome', builder: (_, _) => const WelcomeScreen()),
       GoRoute(path: '/onboarding', builder: (_, _) => const OnboardingScreen()),
@@ -135,7 +109,13 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: '/notes',
         builder: (_, _) => const NotesScreen(),
-        routes: [GoRoute(path: ':id', builder: (_, _) => const _EditorHome())],
+        routes: [
+          GoRoute(
+            path: ':id',
+            builder: (_, state) =>
+                EditorScreen(noteId: state.pathParameters['id']!),
+          ),
+        ],
       ),
       GoRoute(
         path: '/folders/:id',
@@ -171,6 +151,12 @@ final routerProvider = Provider<GoRouter>((ref) {
       // Galería de componentes (solo debug).
       if (kDebugMode)
         GoRoute(path: _devRoute, builder: (_, _) => const ComponentsGallery()),
+      // Maqueta del editor (solo debug).
+      if (kDebugMode)
+        GoRoute(
+          path: _devEditorRoute,
+          builder: (_, _) => const EditorGallery(),
+        ),
       // Ruta inicial: el redirect decide a dónde ir.
       GoRoute(path: '/', builder: (_, _) => _p('Inicio')),
     ],

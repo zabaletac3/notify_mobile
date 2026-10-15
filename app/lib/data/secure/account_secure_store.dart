@@ -47,6 +47,7 @@ class AccountSecureStore {
   static const _lockPrefsPrefix = 'lockPrefs.';
   static const _lastActivePrefix = 'lastActiveAt.';
   static const _deviceIdKey = 'device.id';
+  static const _onboardingSeenKey = 'app.onboardingSeen';
 
   static String _lockPrefsKey(String userId) => '$_lockPrefsPrefix$userId';
 
@@ -183,4 +184,11 @@ class AccountSecureStore {
     await _store.delete(_lockPrefsKey(userId));
     await _store.delete(_lastActiveKey(userId));
   }
+
+  /// Si la persona ya vio la introducción en este dispositivo (marca global, no por cuenta).
+  Future<bool> readOnboardingSeen() async =>
+      await _store.read(_onboardingSeenKey) == 'true';
+
+  Future<void> writeOnboardingSeen() =>
+      _store.write(_onboardingSeenKey, 'true');
 }

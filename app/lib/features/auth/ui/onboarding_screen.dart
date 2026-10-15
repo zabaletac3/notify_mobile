@@ -6,6 +6,7 @@ import '../../../l10n/app_localizations.dart';
 import '../../../ui/app_icon.dart';
 import '../../../ui/components.dart';
 import '../../../ui/tokens.dart';
+import '../state/auth_controller.dart';
 
 /// Introducción de 3 pasos (tableros «1 · Onboarding — Onboarding 1–3», leídos por el MCP):
 /// ilustración 362×340 (radio 28, `bgSelected`), título 28/700 centrado, cuerpo 15/400 centrado,
@@ -20,7 +21,11 @@ class OnboardingScreen extends ConsumerStatefulWidget {
 class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
   int _index = 0;
 
-  void _finish() => context.go('/welcome');
+  void _finish() {
+    // La introducción solo se enseña la primera vez.
+    ref.read(authControllerProvider.notifier).markOnboardingSeen();
+    context.go('/welcome');
+  }
 
   @override
   Widget build(BuildContext context) {

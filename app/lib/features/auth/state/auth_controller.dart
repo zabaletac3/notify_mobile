@@ -58,67 +58,100 @@ class AuthController extends Notifier<AuthState> {
   void _setSession(AxoSession value) =>
       ref.read(sessionProvider.notifier).set(value);
 
-  /// Arranque en frío del cofre (pendiente de la fase 5; plan §5.3). Decide con qué cuenta
-  /// intentar `unlockWithStoredKey` y si el tiempo de bloqueo ya venció usando la última actividad
-  /// guardada.
+  /// Arranque en frío del cofre (plan §5.3). Lee el almacén seguro (sesión y ajustes de bloqueo) y
+  /// decide el estado de navegación: `noSession` (onboarding/bienvenida), `locked` (desbloqueo
+  /// local, aunque no haya red) o `unlocked` (clave recordada y bloqueo no vencido). Nunca deja el
+  /// estado en `restoring`: si algo inesperado falla, cae a `noSession` para no quedarse en la
+  /// pantalla de arranque.
   Future<void> bootstrap() async {
-    final cached = await _prefs.cachedSession();
-    if (cached == null) {
-      state = const AuthState(status: AuthStatus.anonymous);
-      return;
-    }
-
-    User? user;
     try {
-      user = await _repo.currentSession();
-    } on AppFailure catch (e) {
-      switch (e.error) {
-        case SessionExpiredError():
-          state = state.copyWith(
-            status: AuthStatus.expired,
-            notice: () => AuthNotice.signedOutElsewhere,
-          );
-          return;
-        case DeviceRevokedError():
-          await _endSession(cached.userId, AuthNotice.deviceRevoked);
-          return;
-        default:
-          // Sin red u otro fallo transitorio: se sigue en local (desbloqueo sin red).
-          user = null;
+      // La marca de introducción se conoce antes de decidir la pantalla.
+      final onboardingSeen = await _prefs.readOnboardingSeen();
+      ref.read(onboardingSeenProvider.notifier).set(onboardingSeen);
+
+      final cached = await _prefs.cachedSession();
+      if (cached == null) {
+        state = const AuthState(status: AuthStatus.anonymous);
+        _setSession(AxoSession.noSession);
+        return;
       }
-    }
 
-    if (user == null) {
-      // El servidor ya no reconoce la sesión y no hay usuario: no hay nada que desbloquear.
-      state = state.copyWith(status: AuthStatus.anonymous);
-      return;
-    }
-
-    final settings = await _prefs.readLockSettings(cached.userId);
-    await _beforeUnlock(cached.userId, settings);
-
-    if (await _canAutoUnlock(settings, cached.userId)) {
+      User? user;
+      var expired = false;
       try {
-        final unlocked = await _vault.unlockWithStoredKey(
-          userId: cached.userId,
-          prompt: _startupUnlockPrompt,
-        );
-        if (unlocked) {
-          state = state.copyWith(
-            status: AuthStatus.authenticated,
-            user: () => user,
-            notice: () => null,
-          );
-          await _onUnlocked(cached.userId);
-          return;
+        user = await _repo.currentSession();
+      } on AppFailure catch (e) {
+        switch (e.error) {
+          case SessionExpiredError():
+            expired = true;
+          case DeviceRevokedError():
+            await _endSession(cached.userId, AuthNotice.deviceRevoked);
+            return;
+          default:
+            // Sin red u otro fallo transitorio: se sigue en local (desbloqueo sin red).
+            user = null;
         }
-      } catch (_) {
-        // Biometría cancelada, clave invalidada, etc.: se cae al desbloqueo con contraseña.
       }
-    }
 
-    state = state.copyWith(status: AuthStatus.authenticated, user: () => user);
-    _setSession(AxoSession.locked);
+      if (expired) {
+        state = state.copyWith(
+          status: AuthStatus.expired,
+          notice: () => AuthNotice.signedOutElsewhere,
+        );
+        _setSession(AxoSession.noSession);
+        return;
+      }
+
+      if (user == null) {
+        // Hay sesión guardada pero el servidor no la confirma (sin red o token caducado): se
+        // ofrece el desbloqueo local en vez de mandar a la introducción.
+        await _beforeUnlock(cached.userId);
+        state = state.copyWith(status: AuthStatus.authenticated);
+        _setSession(AxoSession.locked);
+        return;
+      }
+
+      final settings = await _prefs.readLockSettings(cached.userId);
+      await _beforeUnlock(cached.userId, settings);
+
+      if (await _canAutoUnlock(settings, cached.userId)) {
+        try {
+          final unlocked = await _vault.unlockWithStoredKey(
+            userId: cached.userId,
+            prompt: _startupUnlockPrompt,
+          );
+          if (unlocked) {
+            state = state.copyWith(
+              status: AuthStatus.authenticated,
+              user: () => user,
+              notice: () => null,
+            );
+            await _onUnlocked(cached.userId);
+            return;
+          }
+        } catch (_) {
+          // Biometría cancelada, clave invalidada, etc.: se cae al desbloqueo con contraseña.
+        }
+      }
+
+      state = state.copyWith(
+        status: AuthStatus.authenticated,
+        user: () => user,
+      );
+      _setSession(AxoSession.locked);
+    } on Object {
+      // Nunca dejar la app en «restaurando».
+      _setSession(AxoSession.noSession);
+    }
+  }
+
+  /// Marca que la introducción ya se vio (al terminarla o saltarla) para no repetirla. Persiste en
+  /// el almacén seguro; si la escritura falla, la marca vive al menos en memoria.
+  Future<void> markOnboardingSeen() async {
+    ref.read(onboardingSeenProvider.notifier).set(true);
+    try {
+      await _prefs.writeOnboardingSeen();
+    } catch (_) {}
   }
 
   void clearErrors() {

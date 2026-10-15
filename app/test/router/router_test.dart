@@ -1,4 +1,5 @@
 import 'package:axonote_app/app/session.dart';
+import 'package:axonote_app/features/auth/ui/splash_screen.dart';
 import 'package:axonote_app/l10n/app_localizations.dart';
 import 'package:axonote_app/router/app_router.dart';
 import 'package:axonote_app/ui/theme.dart';
@@ -32,6 +33,15 @@ void main() {
     addTearDown(container.dispose);
 
     await tester.pumpWidget(_app(container));
+    await tester.pumpAndSettle();
+    // Mientras se restaura la sesión se muestra el arranque, no una pantalla de flujo.
+    expect(
+      find.byType(SplashScreen),
+      findsOneWidget,
+      reason: 'arranque → splash',
+    );
+
+    container.read(sessionProvider.notifier).set(AxoSession.noSession);
     await tester.pumpAndSettle();
     expect(
       find.text('Omitir'),
