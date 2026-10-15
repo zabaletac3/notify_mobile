@@ -13,6 +13,7 @@ import 'data/crypto/argon2id_isolate.dart';
 import 'features/auth/state/auth_controller.dart';
 import 'features/auth/state/vault_lifecycle.dart';
 import 'features/auth/ui/session_expired_dialog.dart';
+import 'features/settings/state/settings_controller.dart';
 import 'features/vault/state/vault_lock.dart';
 import 'features/vault/ui/vault_activity_gate.dart';
 import 'l10n/app_localizations.dart';
@@ -106,27 +107,35 @@ class _AxoNoteAppState extends ConsumerState<AxoNoteApp> {
   void initState() {
     super.initState();
     // Arranque en frío: decide sesión, bloqueo y desbloqueo con la clave recordada.
-    Future.microtask(
-      () => ref.read(authControllerProvider.notifier).bootstrap(),
-    );
+    Future.microtask(() {
+      ref.read(authControllerProvider.notifier).bootstrap();
+      ref.read(settingsProvider.notifier).load();
+    });
   }
 
   @override
   Widget build(BuildContext context) {
+    final settings = ref.watch(settingsProvider);
+    final themeMode = themeModeOf(settings.theme);
+    final textScale = textScaleOf(settings.textSize);
     return MaterialApp.router(
       onGenerateTitle: (context) => AppLocalizations.of(context).appTitle,
       debugShowCheckedModeBanner: false,
       theme: AxoTheme.light(),
       darkTheme: AxoTheme.dark(),
-      themeMode: ThemeMode.system,
+      themeMode: themeMode,
       localizationsDelegates: AppLocalizations.localizationsDelegates,
       supportedLocales: AppLocalizations.supportedLocales,
       routerConfig: ref.watch(routerProvider),
-      builder: (context, child) => VaultActivityGate(
-        child: SessionNoticeHost(
-          child: SecureScreen(
-            restoreOnDispose: false,
-            child: child ?? const SizedBox.shrink(),
+      builder: (context, child) => MediaQuery(
+        data: MediaQuery.of(context)
+            .copyWith(textScaler: TextScaler.linear(textScale)),
+        child: VaultActivityGate(
+          child: SessionNoticeHost(
+            child: SecureScreen(
+              restoreOnDispose: false,
+              child: child ?? const SizedBox.shrink(),
+            ),
           ),
         ),
       ),

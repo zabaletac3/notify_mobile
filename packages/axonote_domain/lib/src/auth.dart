@@ -180,6 +180,17 @@ class MfaStatus {
   final int recoveryCodesLeft;
 }
 
+/// Secreto TOTP pendiente de confirmar (`POST /mfa/totp/setup`).
+class MfaSetup {
+  const MfaSetup({required this.secret, required this.otpauthUri});
+
+  /// Secreto en base32, para escribirlo a mano.
+  final String secret;
+
+  /// URI `otpauth://` para el QR.
+  final String otpauthUri;
+}
+
 /// Lo que se muestra una sola vez al configurar el autenticador.
 class MfaSetupResult {
   const MfaSetupResult({required this.secret, required this.otpauthUri});

@@ -284,6 +284,363 @@ class AuthController extends Notifier<AuthState> {
     state = state.copyWith(pendingEmail: () => null);
   }
 
+  /// Cambia el nombre visible (fase 11.2).
+  Future<ActionResult> updateProfile(String fullName) async {
+    final validation = validateProfileName(fullName);
+    if (validation is Invalid) return _rejectValidation(validation.errors);
+    state = state.copyWith(
+      busy: true,
+      error: () => null,
+      fieldErrors: const {},
+    );
+    try {
+      final user = await _repo.updateProfile(fullName.trim());
+      state = state.copyWith(busy: false, user: () => user);
+      return actionOk;
+    } on AppFailure catch (e) {
+      return _rejectFailure(e.error);
+    } catch (_) {
+      return _rejectFailure(const UnknownError());
+    }
+  }
+
+  /// Pide cambiar el correo: deriva la prueba de la contraseña actual y pide el código al correo
+  /// nuevo. Deja [AuthState.pendingEmailChange] para el segundo paso.
+  Future<ActionResult> requestEmailChange(
+    String newEmail,
+    String password,
+  ) async {
+    final validation = validateEmailChange(newEmail, password);
+    if (validation is Invalid) return _rejectValidation(validation.errors);
+    final userId = state.user?.id ?? (await _prefs.cachedSession())?.userId;
+    if (userId == null) return _rejectFailure(const SessionExpiredError());
+    state = state.copyWith(
+      busy: true,
+      deriving: true,
+      error: () => null,
+      fieldErrors: const {},
+    );
+    try {
+      final bundle = await _repo.keyBundle();
+      final authKey = await crypto.deriveAuthKey(
+        password,
+        _cryptoKdf(bundle.kdf),
+        _argon2id,
+      );
+      final email = await _repo.requestEmailChange(
+        newEmail: newEmail.trim().toLowerCase(),
+        authKey: authKey,
+      );
+      state = state.copyWith(
+        busy: false,
+        deriving: false,
+        pendingEmailChange: () => email,
+      );
+      return actionOk;
+    } on crypto.KdfUnsupported {
+      return _rejectFailure(const UnknownError(message: 'kdf-unsupported'));
+    } on AppFailure catch (e) {
+      return _rejectFailure(e.error);
+    } catch (_) {
+      return _rejectFailure(const UnknownError());
+    }
+  }
+
+  /// Confirma el correo nuevo con el código.
+  Future<ActionResult> confirmEmailChange(String code) async {
+    final email = state.pendingEmailChange;
+    if (email == null) {
+      return _rejectFailure(
+        const NotFoundError(entity: 'pending-email-change'),
+      );
+    }
+    final validation = validateVerificationCode(code);
+    if (validation is Invalid) return _rejectValidation(validation.errors);
+    state = state.copyWith(
+      busy: true,
+      error: () => null,
+      fieldErrors: const {},
+    );
+    try {
+      final user = await _repo.confirmEmailChange(email: email, code: code);
+      state = state.copyWith(
+        busy: false,
+        user: () => user,
+        pendingEmailChange: () => null,
+      );
+      return actionOk;
+    } on AppFailure catch (e) {
+      return _rejectFailure(e.error);
+    } catch (_) {
+      return _rejectFailure(const UnknownError());
+    }
+  }
+
+  /// Cancela el cambio de correo pendiente.
+  void cancelEmailChange() {
+    state = state.copyWith(pendingEmailChange: () => null);
+  }
+
+  /// Cambia la contraseña (la clave maestra no cambia; las notas no se vuelven a cifrar).
+  Future<ActionResult> changePassword(
+    String currentPassword,
+    String newPassword,
+    String confirmation,
+  ) async {
+    final validation = validateNewPassword(newPassword, confirmation);
+    if (validation is Invalid) return _rejectValidation(validation.errors);
+    if (currentPassword.isEmpty) {
+      return _rejectValidation(const {'currentPassword': 'required'});
+    }
+    final userId = state.user?.id ?? (await _prefs.cachedSession())?.userId;
+    if (userId == null) return _rejectFailure(const SessionExpiredError());
+    state = state.copyWith(
+      busy: true,
+      deriving: true,
+      error: () => null,
+      fieldErrors: const {},
+    );
+    try {
+      final bundle = await _repo.keyBundle();
+      final keys = await crypto.changePasswordKeys(
+        currentPassword: currentPassword,
+        newPassword: newPassword,
+        userId: userId,
+        current: _cryptoBundle(bundle),
+        argon2id: _argon2id,
+      );
+      try {
+        await _repo.changePassword(
+          currentAuthKey: keys.currentAuthKey,
+          newAuthKey: keys.newAuthKey,
+          keys: _domainBundle(keys.keys),
+        );
+      } finally {
+        keys.masterKey.dispose();
+      }
+      state = state.copyWith(busy: false, deriving: false, unlockFailures: 0);
+      return actionOk;
+    } on crypto.KdfUnsupported {
+      return _rejectFailure(const UnknownError(message: 'kdf-unsupported'));
+    } on crypto.DecryptError {
+      return _rejectFailure(
+        const ValidationError({'currentPassword': 'wrong-password'}),
+      );
+    } on crypto.CryptoFormatError {
+      return _rejectFailure(
+        const ValidationError({'currentPassword': 'wrong-password'}),
+      );
+    } on AppFailure catch (e) {
+      return _rejectFailure(e.error);
+    } catch (_) {
+      return _rejectFailure(const UnknownError());
+    }
+  }
+
+  /// Elimina la cuenta (exige la contraseña). Cierra la sesión local al terminar.
+  Future<ActionResult> deleteAccount(String password) async {
+    if (password.isEmpty) {
+      return _rejectValidation(const {'password': 'required'});
+    }
+    final userId = state.user?.id ?? (await _prefs.cachedSession())?.userId;
+    if (userId == null) return _rejectFailure(const SessionExpiredError());
+    state = state.copyWith(
+      busy: true,
+      deriving: true,
+      error: () => null,
+      fieldErrors: const {},
+    );
+    try {
+      final bundle = await _repo.keyBundle();
+      final authKey = await crypto.deriveAuthKey(
+        password,
+        _cryptoKdf(bundle.kdf),
+        _argon2id,
+      );
+      await _repo.deleteAccount(authKey);
+      await _endSession(userId, null);
+      return actionOk;
+    } on crypto.KdfUnsupported {
+      return _rejectFailure(const UnknownError(message: 'kdf-unsupported'));
+    } on AppFailure catch (e) {
+      return _rejectFailure(e.error);
+    } catch (_) {
+      return _rejectFailure(const UnknownError());
+    }
+  }
+
+  /// Deriva la prueba de la contraseña actual (o `null` si no hay cuenta).
+  Future<String?> _currentAuthKey(String password) async {
+    final userId = state.user?.id ?? (await _prefs.cachedSession())?.userId;
+    if (userId == null) return null;
+    final bundle = await _repo.keyBundle();
+    return crypto.deriveAuthKey(password, _cryptoKdf(bundle.kdf), _argon2id);
+  }
+
+  /// Genera un secreto TOTP pendiente de confirmar (fase 11.3).
+  Future<Result<MfaSetup>> mfaSetup(String password) async {
+    state = state.copyWith(
+      busy: true,
+      deriving: true,
+      error: () => null,
+      fieldErrors: const {},
+    );
+    try {
+      final authKey = await _currentAuthKey(password);
+      if (authKey == null) {
+        state = state.copyWith(busy: false, deriving: false);
+        return const Err(SessionExpiredError());
+      }
+      final setup = await _repo.mfaSetup(authKey);
+      state = state.copyWith(busy: false, deriving: false);
+      return Ok(setup);
+    } on crypto.KdfUnsupported {
+      state = state.copyWith(busy: false, deriving: false);
+      return const Err(UnknownError(message: 'kdf-unsupported'));
+    } on AppFailure catch (e) {
+      _rejectFailure(e.error);
+      return Err(e.error);
+    } catch (_) {
+      _rejectFailure(const UnknownError());
+      return const Err(UnknownError());
+    }
+  }
+
+  /// Confirma el código TOTP y activa la verificación; devuelve los códigos de respaldo.
+  Future<Result<List<String>>> mfaEnable(String code) async {
+    state = state.copyWith(
+      busy: true,
+      error: () => null,
+      fieldErrors: const {},
+    );
+    try {
+      final codes = await _repo.mfaEnable(code);
+      state = state.copyWith(busy: false);
+      return Ok(codes);
+    } on AppFailure catch (e) {
+      _rejectFailure(e.error);
+      return Err(e.error);
+    } catch (_) {
+      _rejectFailure(const UnknownError());
+      return const Err(UnknownError());
+    }
+  }
+
+  /// Desactiva la verificación (contraseña + código).
+  Future<ActionResult> mfaDisable(String password, String code) async {
+    state = state.copyWith(
+      busy: true,
+      deriving: true,
+      error: () => null,
+      fieldErrors: const {},
+    );
+    try {
+      final authKey = await _currentAuthKey(password);
+      if (authKey == null) {
+        state = state.copyWith(busy: false, deriving: false);
+        return actionErr(const SessionExpiredError());
+      }
+      await _repo.mfaDisable(authKey: authKey, code: code);
+      state = state.copyWith(busy: false, deriving: false);
+      return actionOk;
+    } on crypto.KdfUnsupported {
+      state = state.copyWith(busy: false, deriving: false);
+      return actionErr(const UnknownError(message: 'kdf-unsupported'));
+    } on AppFailure catch (e) {
+      _rejectFailure(e.error);
+      return actionErr(e.error);
+    } catch (_) {
+      _rejectFailure(const UnknownError());
+      return actionErr(const UnknownError());
+    }
+  }
+
+  /// Regenera los códigos de respaldo (contraseña + código).
+  Future<Result<List<String>>> mfaRegenerateCodes(
+    String password,
+    String code,
+  ) async {
+    state = state.copyWith(
+      busy: true,
+      deriving: true,
+      error: () => null,
+      fieldErrors: const {},
+    );
+    try {
+      final authKey = await _currentAuthKey(password);
+      if (authKey == null) {
+        state = state.copyWith(busy: false, deriving: false);
+        return const Err(SessionExpiredError());
+      }
+      final codes = await _repo.mfaRegenerateCodes(
+        authKey: authKey,
+        code: code,
+      );
+      state = state.copyWith(busy: false, deriving: false);
+      return Ok(codes);
+    } on crypto.KdfUnsupported {
+      state = state.copyWith(busy: false, deriving: false);
+      return const Err(UnknownError(message: 'kdf-unsupported'));
+    } on AppFailure catch (e) {
+      _rejectFailure(e.error);
+      return Err(e.error);
+    } catch (_) {
+      _rejectFailure(const UnknownError());
+      return const Err(UnknownError());
+    }
+  }
+
+  /// Rota la clave de recuperación (exige la contraseña). Devuelve la clave nueva.
+  Future<Result<String>> rotateRecoveryKey(String password) async {
+    final userId = state.user?.id ?? (await _prefs.cachedSession())?.userId;
+    if (userId == null) return const Err(SessionExpiredError());
+    state = state.copyWith(
+      busy: true,
+      deriving: true,
+      error: () => null,
+      fieldErrors: const {},
+    );
+    try {
+      final bundle = await _repo.keyBundle();
+      final rotated = await crypto.rotateRecoveryKeys(
+        password: password,
+        userId: userId,
+        keys: _cryptoBundle(bundle),
+        argon2id: _argon2id,
+      );
+      await _repo.rotateRecoveryKey(
+        authKey: rotated.authKey,
+        recoveryAuth: rotated.recoveryAuth,
+        recoveryWrappedMasterKey: rotated.recoveryWrappedMasterKey,
+      );
+      state = state.copyWith(
+        busy: false,
+        deriving: false,
+        pendingRecoveryKey: () => rotated.recoveryKey,
+      );
+      return Ok(rotated.recoveryKey);
+    } on crypto.KdfUnsupported {
+      state = state.copyWith(busy: false, deriving: false);
+      return const Err(UnknownError(message: 'kdf-unsupported'));
+    } on crypto.DecryptError {
+      final failure = _rejectFailure(
+        const ValidationError({'password': 'wrong-password'}),
+      );
+      return Err((failure as Err).error);
+    } on crypto.CryptoFormatError {
+      final failure = _rejectFailure(
+        const ValidationError({'password': 'wrong-password'}),
+      );
+      return Err((failure as Err).error);
+    } on AppFailure catch (e) {
+      _rejectFailure(e.error);
+      return Err(e.error);
+    } catch (_) {
+      _rejectFailure(const UnknownError());
+      return const Err(UnknownError());
+    }
+  }
+
   Future<ActionResult> login(LoginInput input) async {
     final validation = validateLogin(input);
     if (validation is Invalid) return _rejectValidation(validation.errors);

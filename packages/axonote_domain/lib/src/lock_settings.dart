@@ -13,6 +13,15 @@ extension LockTimeoutDuration on LockTimeout {
     LockTimeout.fifteenMinutes => const Duration(minutes: 15),
     LockTimeout.never => null,
   };
+
+  /// Valor tal como viaja en el contrato (`immediately`, `1m`, `5m`, `15m`, `never`).
+  String get wire => switch (this) {
+    LockTimeout.immediately => 'immediately',
+    LockTimeout.oneMinute => '1m',
+    LockTimeout.fiveMinutes => '5m',
+    LockTimeout.fifteenMinutes => '15m',
+    LockTimeout.never => 'never',
+  };
 }
 
 /// Ajustes que gobiernan el cofre (plan §5.3), con los mismos valores por defecto que

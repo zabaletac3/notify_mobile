@@ -465,4 +465,169 @@ void main() {
       expect(repo.resetEmails, isEmpty);
     });
   });
+
+  group('cuenta (fase 11.2)', () {
+    FakeVaultPrefs prefsFor(String userId) => FakeVaultPrefs()
+      ..session = CachedSession(userId: userId, email: 'persona@example.com');
+
+    test('cambiar el nombre actualiza el perfil', () async {
+      final repo = FakeAuthRepository()..currentUser = _user('u1');
+      final container = _container(repo: repo, prefs: prefsFor('u1'));
+      final result = await container
+          .read(authControllerProvider.notifier)
+          .updateProfile('Nuevo Nombre');
+      expect(result.isOk, isTrue);
+      expect(
+        container.read(authControllerProvider).user?.fullName,
+        'Nuevo Nombre',
+      );
+    });
+
+    test('nombre demasiado corto no llama al servidor', () async {
+      final repo = FakeAuthRepository()..currentUser = _user('u1');
+      final container = _container(repo: repo, prefs: prefsFor('u1'));
+      final result = await container
+          .read(authControllerProvider.notifier)
+          .updateProfile('x');
+      expect(result.isOk, isFalse);
+    });
+
+    test('pedir el cambio de correo deja el correo pendiente', () async {
+      final account = await _account();
+      final repo = FakeAuthRepository()
+        ..currentUser = _user(account.userId)
+        ..keysBundle = account.domainBundle
+        ..emailChangeResult = 'nuevo@correo.com';
+      final container = _container(repo: repo, prefs: prefsFor(account.userId));
+      final result = await container
+          .read(authControllerProvider.notifier)
+          .requestEmailChange('nuevo@correo.com', account.password);
+      expect(result.isOk, isTrue);
+      expect(
+        container.read(authControllerProvider).pendingEmailChange,
+        'nuevo@correo.com',
+      );
+    });
+
+    test('confirmar el correo actualiza el perfil', () async {
+      final account = await _account();
+      final repo = FakeAuthRepository()
+        ..currentUser = _user(account.userId)
+        ..keysBundle = account.domainBundle
+        ..emailChangeResult = 'nuevo@correo.com';
+      final container = _container(repo: repo, prefs: prefsFor(account.userId));
+      final controller = container.read(authControllerProvider.notifier);
+      await controller.requestEmailChange('nuevo@correo.com', account.password);
+      final result = await controller.confirmEmailChange('123456');
+      expect(result.isOk, isTrue);
+      expect(
+        container.read(authControllerProvider).user?.email,
+        'nuevo@correo.com',
+      );
+      expect(container.read(authControllerProvider).pendingEmailChange, isNull);
+    });
+
+    test('cambiar la contraseña llama al servidor', () async {
+      final account = await _account();
+      final repo = FakeAuthRepository()
+        ..currentUser = _user(account.userId)
+        ..keysBundle = account.domainBundle;
+      final container = _container(repo: repo, prefs: prefsFor(account.userId));
+      final result = await container
+          .read(authControllerProvider.notifier)
+          .changePassword(account.password, 'NuevaClave123!', 'NuevaClave123!');
+      expect(result.isOk, isTrue);
+    });
+
+    test('contraseña nueva corta no llama al servidor', () async {
+      final account = await _account();
+      final repo = FakeAuthRepository()
+        ..currentUser = _user(account.userId)
+        ..keysBundle = account.domainBundle;
+      final container = _container(repo: repo, prefs: prefsFor(account.userId));
+      final result = await container
+          .read(authControllerProvider.notifier)
+          .changePassword(account.password, 'corta', 'corta');
+      expect(result.isOk, isFalse);
+    });
+
+    test('eliminar la cuenta cierra la sesión local', () async {
+      final account = await _account();
+      final repo = FakeAuthRepository()
+        ..currentUser = _user(account.userId)
+        ..keysBundle = account.domainBundle;
+      final container = _container(repo: repo, prefs: prefsFor(account.userId));
+      final result = await container
+          .read(authControllerProvider.notifier)
+          .deleteAccount(account.password);
+      expect(result.isOk, isTrue);
+      expect(repo.deleteAccountCalled, isTrue);
+      expect(container.read(sessionProvider), AxoSession.noSession);
+    });
+  });
+
+  group('verificación en dos pasos y clave de recuperación (fase 11.3)', () {
+    FakeVaultPrefs prefsFor(String userId) => FakeVaultPrefs()
+      ..session = CachedSession(userId: userId, email: 'persona@example.com');
+
+    Future<(FakeAuthRepository, ProviderContainer, String)> ready() async {
+      final account = await _account();
+      final repo = FakeAuthRepository()
+        ..currentUser = _user(account.userId)
+        ..keysBundle = account.domainBundle;
+      final container = _container(repo: repo, prefs: prefsFor(account.userId));
+      return (repo, container, account.password);
+    }
+
+    test('setup devuelve el secreto y la URI', () async {
+      final (_, container, password) = await ready();
+      final result = await container
+          .read(authControllerProvider.notifier)
+          .mfaSetup(password);
+      expect(result.isOk, isTrue);
+      expect((result as Ok).value.secret, 'JBSWY3DPEHPK3PXP');
+    });
+
+    test('enable devuelve los códigos de respaldo', () async {
+      final (repo, container, _) = await ready();
+      final result = await container
+          .read(authControllerProvider.notifier)
+          .mfaEnable('123456');
+      expect(result.isOk, isTrue);
+      expect((result as Ok).value, repo.recoveryCodesResult);
+      expect(repo.mfaEnabled, isTrue);
+    });
+
+    test('disable exige contraseña y código', () async {
+      final (repo, container, password) = await ready();
+      repo.mfaEnabled = true;
+      final result = await container
+          .read(authControllerProvider.notifier)
+          .mfaDisable(password, '123456');
+      expect(result.isOk, isTrue);
+      expect(repo.mfaEnabled, isFalse);
+    });
+
+    test('regenerar códigos los devuelve', () async {
+      final (repo, container, password) = await ready();
+      final result = await container
+          .read(authControllerProvider.notifier)
+          .mfaRegenerateCodes(password, '123456');
+      expect(result.isOk, isTrue);
+      expect((result as Ok).value, repo.recoveryCodesResult);
+    });
+
+    test(
+      'rotar la clave de recuperación llama al servidor y devuelve la nueva',
+      () async {
+        final (repo, container, password) = await ready();
+        final result = await container
+            .read(authControllerProvider.notifier)
+            .rotateRecoveryKey(password);
+        expect(result.isOk, isTrue);
+        expect(repo.rotateRecoveryCalled, isTrue);
+        expect(((result as Ok).value as String).isNotEmpty, isTrue);
+      },
+    );
+  });
 }

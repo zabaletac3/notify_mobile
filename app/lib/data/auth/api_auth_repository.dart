@@ -19,12 +19,16 @@ class ApiAuthRepository implements AuthRepository {
     required this._events,
     String? deviceName,
   }) : _auth = api.AuthApi(http, deviceName: deviceName),
-       _keys = api.KeysApi(http);
+       _keys = api.KeysApi(http),
+       _accountApi = api.AccountApi(http),
+       _mfaApi = api.MfaApi(http);
 
   final AccountSecureStore _account;
   final SessionEventBus _events;
   final api.AuthApi _auth;
   final api.KeysApi _keys;
+  final api.AccountApi _accountApi;
+  final api.MfaApi _mfaApi;
 
   @override
   Future<KdfParams> prelogin(String email) => _guard(() async {
@@ -121,6 +125,112 @@ class ApiAuthRepository implements AuthRepository {
   @override
   Future<void> requestPasswordReset(String email) =>
       _guard(() => _auth.requestPasswordReset(email));
+
+  @override
+  Future<User> updateProfile(String fullName) => _guard(() async {
+    final dto = await _accountApi.updateProfile(fullName);
+    return _user(dto);
+  });
+
+  @override
+  Future<String> requestEmailChange({
+    required String newEmail,
+    required String authKey,
+  }) => _guard(() => _accountApi.requestEmailChange(newEmail, authKey));
+
+  @override
+  Future<User> confirmEmailChange({
+    required String email,
+    required String code,
+  }) => _guard(() async {
+    final dto = await _accountApi.confirmEmailChange(email, code);
+    // El correo guardado cambia con la cuenta.
+    final userId = await _account.readUserId();
+    if (userId != null) {
+      await _account.saveSession(
+        SessionData(
+          userId: userId,
+          email: dto.email,
+          accessToken: await _account.readAccessToken() ?? '',
+          refreshToken: await _account.readRefreshToken() ?? '',
+          keyBundleJson: await _account.readKeyBundleJson() ?? '',
+          expiresAt: await _account.readExpiresAt() ?? '',
+        ),
+      );
+    }
+    return _user(dto);
+  });
+
+  @override
+  Future<void> changePassword({
+    required String currentAuthKey,
+    required String newAuthKey,
+    required KeyBundle keys,
+  }) => _guard(() async {
+    final dto = _keysDto(keys);
+    await _accountApi.changePassword(
+      api.PasswordChangeRequestDto(
+        currentAuthKey: currentAuthKey,
+        newAuthKey: newAuthKey,
+        keys: dto,
+      ),
+    );
+    await _account.updateKeyBundleJson(jsonEncode(dto.toJson()));
+  });
+
+  @override
+  Future<void> deleteAccount(String authKey) =>
+      _guard(() => _accountApi.deleteAccount(authKey));
+
+  @override
+  Future<MfaStatus> mfaStatus() => _guard(() async {
+    final dto = await _mfaApi.status();
+    return MfaStatus(
+      enabled: dto.enabled,
+      enabledAt: dto.enabledAt,
+      recoveryCodesLeft: dto.recoveryCodesLeft,
+    );
+  });
+
+  @override
+  Future<MfaSetup> mfaSetup(String authKey) => _guard(() async {
+    final dto = await _mfaApi.setup(authKey);
+    return MfaSetup(secret: dto.secret, otpauthUri: dto.otpauthUri);
+  });
+
+  @override
+  Future<List<String>> mfaEnable(String code) => _guard(() async {
+    final dto = await _mfaApi.enable(code);
+    return dto.recoveryCodes;
+  });
+
+  @override
+  Future<void> mfaDisable({required String authKey, required String code}) =>
+      _guard(() => _mfaApi.disable(authKey, code));
+
+  @override
+  Future<List<String>> mfaRegenerateCodes({
+    required String authKey,
+    required String code,
+  }) => _guard(() async {
+    final dto = await _mfaApi.regenerateCodes(authKey, code);
+    return dto.recoveryCodes;
+  });
+
+  @override
+  Future<void> rotateRecoveryKey({
+    required String authKey,
+    required String recoveryAuth,
+    required String recoveryWrappedMasterKey,
+  }) => _guard(
+    () => _keys.rotateRecoveryKey(
+      api.RecoveryKeyRotationDto(
+        authKey: authKey,
+        recoveryAuth: recoveryAuth,
+        recoveryWrappedMasterKey: recoveryWrappedMasterKey,
+      ),
+    ),
+  );
 
   Future<void> _persistLogin(api.LoginResultDto result) => _persistSession(
     user: result.user,

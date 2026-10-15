@@ -5,9 +5,12 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../data/auth/account_token_store.dart';
 import '../data/auth/api_auth_repository.dart';
+import '../data/auth/api_device_repository.dart';
+import '../data/auth/api_storage_repository.dart';
 import '../data/auth/local_data_cleaner.dart';
 import '../data/auth/session_events.dart';
 import '../data/auth/vault_prefs_repository.dart';
+import '../data/remote/api_share_repository.dart';
 import '../data/secure/account_secure_store.dart';
 import '../data/secure/secure_store.dart';
 import '../features/vault/state/clock.dart';
@@ -85,6 +88,30 @@ final authRepositoryProvider = Provider<AuthRepository>((ref) {
 /// uno falso y rápido).
 final argon2idProvider = Provider<crypto.Argon2idDeriver>(
   (ref) => throw UnimplementedError('argon2idProvider debe sobrescribirse'),
+);
+
+/// Dispositivos con sesión activa (`/devices`).
+final deviceRepositoryProvider = Provider<DeviceRepository>(
+  (ref) => ApiDeviceRepository(ref.watch(httpClientProvider)),
+);
+
+/// Uso de espacio de la cuenta (`/storage/usage`).
+final storageRepositoryProvider = Provider<StorageRepository>(
+  (ref) => ApiStorageRepository(ref.watch(httpClientProvider)),
+);
+
+/// Origen de la web para las URLs de los enlaces públicos (`SHARE_ORIGIN` de la §4.5). Por defecto,
+/// el de la web de producción.
+final shareOriginProvider = Provider<String>(
+  (ref) => const String.fromEnvironment(
+    'SHARE_ORIGIN',
+    defaultValue: 'https://apunte.app',
+  ),
+);
+
+/// Enlaces públicos de las notas (`/notes/{noteId}/share`).
+final shareRepositoryProvider = Provider<ShareRepository>(
+  (ref) => ApiShareRepository(ref.watch(httpClientProvider)),
 );
 
 /// Parámetros de Argon2id para cuentas nuevas: los reales por defecto; las pruebas de integración
