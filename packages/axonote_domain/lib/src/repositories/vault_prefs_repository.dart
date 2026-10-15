@@ -25,6 +25,13 @@ abstract interface class VaultPrefsRepository {
 
   /// Borra la sesión local (tokens, identidad y `KeyBundle`) sin tocar las preferencias de bloqueo.
   Future<void> clearSession();
+
+  /// Si la persona ya vio la introducción en este dispositivo. Es una marca global del dispositivo
+  /// (no de la cuenta): la introducción solo se enseña la primera vez; después de cerrar sesión se
+  /// vuelve a la bienvenida.
+  Future<bool> readOnboardingSeen();
+
+  Future<void> writeOnboardingSeen();
 }
 
 /// Escribe la hora de la última actividad para que el tiempo de bloqueo se pueda recalcular tras

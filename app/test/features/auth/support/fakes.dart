@@ -146,11 +146,20 @@ class FakeAuthRepository implements AuthRepository {
 /// Preferencias de la cuenta en memoria (implementa también [VaultActivityStore]).
 class FakeVaultPrefs implements VaultPrefsRepository, VaultActivityStore {
   CachedSession? session;
+  bool onboardingSeen = false;
   final Map<String, LockSettings> settings = {};
   final Map<String, DateTime> lastActive = {};
 
   @override
   Future<CachedSession?> cachedSession() async => session;
+
+  @override
+  Future<bool> readOnboardingSeen() async => onboardingSeen;
+
+  @override
+  Future<void> writeOnboardingSeen() async {
+    onboardingSeen = true;
+  }
 
   @override
   Future<LockSettings> readLockSettings(String userId) async =>

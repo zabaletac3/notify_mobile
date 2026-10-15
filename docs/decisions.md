@@ -975,3 +975,217 @@ por el MCP (detalle en `docs/design/penpot-progress.md`).
   26) para comparar como el diseño.
 - **Pendiente de relectura:** «Error de servidor» (dos timeouts seguidos → parada; se dejó como
   estaba) y `Registro (oscuro)` (leído en la primera pasada, no re-leído en esta).
+
+## Fase 9 · Notas (2026-10-14)
+
+### 2026-10-14 · El diseño pasa a Pencil (`axonote.pen`) y se lee tablero a tablero
+
+- La fuente de verdad del diseño deja de ser Penpot y pasa a ser el documento de **Pencil**
+  «axonote» (`~/.pencil/documents/31878e13-9a73-448f-891e-9066150ee94e/axonote.pen`), sección
+  **Móvil** (tableros `Android — …` de 412×915). Se leyeron los 18 tableros de la fase con el MCP
+  `pencil` (`Get` con visitante + `TakeScreenshot`); el detalle de medidas está en
+  `docs/design/pencil-measurements.md`.
+- El documento usa el nombre viejo «Apunte»; en la app se escribe **AxoNote**.
+- Los iconos del documento son de Lucide, pero el set vendorizado en `assets/icons/` es un
+  subconjunto anterior y **no tiene** algunos que el diseño usa: `compose`, `more`, `share`,
+  `notes`, `close`, `sidebar`. Se mapean a los existentes (`pencil`, `ellipsis`, `share-2`,
+  `file-text`, `x`, `menu`), sin dibujar SVG nuevos a mano. Diferencia anotada en el informe.
+
+### 2026-10-14 · Tokens nuevos de la fase 9 (medidos, con su tablero)
+
+- En `app/lib/ui/tokens.dart`: `AxoType.search` (16/400), `chip` (14/500), `chipActive` (14/600),
+  `navItem` (14/500), `groupHeader` (13/600), `option` (15/500), `sectionLabel` (11/600), `meta11`
+  (11/500), `meta12med` (12/500), `buttonSm` (15/600); `AxoRadii.chip` (10, chip y tarjeta de
+  nota) y `AxoRadii.fab` (18); `AxoSizes.searchBar` (48), `chip` (33), `groupHeader` (38),
+  `sidebarItem` (34), `drawer` (304), `noteSkeleton` (92), `illustration` (80), `optionRow` (48).
+  No se sustituyó ningún token existente.
+
+### 2026-10-14 · Componentes: cambios y altas
+
+- **`AxoNoteCard`** pasa a la tarjeta del diseño nuevo: 80 de alto, radio 10, relleno [12,14], hueco
+  4 y **sin relleno de fondo** (fila plana sobre `bgApp`; antes tenía `bgEditor`). Tres filas:
+  pin + título 14/600, fecha 12/500 + vista previa 12/400, y carpeta 11/500. Acepta `highlight`
+  (resalta coincidencias de la búsqueda con `bgSelected`, color no medido en el tablero),
+  `folderLabel` y `unreadable`.
+- **`AxoBottomSheet`** usa `bgEditor` (el tablero «Menú contextual de nota» lo mide `#fffdf8`); el
+  contenedor de acciones va dentro con `bgApp` (`AxoSheetActions`).
+- **`AxoDialog`** se rellena a 24 (antes 28) y su ilustración es 56 en `statusDangerBg` con icono
+  `statusDanger` (peligro) o 64 en `bgSelected` con icono `accent`.
+- **`AxoBanner`** gana la variante `note` (relleno `bgSelected`, texto `textPrimary`, sin icono),
+  la del aviso de la papelera.
+- **Nuevos componentes** en `app/lib/ui/components/`: `folder_chip`, `note_group_header`,
+  `search_field`, `fab`, `skeleton`, `empty_state`, `offline_banner`, `option_row`, `radio`,
+  `drawer`.
+- **Goldens** nuevos de las 14 pantallas de la fase en claro y oscuro
+  (`app/test/features/notes/goldens/`, `notes_screens_golden_test.dart`).
+
+### 2026-10-14 · `Note.preview` en el dominio
+
+- `list()` devuelve resúmenes **sin** `content` (§4.4), así que la tarjeta no podía pintar la vista
+  previa. Se añade `Note.preview` (opcional, `''` por defecto) y se rellena desde la columna
+  `preview` de la §6 (`rows.toNote()`, `local_note_repository._save`). Es solo de lectura para la
+  interfaz; no viaja en el payload cifrado.
+
+### 2026-10-14 · Se cierra la costura entre las fases 7 y 8 que quedó suelta
+
+- Nadie abría la base local al desbloquear (la fase 7 dejó `SyncSession.open` listo y la fase 8 solo
+  definió los ganchos). La fase 9, que necesita los repositorios, la cierra:
+  `app/lib/app/local_session.dart` (`LocalSessionController`) abre `SyncSession` en `onUnlocked` y
+  la cierra en `onSignedOut`/al bloquear, y `main.dart` sobrescribe `vaultLifecycleProvider`.
+- **A3:** se añade `VaultLifecycle.onLocked` (síncrono) y `VaultLockController.lock()` lo llama, para
+  que con el cofre bloqueado no quede la base abierta.
+- **`deviceId`:** el plan lo situaba en la tabla `meta`, pero `LocalDatabase.open` lo necesita
+  *antes* de abrir la base. Se genera una vez y se guarda en el almacén seguro
+  (`AccountSecureStore.readOrCreateDeviceId`, clave `device.id`), expuesto por `deviceIdProvider`.
+
+### 2026-10-14 · Lista por páginas y sin jank evitable
+
+- La lista pide **páginas de 200** (`notesPageSize`) y se pinta con `ListView.builder` sobre filas ya
+  aplanadas (`NoteListRow`), cargando la página siguiente al acercarse al final (§4.4).
+- El agrupado se calcula una vez por cambio de datos en `notesRowsProvider` (no en cada
+  reconstrucción). `noteCountsProvider` se apoya en `notesChangedProvider` (consulta fija barata) en
+  vez de en la lista paginada: reagregar en cada página era trabajo inútil por página.
+- Aun así, **el presupuesto de la §11 no se cumple** (p99 de cuadro 16,4–18,3 ms con 10 000 notas;
+  el pendiente y las cifras están en `docs/benchmarks.md`).
+
+### 2026-10-14 · Alcance de la fase 9 en el menú contextual y la sesión
+
+- El menú contextual del diseño incluye **Compartir**, que es de la fase 11 (enlaces públicos): se
+  omite aquí (una entrada menos que el tablero, anotado en el informe).
+- Mientras no existan los ajustes (fase 11), «Bloquear» y «Cerrar sesión» viven en el menú del
+  botón «más» de la lista (compuesto con componentes base, sin tablero propio), para no perder el
+  ciclo de sesión de la fase 8. El menú de orden (Última edición · Fecha de creación · Título) no
+  tiene tablero y se compone igual.
+
+### 2026-10-14 · Gestos de la lista (deslizar): decisión propia, documentada
+
+- El plan §10 pide «acciones por menú **y por gesto**», pero **ni el documento de Pencil ni
+  `notify_web` los definen**: el documento no tiene nodos de nota/contexto con instrucciones ni
+  ningún texto que mencione deslizar (comprobado nodo a nodo), y la tarjeta de la web solo responde
+  a `click` (no hay `pointerdown`/`touchmove` de arrastre; el único `touchstart` es el contador de
+  actividad para el bloqueo). Así que se decide aquí, siguiendo la convención de Android y el
+  vocabulario del propio diseño:
+  - **Lista (nota activa):** deslizar **a la derecha** fija/desfija (fondo `bgSelected`, icono
+    `pin`; la tarjeta vuelve a su sitio) · deslizar **a la izquierda** la manda a la papelera (fondo
+    `statusDanger`, icono `trash`) con el aviso «Deshacer» de la web.
+  - **Papelera:** deslizar **a la derecha** restaura · deslizar **a la izquierda** elimina
+    definitivamente, pero **con confirmación** (no se puede deshacer): la tarjeta vuelve a su sitio
+    y se abre el diálogo.
+- Es el mismo reparto que el menú contextual (que sí tiene tablero), para que gesto y menú no
+  discrepen. Componente: `app/lib/ui/components/swipe_tile.dart` (`AxoSwipeTile` +
+  `AxoSwipeAction`); pruebas en `app/test/features/notes/notes_swipe_test.dart`.
+- **No hay golden** de los gestos: el tablero no muestra ningún estado deslizado (la instrucción
+  era poner golden solo si el tablero lo muestra).
+
+### 2026-10-14 · Papelera y avisos: textos y regla iguales a `notify_web`
+
+- La **regla** y el **texto** de los días restantes ya coincidían y se dejan igual, con prueba que
+  los fija: `daysUntilPurge(deletedAt, now, trashRetentionDays)` es el mismo cálculo que
+  `src/lib/domain/note-groups.ts` (suelo, mínimo 0) y el texto es
+  `` `Se elimina en ${formatCount(days, 'día', 'días')}` `` de
+  `src/routes/(app)/notes/+page.svelte` (`Se elimina en 1 día`, `Se elimina en 29 días`).
+  Pruebas: `packages/axonote_domain/test/note_query_test.dart` (29/16/9/0) y
+  `app/test/features/notes/note_dates_test.dart` (texto) + el golden de la papelera.
+- Se alinean además los textos de los avisos y diálogos con el código de la web (`note-dialogs.svelte`
+  y `notes/+page.svelte`): «Nota movida a la papelera» (con **Deshacer**) en vez de «Nota enviada a
+  la papelera», «Papelera vaciada», «Nota eliminada definitivamente», «Nota movida a {carpeta}» y
+  «Se eliminarán definitivamente N notas. No podrás recuperarlas.» en el diálogo de vaciar, más los
+  mensajes de error por acción («No se pudo mover la nota», …).
+- **Crear una carpeta desde «Mover a carpeta» mueve la nota a la carpeta nueva**, como la web
+  (`note-dialogs.svelte`: «Si se creó desde "Mover a carpeta", la nota se mueve a la carpeta
+  nueva»).
+
+### 2026-10-14 · Fase 10 · Códec Markdown propio (D2) en `packages/axonote_markdown`
+
+- El códec es **propio** (decisión D2), Dart puro, sin Flutter. Reproduce byte a byte el Markdown
+  de `notify_web` (TipTap 3 con `StarterKit` + `TaskList`): **320 pruebas** verifican los 82 casos
+  de `contract/vectors/markdown.json` (conservación + serialización forzada de los soportados) y
+  los 64 casos de `serialize` (documento → Markdown), más la propiedad de conservación por bloque
+  (editar un bloque no toca los bytes de los demás) y el bloque opaco. Cobertura 99 %.
+- **No se usa `package:markdown`** (aparecía en la §9 como analizador): su modelo de bloques y su
+  normalización (líneas en blanco, entidades, escapes, listas) no reproducen el canónico de TipTap,
+  y D2 ya pide un códec propio. La dependencia no se añadió. El analizador es una pasada propia
+  sobre líneas, con un sub‑analizador en línea (marcas, código, enlaces, autolinks, entidades,
+  escapes y saltos duros).
+- **Divergencia de lectura conocida:** los títulos con subrayado (`Título` + `====`) y otras
+  normalizaciones que solo afectan a Markdown «crudo» (no al canónico que escribe la web) **no se
+  normalizan** al leer; solo importarían al importar `.md` (fase 11). No afecta a los criterios de
+  la fase (los vectores usan el canónico). Anotado en el traspaso.
+- **Bloque opaco (§8.2.5):** el analizador detecta tabla, HTML de bloque, nota al pie e imagen en
+  línea como bloque `opaque`, que se conserva intacto y viaja como nodo propio de solo lectura.
+
+### 2026-10-14 · Fase 10 · Editor: adaptador, format bar y dependencias
+
+- El adaptador `axonote_markdown` ↔ `appflowy_editor` vive en `app/lib/features/editor/state/`
+  (§8.2.6); el códec no importa AppFlowy. La interfaz (`ui/`) solo habla con `state/`.
+- **Barra de formato** (tablero «Android — Editor»): estilo de párrafo, negrita, cursiva, lista y
+  tareas, con las medidas del diseño (`FormatBar` `#EDE7DC` r24, botones 40×40 r8, activo
+  `bgSelected`). El tablero muestra un **botón de imagen** que se **omite** (las imágenes son
+  bloque opaco, fuera de alcance) y el **«deshacer» está en la barra superior**, como en el
+  diseño (el plan §8.2.7 lo listaba en la barra de formato). El set de iconos vendorizado no trae
+  `bold`/`italic`/`list`: se usan glifos «B»/«I» (lo que dibuja el diseño) y el icono más cercano
+  para las listas.
+- **Estados sin tablero propio:** «conflicto» reutiliza la hoja de la fase 9; «nota ilegible» abre
+  el editor en **solo lectura** (aviso + `editableNotifier` en falso); «sincronizando» se cubre con
+  el indicador de la fase 7. Se componen con componentes base, sin tablero nuevo.
+- **Dependencias:** se añaden `appflowy_editor` (path a `packages/third_party`), `axonote_markdown`
+  y `provider` (lo necesita el componente del bloque opaco). El paquete vendorizado suma dos
+  parches (retirar `device_info_plus` y `file_picker`, que chocan con `win32` 6 y `dbus` 0.8; ver
+  `PATCHES.md`). La §9 no listaba `provider`; se anota aquí.
+- **Guardado y recarga:** el contenido se guarda **400 ms** después de la última edición (A10) y al
+  ir a segundo plano; al llegar una revisión nueva por sincronización se **recarga** el editor solo
+  si no hay cambios locales pendientes (§8.3). El **enlace público** es fase 11 (menú «Compartir»
+  presente pero sin acción todavía).
+
+### 2026-10-15 · Fase 9 · Menú lateral: apertura, estado activo y entrada «Ajustes»
+
+- **Desviación deliberada del tablero:** se añade al pie del drawer móvil una fila **«Ajustes»**
+  (icono `settings` del set vendorizado, `assets/icons/settings.svg`) que navega a `/settings/menu`.
+  El tablero «Android — Menú lateral» no la trae, pero la barra lateral de la **web** sí tiene
+  «Ajustes» al pie (`notify_web/src/routes/(app)/app-nav.svelte`), y se busca paridad funcional. El
+  contenido de las pantallas de Ajustes es de la **fase 11**: la ruta existe hoy como
+  `PlaceholderScreen` en `app/lib/router/app_router.dart` y así se deja.
+- **El drawer no abría:** el botón de menú y el toque en el título llamaban a `Scaffold.of(context)`
+  con el `context` del propio `NotesScreen` (por encima del `Scaffold` que su `build` devuelve), lo
+  que lanzaba `Scaffold.of() called with a context that does not contain a Scaffold` y no hacía nada.
+  Se resuelve con un `GlobalKey<ScaffoldState>` (`NotesScreen` pasa a `ConsumerStatefulWidget`); no
+  se cambia el diseño de la barra superior.
+- **Estado activo:** ahora cada entrada del drawer (`Todas las notas`, `Fijadas`, cada carpeta, cada
+  etiqueta, `Papelera`) deriva su `selected` del filtro/ruta actuales, según la variante
+  `State=Selected` del `SidebarItem` (`bgSelected` + `accent`, 14/600). Antes solo se marcaba
+  «Todas las notas».
+- **Pie fuera del scroll:** `Papelera` y «Nueva carpeta» pasan a un pie fijo del `AxoDrawer` (fuera
+  del `ListView`), junto a la nueva fila `Ajustes`, de modo que ningún botón del pie puede quedar
+  tapado por el desplazamiento, como en la web.
+- **Carga:** mientras `counts` es `null` no se pinta «0»; el contador se reserva con un
+  `AxoSkeleton`.
+- **Pruebas:** `app/test/features/notes/notes_drawer_test.dart` (apertura, navegación de cada
+  entrada, cierre, estado activo y contador en carga) y golden nuevo `notes-menu-lateral-{light,dark}`
+  en `notes_screens_golden_test.dart`. Informe: `docs/review-sidebar.md`.
+
+### 2026-10-15 · Arranque en frío: restaurar la sesión y la introducción solo la primera vez
+
+- **Fallo:** la app mostraba siempre onboarding/bienvenida aunque hubiera cuenta iniciada.
+  `SessionController.build()` devolvía `noSession` y el redirect mandaba `/` a `/onboarding`; además
+  `AuthController.bootstrap`, cuando el servidor no confirmaba la sesión (sin red, `currentSession()`
+  nulo o token caducado), dejaba el estado en `noSession` sin ofrecer el desbloqueo local aunque
+  hubiera sesión guardada.
+- **Decisión:** `SessionController` arranca en `AxoSession.restoring` (nuevo estado) y el router
+  muestra `/splash` mientras se lee el almacén seguro; así no parpadea ninguna pantalla.
+  `AuthController.bootstrap` resuelve el estado terminal en todos los caminos:
+  `noSession` (sin sesión guardada, sesión caducada o `device-revoked`), `locked` (hay cuenta
+  guardada pero el bloqueo exige desbloquear: se permite el **desbloqueo local sin red**, §5.3) o
+  `unlocked` (clave recordada y bloqueo no vencido). Ante un error inesperado cae a `noSession`
+  para no quedarse en el arranque.
+- **Introducción solo la primera vez:** se guarda una marca global del dispositivo
+  (`VaultPrefsRepository.readOnboardingSeen`/`writeOnboardingSeen`, clave `app.onboardingSeen` en el
+  almacén seguro). Sin sesión y sin la marca → `/onboarding`; con la marca → `/welcome`. La
+  introducción la marca al terminar o saltar (`OnboardingScreen._finish`).
+- **Navegación:** el redirect decide por `restoring`/`noSession`+marca/`locked`/`unlocked`; no se
+  registra ninguna clave ni token en ningún punto del arranque.
+- **Pruebas:** `app/test/features/auth/startup_routing_test.dart` (sesión guardada → `/unlock`; sin
+  red con sesión → `/unlock`; sin sesión primera vez → `/onboarding`; introducción vista →
+  `/welcome`; tras desbloquear → `/notes`) y `app/test/router/router_test.dart` (arranque → splash).
+
+
+

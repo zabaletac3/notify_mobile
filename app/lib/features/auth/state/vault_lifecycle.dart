@@ -10,13 +10,18 @@ import '../../../data/crypto/vault.dart';
 /// [vaultLifecycleProvider] por una implementación real (por ejemplo, con
 /// `LocalDatabase.open` y el motor de `axonote_sync`).
 class VaultLifecycle {
-  const VaultLifecycle({this.onUnlocked, this.onSignedOut});
+  const VaultLifecycle({this.onUnlocked, this.onLocked, this.onSignedOut});
 
   /// Sin implementación todavía (fase 8): todo es no-op.
   static const VaultLifecycle none = VaultLifecycle();
 
   /// Tras desbloquear: la fase 7 abrirá la base local y sincronizará.
   final Future<void> Function(String userId, Vault vault)? onUnlocked;
+
+  /// Al bloquear (manual, por tiempo o al salir): A3 — con la app bloqueada no hay base abierta ni
+  /// sincronización, así que aquí se cierra la base. Síncrono para poder llamarlo desde
+  /// `VaultLockController.lock()`; quien lo implemente cierra de forma asíncrona por su cuenta.
+  final void Function()? onLocked;
 
   /// Tras cerrar sesión o recibir `device-revoked`: la fase 7 cerrará la base.
   final Future<void> Function(String? userId)? onSignedOut;

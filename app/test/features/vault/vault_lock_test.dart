@@ -27,6 +27,8 @@ class _Harness {
       ),
     );
     container = ProviderContainer();
+    // Estado ya resuelto por el arranque (sin sesión): es desde donde se desbloquea/cierra sesión.
+    container.read(sessionProvider.notifier).set(AxoSession.noSession);
     controller = container.read(provider);
   }
 

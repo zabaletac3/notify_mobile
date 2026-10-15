@@ -1,5 +1,4 @@
 import 'package:appflowy_editor/src/editor/util/platform_extension.dart';
-import 'package:device_info_plus/device_info_plus.dart';
 import 'package:keyboard_height_plugin/keyboard_height_plugin.dart';
 
 typedef KeyboardHeightCallback = void Function(double height);
@@ -10,11 +9,6 @@ class KeyboardHeightObserver {
   static int androidSDKVersion = -1;
 
   KeyboardHeightObserver._() {
-    if (PlatformExtension.isAndroid && androidSDKVersion == -1) {
-      DeviceInfoPlugin().androidInfo.then(
-            (value) => androidSDKVersion = value.version.sdkInt,
-          );
-    }
     _keyboardHeightPlugin.onKeyboardHeightChanged((height) {
       notify(height);
 

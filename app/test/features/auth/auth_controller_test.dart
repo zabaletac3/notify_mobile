@@ -229,6 +229,8 @@ void main() {
           keys: account.domainBundle,
         );
       final container = _container(repo: repo, prefs: FakeVaultPrefs());
+      // Arranque ya resuelto (sin sesión): es el estado desde el que se llega al inicio de sesión.
+      container.read(sessionProvider.notifier).set(AxoSession.noSession);
       final controller = container.read(authControllerProvider.notifier);
 
       final first = await controller.login(
@@ -255,6 +257,7 @@ void main() {
         )
         ..loginError = const UnauthorizedError(code: 'invalid-credentials');
       final container = _container(repo: repo, prefs: FakeVaultPrefs());
+      container.read(sessionProvider.notifier).set(AxoSession.noSession);
       final controller = container.read(authControllerProvider.notifier);
 
       final result = await controller.login(

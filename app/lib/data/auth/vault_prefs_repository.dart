@@ -37,6 +37,12 @@ class SecureVaultPrefs implements VaultPrefsRepository, VaultActivityStore {
   Future<void> clearSession() => _account.clearSession();
 
   @override
+  Future<bool> readOnboardingSeen() => _account.readOnboardingSeen();
+
+  @override
+  Future<void> writeOnboardingSeen() => _account.writeOnboardingSeen();
+
+  @override
   Future<DateTime?> read(String userId) => _account.readLastActiveAt(userId);
 
   @override

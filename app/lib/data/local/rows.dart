@@ -57,6 +57,7 @@ class NoteRow {
     syncStatus: syncStatus,
     lastEditedDeviceId: lastEditedDeviceId,
     unreadable: unreadable,
+    preview: preview,
   );
 
   NoteRow copyWith({

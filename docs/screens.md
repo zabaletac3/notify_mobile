@@ -1,5 +1,10 @@
 # Inventario de pantallas (Penpot → app)
 
+> **Nota (2026-10-14, fase 9):** la fuente de verdad del diseño pasó de **Penpot** al documento de
+> **Pencil** «axonote» (`~/.pencil/documents/.../axonote.pen`, sección *Móvil*, tableros
+> `Android — …`). Las medidas de la fase 9 están en `docs/design/pencil-measurements.md`; este
+> inventario sigue sirviendo de mapa ruta ↔ pantalla.
+
 Fuente: archivo de Penpot «Apunte – App de notas», página **App Mobile** (41 tableros, 412×915 px). El
 resto de páginas del archivo están vacías. Este inventario mapea cada tablero a su **ruta**, su **fase** de
 implementación (§10 del plan) y sus **estados** (vacío, carga, error, sin conexión).

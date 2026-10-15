@@ -3,8 +3,12 @@ import 'package:flutter/material.dart';
 import '../app_icon.dart';
 import '../tokens.dart';
 
-/// Diálogo del diseño: radio 20, relleno 28 y hueco 16. Si se pasa [icon] (diálogos de estado,
-/// como «sesión expirada»), aparece una ilustración circular de 56 arriba y el texto se centra.
+/// Diálogo del diseño (tableros «Android — Confirmar eliminación» y «Android — Sesión expirada»):
+/// 348 de ancho, radio 20, relleno 24, hueco 16, relleno `bgEditor` y borde `borderDefault`.
+///
+/// Si se pasa [icon] (diálogos de estado), aparece una ilustración circular arriba y el texto se
+/// centra. Su tamaño y color dependen de [danger]: 56 en `statusDangerBg` con icono `statusDanger`
+/// (peligro) o 64 en `bgSelected` con icono `accent`.
 class AxoDialog extends StatelessWidget {
   const AxoDialog({
     super.key,
@@ -12,6 +16,7 @@ class AxoDialog extends StatelessWidget {
     this.content,
     this.actions = const [],
     this.icon,
+    this.danger = false,
   });
 
   final String title;
@@ -21,16 +26,22 @@ class AxoDialog extends StatelessWidget {
   /// Icono de la ilustración circular superior (opcional).
   final String? icon;
 
+  /// Ilustración de peligro (`statusDangerBg` + icono `statusDanger`, 56) en vez de la neutra
+  /// (`bgSelected` + icono `accent`, 64).
+  final bool danger;
+
   @override
   Widget build(BuildContext context) {
     final c = Theme.of(context).extension<AxoColors>()!;
     final centered = icon != null;
+    final illustration = danger ? 56.0 : 64.0;
     return Container(
       constraints: const BoxConstraints(maxWidth: 348),
-      padding: const EdgeInsets.all(28),
+      padding: const EdgeInsets.all(24),
       decoration: BoxDecoration(
         color: c.bgEditor,
         borderRadius: BorderRadius.circular(AxoRadii.xxl),
+        border: Border.all(color: c.borderDefault),
       ),
       child: Column(
         mainAxisSize: MainAxisSize.min,
@@ -40,14 +51,18 @@ class AxoDialog extends StatelessWidget {
         children: [
           if (icon != null) ...[
             Container(
-              width: 56,
-              height: 56,
+              width: illustration,
+              height: illustration,
               decoration: BoxDecoration(
-                color: c.bgSelected,
+                color: danger ? c.statusDangerBg : c.bgSelected,
                 shape: BoxShape.circle,
               ),
               child: Center(
-                child: AppIcon(icon!, size: 26, color: c.accentDefault),
+                child: AppIcon(
+                  icon!,
+                  size: illustration * 0.46,
+                  color: danger ? c.statusDanger : c.accentDefault,
+                ),
               ),
             ),
             const SizedBox(height: AxoSpacing.lg),
@@ -57,23 +72,21 @@ class AxoDialog extends StatelessWidget {
             textAlign: centered ? TextAlign.center : TextAlign.start,
             style: AxoType.dialogTitle.copyWith(color: c.textPrimary),
           ),
-          const SizedBox(height: AxoSpacing.lg),
           if (content != null) ...[
-            content!,
             const SizedBox(height: AxoSpacing.lg),
+            content!,
           ],
-          if (actions.isNotEmpty)
+          if (actions.isNotEmpty) ...[
+            const SizedBox(height: AxoSpacing.lg),
             Row(
-              mainAxisAlignment: centered
-                  ? MainAxisAlignment.center
-                  : MainAxisAlignment.end,
               children: [
                 for (var i = 0; i < actions.length; i++) ...[
                   if (i > 0) const SizedBox(width: AxoSpacing.md),
-                  Flexible(child: actions[i]),
+                  Expanded(child: actions[i]),
                 ],
               ],
             ),
+          ],
         ],
       ),
     );

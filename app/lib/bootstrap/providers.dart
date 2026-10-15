@@ -65,6 +65,13 @@ final httpClientProvider = Provider<api.HttpClient>((ref) {
 /// `main.dart`) y se sobrescribe con el modelo real del dispositivo.
 final deviceNameProvider = Provider<String>((ref) => 'Android');
 
+/// Identificador de este dispositivo, generado una vez y guardado en el almacén seguro (ver
+/// `AccountSecureStore.readOrCreateDeviceId`). Lo necesitan la base local y el motor de
+/// sincronización antes de abrir nada.
+final deviceIdProvider = FutureProvider<String>((ref) {
+  return ref.watch(accountSecureStoreProvider).readOrCreateDeviceId(newId);
+});
+
 final authRepositoryProvider = Provider<AuthRepository>((ref) {
   return ApiAuthRepository(
     http: ref.watch(httpClientProvider),

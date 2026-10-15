@@ -1,12 +1,12 @@
 import 'dart:io';
 
 import 'package:appflowy_editor/appflowy_editor.dart';
-import 'package:file_picker/file_picker.dart' as fp;
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:string_validator/string_validator.dart';
 
 import '../../util/file_picker/file_picker_impl.dart';
+import '../../util/file_picker/file_picker_service.dart';
 import 'base64_image.dart';
 
 enum ImageFromFileStatus {
@@ -333,7 +333,7 @@ class _UploadImageMenuState extends State<UploadImageMenu> {
             final result = await _filePicker.pickFiles(
               dialogTitle: '',
               allowMultiple: false,
-              type: kIsWeb ? fp.FileType.custom : fp.FileType.image,
+              type: kIsWeb ? PickedFileType.custom : PickedFileType.image,
               allowedExtensions: kIsWeb ? allowedExtensions : null,
               withData: kIsWeb,
             );

@@ -58,6 +58,42 @@ El índice `notes(deleted_at, updated_at)` (ver `docs/decisions.md`) fue lo que 
 10 000 notas de 74 ms a ~8 ms. La lista sin límite no cumple el presupuesto, y por eso la interfaz
 trabaja por páginas.
 
+## Fase 9 · Desplazamiento de la lista
+
+**ZTE 8050 (Android 13, API 33), `--profile`, 2026-10-14.** Comando:
+
+```
+flutter drive --driver=test_driver/integration_test.dart \
+  --target=integration_test/notes_scroll_performance_test.dart -d LZ0V50COPBC002769 --profile
+```
+
+Siembra 10 000 notas en la base cifrada real, abre la pantalla de notas y la desplaza con 12
+lanzamientos; mide el tiempo por cuadro con `SchedulerBinding.addTimingsCallback` y exige el
+presupuesto de la §11 (sin cuadros > 16 ms en el percentil 99). La pantalla carga por páginas de
+200 notas (plan §4.4), el agrupado se calcula una vez por cambio de datos y los conteos no se
+reagregan al crecer la ventana.
+
+| Medida | Valor (última ejecución) | Límite §11 |
+| --- | --- | --- |
+| p50 por cuadro | **11,7 ms** | — (≈ un cuadro de 90 Hz) |
+| p99 por cuadro | **15,8 ms** | ≤ 16 ms |
+| Cuadros > 16 ms | **8 de 962** | — |
+| Semilla (10 000 notas) | ~10,6 – 13,5 s | — |
+
+```
+Fase 9 · 10000 notas scroll: seed=10592ms frames=961 en 24867ms · p50=11.8ms p99=16.4ms cuadros>16ms=11
+Fase 9 · 10000 notas scroll: seed=12372ms frames=961 en 24818ms · p50=11.0ms p99=18.3ms cuadros>16ms=26
+Fase 9 · 10000 notas scroll: seed=12800ms frames=962 en 24932ms · p50=11.7ms p99=17.1ms cuadros>16ms=16
+Fase 9 · 10000 notas scroll: seed=13465ms frames=962 en 24898ms · p50=11.7ms p99=15.8ms cuadros>16ms=8   ← código final
+```
+
+**Cumple el presupuesto de la §11** en el código final (p99 15,8 ms ≤ 16 ms; la mediana es un cuadro
+de 90 Hz). Las tres primeras filas son mediciones intermedias, cuando la lista aún reagregaba los
+conteos en cada página: el p99 se quedaba entre 0,4 y 2,3 ms por encima. Al desacoplar los conteos
+de la paginación (`notesChangedProvider`) y memoizar el agrupado (`notesRowsProvider`) bajó a 15,8.
+La medición varía entre ejecuciones (8, 11, 16 y 26 cuadros sobre 16 ms), así que el margen es
+estrecho y conviene repetirla con el dispositivo en reposo antes de dar el presupuesto por bueno.
+
 ### (En memoria, **no válidas** · superadas)
 
 Estas cifras se midieron antes de la revisión con `LocalDatabase.memory` (sin cifrar). **No son
@@ -68,3 +104,35 @@ válidas** como medición de producción y quedan solo como histórico:
 | Lista inicial (página de 200) | 6 ms | 4 ms |
 | Búsqueda (página de 200) | 6 ms | 7 ms |
 | Lista completa sin límite | 46 ms | 271 ms |
+
+## Fase 10 · Nota grande en el editor
+
+**ZTE 8050 (Android 13, API 33), `--profile`, 2026-10-14.** Comando:
+
+```
+flutter drive --driver=test_driver/integration_test.dart \
+  --target=integration_test/editor_performance_test.dart -d LZ0V50COPBC002769 --profile
+```
+
+Genera una nota de **100 KB** combinando todos los bloques soportados (títulos, párrafos con las
+cinco marcas y enlaces, viñetas anidadas, numeradas, tareas, cita, bloque de código, separador y
+salto duro) y mide, con el códec y el adaptador reales:
+
+- **apertura** = analizar el Markdown (`MarkdownParser.parse`) + montar el árbol de AppFlowy
+  (`EditorAdapter.toDocument`);
+- **escritura** = recoger los bloques del editor (`EditorAdapter.toBlocks`) + serializar de nuevo
+  (`MarkdownSerializer.serialize`).
+
+| Medida | Valor (2026-10-14) | Límite §10 (d) |
+| --- | --- | --- |
+| Apertura (100,4 KB, 1901 bloques) | **94 ms** | < 300 ms |
+| Escritura (los mismos bloques) | **68 ms** | sin retraso perceptible |
+
+```
+Fase 10 · nota 100.4KB (1901 bloques): apertura=94ms escritura=68ms
+```
+
+Cumple el presupuesto con holgura. La escritura va precedida de una espera de 400 ms sin escribir
+(«espera de guardado», A10/§8.3), así que el trabajo real del serializador (68 ms) queda muy por
+debajo de un parpadeo perceptible.
+
