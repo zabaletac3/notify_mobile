@@ -91,8 +91,10 @@ class AxoSettingRow extends StatelessWidget {
         ? AxoSizes.settingsRow
         : AxoSizes.settingsRowCompact;
 
-    final row = SizedBox(
-      height: height,
+    // Altura mínima, no fija: con el texto al 200 % la fila crece en vez de desbordar; a escala 1
+    // mide lo mismo (plan §12.3).
+    final row = ConstrainedBox(
+      constraints: BoxConstraints(minHeight: height),
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 16),
         child: Row(

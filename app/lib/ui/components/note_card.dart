@@ -48,9 +48,12 @@ class AxoNoteCard extends StatelessWidget {
         onLongPress: onLongPress,
         borderRadius: BorderRadius.circular(AxoRadii.chip),
         child: Container(
-          height: AxoSizes.noteCard,
+          // Altura mínima (80) en vez de fija: con el texto al 200 % la tarjeta crece en vez de
+          // desbordar; a escala 1 mide lo mismo (plan §12.3).
+          constraints: const BoxConstraints(minHeight: AxoSizes.noteCard),
           padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
           child: Column(
+            mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Row(

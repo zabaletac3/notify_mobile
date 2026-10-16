@@ -24,7 +24,9 @@ class AxoTopBar extends StatelessWidget {
     return SizedBox(
       height: 48,
       child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+        // Sin relleno vertical: el botón mide 48 (área táctil de la §12.3) y el icono queda igual
+        // de centrado que antes (relleno 4 + 40).
+        padding: const EdgeInsets.symmetric(horizontal: 8),
         child: Row(
           children: [
             _BackButton(onTap: onBack),
@@ -65,8 +67,10 @@ class _BackButton extends StatelessWidget {
             onTap: onTap,
             customBorder: const CircleBorder(),
             child: SizedBox(
+              // 40×48 de área táctil (plan §12.3): la altura llega a 48 sin mover el icono; el
+              // ancho se mantiene en 40 (medida del diseño).
               width: 40,
-              height: 40,
+              height: 48,
               child: Center(
                 child: AppIcon('arrow-left', size: 24, color: c.textPrimary),
               ),

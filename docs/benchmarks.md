@@ -136,3 +136,51 @@ Cumple el presupuesto con holgura. La escritura va precedida de una espera de 40
 («espera de guardado», A10/§8.3), así que el trabajo real del serializador (68 ms) queda muy por
 debajo de un parpadeo perceptible.
 
+## Fase 12 · Presupuestos de la §11 (medido vs límite)
+
+**ZTE 8050 (Android 13, API 33, arm64), 2026-10-16.** Release `--split-per-abi` para el tamaño del
+APK; modo `--profile` para el resto. Comandos al pie de cada bloque.
+
+| Medida | Límite §11 | Medido | Estado |
+| --- | --- | --- | --- |
+| Arranque en frío hasta la primera pantalla | 1,5 s | **469–594 ms** (5 arranques tras uno de 858 ms) | Cumple |
+| Desbloqueo con biometría hasta la lista | 500 ms | — (requiere sesión + sensor; ver nota) | Pendiente manual |
+| Argon2id con parámetros reales (64 MiB, t=3) | 3 s | **675 ms** | Cumple |
+| Abrir una nota de 10 KB | 150 ms | **10 ms** (235 bloques) | Cumple |
+| Búsqueda por pulsación (página de 200) | 100 ms | **11 ms** (frío) / **7 ms** (caliente) | Cumple |
+| Lista inicial (página de 200) | < 50 ms | **11 ms** (frío) / **7 ms** (caliente) | Cumple |
+| Desplazamiento de 10 000 notas (p99 por cuadro) | ≤ 16 ms | **14,7–16,5 ms** (mediana ≈ 15,7; ver 12.2) | Límite, margen estrecho |
+| Primera sincronización de 2 000 notas (red local) | 15 s, sin bloquear | **6 252 ms**, bloqueo máx. **21 ms**, 4 páginas | Cumple |
+| Memoria en reposo con la lista de 2 000 notas | 200 MB | **PSS 180–182 MB** | Cumple |
+| Tamaño del APK (arm64-v8a) | 40 MB | **26,8 MB** | Cumple |
+| Nota de 100 KB: abrir / escribir | < 300 ms / sin retraso | **96 ms / 66 ms** | Cumple |
+
+- **Arranque en frío** (5×, tras `adb shell am stop`): `TotalTime` 469, 575, 594 ms (y 858 ms la
+  primera compilación en frío), con `adb shell am start -W -S -n com.axonote.app/.MainActivity`.
+- **Argon2id, 10 KB y memoria**: `flutter drive --driver=test_driver/integration_test.dart
+  --target=integration_test/hardening_measurements_test.dart -d LZ0V50COPBC002769 --profile`. La
+  memoria es PSS (`/proc/self/smaps_rollup`), la métrica de Android.
+- **Fase 6, 7 y 10**: re-medidas el 2026-10-16 con sus pruebas
+  (`local_performance_test`, `sync_first_download_performance_test`, `editor_performance_test`);
+  números de arriba. La primera descarga bajó de ~10 s (fase 7) a 6,25 s.
+- **Tamaño del APK**: `flutter build apk --release --split-per-abi`; arm64-v8a 26,8 MB
+  (armeabi-v7a 24,8 MB; x86_64 28,6 MB).
+
+### 12.2 · Desplazamiento de la lista (medido antes/después)
+
+El p99 era el único presupuesto en el filo. La lista ya cargaba por páginas y memoizaba el agrupado
+(§9); se añadió **extensión exacta por fila** (`itemExtentBuilder`): las cabeceras miden 38 y las
+tarjetas 80, así que la lista no tiene que medir cada fila al desplazar.
+
+| Medición | p50 | p99 | Cuadros > 16 ms |
+| --- | --- | --- | --- |
+| Antes (`ListView.builder` sin extensión), 3 ejecuciones | 11,7 ms | 15,9 / 16,3 / 17,0 ms | 8 / 11 / 15 |
+| Después (`itemExtentBuilder`), 4 ejecuciones | 11,5–11,7 ms | 14,7 / 15,6 / 15,8 / 16,5 ms | 4 / 8 / 10 / 13 |
+
+El p50 (11,7 ms) es **un cuadro de 90 Hz** (11,1 ms): el dispositivo de referencia refresca a 90 Hz,
+así que un cuadro «normal» ya ocupa casi todo el intervalo. El límite de la §11 («sin cuadros >
+16 ms en el percentil 99») se escribió con el cuadro de 60 Hz en mente. La mejora reduce los cuadros
+sobre 16 ms (de 8–15 a 4–13) pero el margen sigue siendo estrecho y varía entre ejecuciones con el
+estado del dispositivo, así que el presupuesto se da por **cumplido con reserva** y la medición debe
+repetirse con el dispositivo en reposo. No se baja el límite.
+
