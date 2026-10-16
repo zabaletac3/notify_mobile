@@ -130,3 +130,5 @@ primero Android y escritorio y decidir iOS cuando exista el Mac y la cuenta.
    (sin las credenciales).
 5. Agentes: OpenCode y Qwen se lanzaron en paneles de Herdr; en casa basta abrirlos en el repo con el plan de
    cada fase como encargo.
+
+- Cómo generar y repartir el APK de release: `docs/guides/distribuir-apk.md`.
