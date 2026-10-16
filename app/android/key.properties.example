@@ -1,0 +1,7 @@
+# Plantilla de firma de release (plan §12.5). Copiar a `key.properties` (mismo directorio,
+# `app/android/key.properties`, ignorado por .gitignore) y rellenar con los valores reales.
+# NUNCA subir el archivo real ni el almacén de claves al repositorio.
+storePassword=la_contraseña_del_almacen
+keyPassword=la_contraseña_de_la_clave
+keyAlias=axonote
+storeFile=/ruta/absoluta/fuera/del/repo/axonote-release.jks

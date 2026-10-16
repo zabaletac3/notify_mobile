@@ -22,5 +22,8 @@ tool/dep_probe/build/
 coverage/
 **/coverage/
 
+# Salida de fallos de los goldens (`flutter test` deja aquí las imágenes de diferencia)
+**/failures/
+
 # SO
 .DS_Store

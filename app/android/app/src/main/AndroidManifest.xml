@@ -1,4 +1,8 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- Acceso a la red para la API (sync, cuenta). Necesario en TODOS los builds: el manifiesto
+         de debug/profile solo lo aporta para el tooling, no en release (plan §5.4). Sin esto, el
+         APK de release no puede hablar con el servidor. -->
+    <uses-permission android:name="android.permission.INTERNET"/>
     <application
         android:label="axonote_app"
         android:name="${applicationName}"
