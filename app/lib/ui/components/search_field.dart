@@ -56,13 +56,25 @@ class AxoSearchField extends StatelessWidget {
             ),
           ),
           if (controller.text.isNotEmpty)
-            GestureDetector(
-              onTap: () {
-                controller.clear();
-                onClear?.call();
-              },
-              behavior: HitTestBehavior.opaque,
-              child: AppIcon('x', size: 20, color: c.textSecondary),
+            Semantics(
+              button: true,
+              label: 'Borrar búsqueda',
+              child: GestureDetector(
+                onTap: () {
+                  controller.clear();
+                  onClear?.call();
+                },
+                behavior: HitTestBehavior.opaque,
+                child: SizedBox(
+                  // 48×48 de área táctil (plan §12.3); el icono sigue pegado a la derecha.
+                  width: 48,
+                  height: 48,
+                  child: Align(
+                    alignment: Alignment.centerRight,
+                    child: AppIcon('x', size: 20, color: c.textSecondary),
+                  ),
+                ),
+              ),
             ),
         ],
       ),
