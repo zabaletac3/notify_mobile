@@ -45,4 +45,59 @@ abstract interface class AuthRepository {
 
   /// Pide el enlace de restablecimiento. Siempre resuelve, exista o no la cuenta.
   Future<void> requestPasswordReset(String email);
+
+  /// Cambia el nombre visible (`PATCH /me`). Devuelve el perfil actualizado.
+  Future<User> updateProfile(String fullName);
+
+  /// Pide cambiar el correo (`POST /me/email-change`): envía un código al correo nuevo. [authKey]
+  /// es la prueba de la contraseña actual. Devuelve el correo destino.
+  Future<String> requestEmailChange({
+    required String newEmail,
+    required String authKey,
+  });
+
+  /// Confirma el correo nuevo con el código (`POST /me/email-change/confirm`).
+  Future<User> confirmEmailChange({
+    required String email,
+    required String code,
+  });
+
+  /// Cambia la contraseña (`POST /me/password`): la clave maestra **no** cambia, solo se vuelve a
+  /// cifrar con la contraseña nueva. [currentAuthKey]/[newAuthKey] son pruebas derivadas y [keys]
+  /// el paquete ya re-cifrado.
+  Future<void> changePassword({
+    required String currentAuthKey,
+    required String newAuthKey,
+    required KeyBundle keys,
+  });
+
+  /// Elimina la cuenta (`POST /me/delete`); exige la prueba de la contraseña ([authKey]) y borra la
+  /// sesión local.
+  Future<void> deleteAccount(String authKey);
+
+  /// Estado de la verificación en dos pasos (`GET /mfa`).
+  Future<MfaStatus> mfaStatus();
+
+  /// Genera un secreto TOTP pendiente (exige la prueba de la contraseña).
+  Future<MfaSetup> mfaSetup(String authKey);
+
+  /// Confirma el código TOTP y activa la verificación; devuelve los códigos de respaldo.
+  Future<List<String>> mfaEnable(String code);
+
+  /// Desactiva la verificación (exige la prueba de la contraseña y un código).
+  Future<void> mfaDisable({required String authKey, required String code});
+
+  /// Regenera los códigos de respaldo (exige la prueba de la contraseña y un código).
+  Future<List<String>> mfaRegenerateCodes({
+    required String authKey,
+    required String code,
+  });
+
+  /// Sustituye la clave de recuperación (`PUT /keys/recovery`). Exige la prueba de la contraseña y
+  /// el material de la clave nueva ya calculado en `axonote_crypto`.
+  Future<void> rotateRecoveryKey({
+    required String authKey,
+    required String recoveryAuth,
+    required String recoveryWrappedMasterKey,
+  });
 }

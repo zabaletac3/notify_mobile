@@ -1,3 +1,4 @@
+import 'package:axonote_domain/axonote_domain.dart';
 import 'package:flutter/foundation.dart' show kDebugMode;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -19,9 +20,21 @@ import '../features/auth/ui/unlock_screen.dart';
 import '../features/auth/ui/verify_screen.dart';
 import '../features/auth/ui/welcome_screen.dart';
 import '../features/editor/ui/editor_screen.dart';
+import '../features/legal/ui/changelog_screen.dart';
+import '../features/legal/ui/legal_document_screen.dart';
+import '../features/legal/ui/support_screen.dart';
 import '../features/notes/ui/notes_screen.dart';
 import '../features/notes/ui/search_screen.dart';
 import '../features/notes/ui/trash_screen.dart';
+import '../features/settings/ui/about_screen.dart';
+import '../features/settings/ui/account_screen.dart';
+import '../features/settings/ui/delete_account_screen.dart';
+import '../features/settings/ui/general_screen.dart';
+import '../features/settings/ui/privacy_screen.dart';
+import '../features/settings/ui/settings_menu_screen.dart';
+import '../features/settings/ui/storage_screen.dart';
+import '../features/settings/ui/sync_screen.dart';
+import '../features/settings/ui/two_factor_screen.dart';
 import '../ui/placeholder_screen.dart';
 
 /// Rutas de introducción y autenticación (accesibles sin sesión).
@@ -124,30 +137,49 @@ final routerProvider = Provider<GoRouter>((ref) {
       ),
       GoRoute(path: '/trash', builder: (_, _) => const TrashScreen()),
       GoRoute(path: '/search', builder: (_, _) => const SearchScreen()),
-      // Ajustes.
-      GoRoute(path: '/settings/menu', builder: (_, _) => _p('Ajustes')),
+      // Ajustes (fase 11): menú y subpantallas.
+      GoRoute(
+        path: '/settings/menu',
+        builder: (_, _) => const SettingsMenuScreen(),
+      ),
       GoRoute(
         path: '/settings/general',
-        builder: (_, _) => _p('Ajustes generales'),
+        builder: (_, _) => const GeneralScreen(),
       ),
-      GoRoute(path: '/settings/account', builder: (_, _) => _p('Mi cuenta')),
       GoRoute(
-        path: '/settings/sync',
-        builder: (_, _) => _p('Sincronización y dispositivos'),
+        path: '/settings/account',
+        builder: (_, _) => const AccountScreen(),
       ),
+      GoRoute(path: '/settings/sync', builder: (_, _) => const SyncScreen()),
       GoRoute(
         path: '/settings/privacy',
-        builder: (_, _) => _p('Privacidad y seguridad'),
+        builder: (_, _) => const PrivacyScreen(),
       ),
       GoRoute(
         path: '/settings/storage',
-        builder: (_, _) => _p('Almacenamiento y exportación'),
+        builder: (_, _) => const StorageScreen(),
       ),
       GoRoute(
         path: '/settings/delete-account',
-        builder: (_, _) => _p('Eliminar cuenta'),
+        builder: (_, _) => const DeleteAccountScreen(),
       ),
-      GoRoute(path: '/settings/about', builder: (_, _) => _p('Acerca de')),
+      GoRoute(path: '/settings/about', builder: (_, _) => const AboutScreen()),
+      // Verificación en dos pasos (fase 11.3).
+      GoRoute(
+        path: '/settings/two-factor',
+        builder: (_, _) => const TwoFactorSettingsScreen(),
+      ),
+      // Textos legales y soporte (fase 11.6).
+      GoRoute(
+        path: '/terms',
+        builder: (_, _) => LegalDocumentScreen(document: terms),
+      ),
+      GoRoute(
+        path: '/privacy',
+        builder: (_, _) => LegalDocumentScreen(document: privacy),
+      ),
+      GoRoute(path: '/changelog', builder: (_, _) => const ChangelogScreen()),
+      GoRoute(path: '/support', builder: (_, _) => const SupportScreen()),
       // Galería de componentes (solo debug).
       if (kDebugMode)
         GoRoute(path: _devRoute, builder: (_, _) => const ComponentsGallery()),

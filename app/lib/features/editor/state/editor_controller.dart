@@ -36,8 +36,9 @@ class NoteEditorController {
   /// `true` si hay cambios sin guardar.
   bool get isDirty => _dirty;
 
-  /// Se puede editar salvo si la nota no se pudo descifrar (§8.3).
-  bool get editable => !note.unreadable;
+  /// Se puede editar salvo si la nota no se pudo descifrar o está en conflicto (§8.3).
+  bool get editable =>
+      !note.unreadable && note.syncStatus != NoteSyncStatus.conflict;
 
   /// Prepara el estado del editor a partir del Markdown guardado.
   void start() {

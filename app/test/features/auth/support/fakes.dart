@@ -139,6 +139,137 @@ class FakeAuthRepository implements AuthRepository {
     resetEmails.add(email);
   }
 
+  AppError? updateProfileError;
+  AppError? emailChangeError;
+  AppError? confirmEmailChangeError;
+  AppError? changePasswordError;
+  AppError? deleteAccountError;
+  String emailChangeResult = 'nuevo@correo.com';
+  bool deleteAccountCalled = false;
+
+  @override
+  Future<User> updateProfile(String fullName) async {
+    if (updateProfileError != null) throw AppFailure(updateProfileError!);
+    final base = currentUser;
+    final updated = User(
+      id: base?.id ?? fixedUserId,
+      email: base?.email ?? 'persona@example.com',
+      fullName: fullName,
+      emailVerified: base?.emailVerified ?? true,
+      hasGoogle: base?.hasGoogle ?? false,
+      createdAt: base?.createdAt ?? DateTime(2026, 1, 1),
+    );
+    currentUser = updated;
+    return updated;
+  }
+
+  @override
+  Future<String> requestEmailChange({
+    required String newEmail,
+    required String authKey,
+  }) async {
+    if (emailChangeError != null) throw AppFailure(emailChangeError!);
+    return emailChangeResult;
+  }
+
+  @override
+  Future<User> confirmEmailChange({
+    required String email,
+    required String code,
+  }) async {
+    if (confirmEmailChangeError != null) {
+      throw AppFailure(confirmEmailChangeError!);
+    }
+    final base = currentUser;
+    final updated = User(
+      id: base?.id ?? fixedUserId,
+      email: email,
+      fullName: base?.fullName ?? 'Persona',
+      emailVerified: true,
+      hasGoogle: base?.hasGoogle ?? false,
+      createdAt: base?.createdAt ?? DateTime(2026, 1, 1),
+    );
+    currentUser = updated;
+    return updated;
+  }
+
+  @override
+  Future<void> changePassword({
+    required String currentAuthKey,
+    required String newAuthKey,
+    required KeyBundle keys,
+  }) async {
+    if (changePasswordError != null) throw AppFailure(changePasswordError!);
+  }
+
+  @override
+  Future<void> deleteAccount(String authKey) async {
+    if (deleteAccountError != null) throw AppFailure(deleteAccountError!);
+    deleteAccountCalled = true;
+  }
+
+  bool mfaEnabled = false;
+  AppError? mfaStatusError;
+
+  @override
+  Future<MfaStatus> mfaStatus() async {
+    if (mfaStatusError != null) throw AppFailure(mfaStatusError!);
+    return MfaStatus(
+      enabled: mfaEnabled,
+      enabledAt: mfaEnabled ? DateTime(2026, 1, 1) : null,
+      recoveryCodesLeft: mfaEnabled ? 10 : 0,
+    );
+  }
+
+  MfaSetup mfaSetupResult = const MfaSetup(
+    secret: 'JBSWY3DPEHPK3PXP',
+    otpauthUri: 'otpauth://totp/AxoNote:p@e.com?secret=JBSWY3DPEHPK3PXP',
+  );
+  List<String> recoveryCodesResult = const ['AAAA-1111', 'BBBB-2222'];
+  AppError? mfaOpError;
+  bool rotateRecoveryCalled = false;
+
+  @override
+  Future<MfaSetup> mfaSetup(String authKey) async {
+    if (mfaOpError != null) throw AppFailure(mfaOpError!);
+    return mfaSetupResult;
+  }
+
+  @override
+  Future<List<String>> mfaEnable(String code) async {
+    if (mfaOpError != null) throw AppFailure(mfaOpError!);
+    mfaEnabled = true;
+    return recoveryCodesResult;
+  }
+
+  @override
+  Future<void> mfaDisable({
+    required String authKey,
+    required String code,
+  }) async {
+    if (mfaOpError != null) throw AppFailure(mfaOpError!);
+    mfaEnabled = false;
+  }
+
+  @override
+  Future<List<String>> mfaRegenerateCodes({
+    required String authKey,
+    required String code,
+  }) async {
+    if (mfaOpError != null) throw AppFailure(mfaOpError!);
+    return recoveryCodesResult;
+  }
+
+  @override
+  Future<void> rotateRecoveryKey({
+    required String authKey,
+    required String recoveryAuth,
+    required String recoveryWrappedMasterKey,
+  }) async {
+    if (mfaOpError != null) throw AppFailure(mfaOpError!);
+    rotateRecoveryCalled = true;
+  }
+
   /// `userId` fijo por defecto cuando las pruebas no registran una cuenta.
   static String fixedUserId = 'u1';
 }
@@ -147,11 +278,20 @@ class FakeAuthRepository implements AuthRepository {
 class FakeVaultPrefs implements VaultPrefsRepository, VaultActivityStore {
   CachedSession? session;
   bool onboardingSeen = false;
+  AppSettings appSettings = const AppSettings();
   final Map<String, LockSettings> settings = {};
   final Map<String, DateTime> lastActive = {};
 
   @override
   Future<CachedSession?> cachedSession() async => session;
+
+  @override
+  Future<AppSettings> readAppSettings(String userId) async => appSettings;
+
+  @override
+  Future<void> writeAppSettings(String userId, AppSettings value) async {
+    appSettings = value;
+  }
 
   @override
   Future<bool> readOnboardingSeen() async => onboardingSeen;

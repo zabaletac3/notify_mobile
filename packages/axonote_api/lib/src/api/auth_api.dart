@@ -1,4 +1,4 @@
-import 'package:axonote_domain/axonote_domain.dart';
+import 'package:axonote_domain/axonote_domain.dart' hide DevicePlatform;
 
 import '../http_client.dart';
 import '../json.dart';

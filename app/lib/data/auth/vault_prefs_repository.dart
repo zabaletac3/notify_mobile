@@ -30,6 +30,14 @@ class SecureVaultPrefs implements VaultPrefsRepository, VaultActivityStore {
       _account.writeLockSettings(userId, settings);
 
   @override
+  Future<AppSettings> readAppSettings(String userId) =>
+      _account.readAppSettings(userId);
+
+  @override
+  Future<void> writeAppSettings(String userId, AppSettings settings) =>
+      _account.writeAppSettings(userId, settings);
+
+  @override
   Future<DateTime?> readLastActiveAt(String userId) =>
       _account.readLastActiveAt(userId);
 

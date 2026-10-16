@@ -1,7 +1,16 @@
+import 'package:axonote_domain/axonote_domain.dart';
+
 import 'app_localizations.dart';
 
 /// Textos de interfaz en español para códigos de validación y errores, portados de
 /// `notify_web/src/lib/core/messages.ts`. La lógica trabaja con códigos; aquí se traducen.
+
+/// Mensaje corto para un error del dominio (usa su `kind` y, si es `forbidden`, su `code`).
+String errorMessageFor(AppLocalizations l10n, AppError error) => errorMessage(
+  l10n,
+  kind: error.kind,
+  code: error is ForbiddenError ? error.code?.wire : null,
+);
 
 /// Mensaje de un código de validación (o el propio código si no hay texto).
 String? validationMessage(AppLocalizations l10n, String? code) {

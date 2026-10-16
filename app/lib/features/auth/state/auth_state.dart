@@ -10,6 +10,7 @@ class AuthState {
     this.error,
     this.fieldErrors = const {},
     this.pendingEmail,
+    this.pendingEmailChange,
     this.resendAvailableAt,
     this.notice,
     this.mfaPending = false,
@@ -36,6 +37,10 @@ class AuthState {
 
   /// Correo pendiente de verificar (entre «registro» y «verificación»).
   final String? pendingEmail;
+
+  /// Correo nuevo pendiente de confirmar con el código (entre «cambio de correo» y su
+  /// confirmación).
+  final String? pendingEmailChange;
 
   /// Instante desde el que se puede reenviar el código.
   final DateTime? resendAvailableAt;
@@ -66,6 +71,7 @@ class AuthState {
     AppError? Function()? error,
     FieldErrors? fieldErrors,
     String? Function()? pendingEmail,
+    String? Function()? pendingEmailChange,
     DateTime? Function()? resendAvailableAt,
     AuthNotice? Function()? notice,
     bool? mfaPending,
@@ -81,6 +87,9 @@ class AuthState {
     error: error == null ? this.error : error(),
     fieldErrors: fieldErrors ?? this.fieldErrors,
     pendingEmail: pendingEmail == null ? this.pendingEmail : pendingEmail(),
+    pendingEmailChange: pendingEmailChange == null
+        ? this.pendingEmailChange
+        : pendingEmailChange(),
     resendAvailableAt: resendAvailableAt == null
         ? this.resendAvailableAt
         : resendAvailableAt(),

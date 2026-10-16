@@ -46,12 +46,15 @@ class AccountSecureStore {
   static const _keyBundleKey = 'session.keyBundle';
   static const _lockPrefsPrefix = 'lockPrefs.';
   static const _lastActivePrefix = 'lastActiveAt.';
+  static const _appSettingsPrefix = 'appSettings.';
   static const _deviceIdKey = 'device.id';
   static const _onboardingSeenKey = 'app.onboardingSeen';
 
   static String _lockPrefsKey(String userId) => '$_lockPrefsPrefix$userId';
 
   static String _lastActiveKey(String userId) => '$_lastActivePrefix$userId';
+
+  static String _appSettingsKey(String userId) => '$_appSettingsPrefix$userId';
 
   Future<void> saveSession(SessionData session) async {
     await _store.write(_userIdKey, session.userId);
@@ -183,7 +186,64 @@ class AccountSecureStore {
     await clearSession();
     await _store.delete(_lockPrefsKey(userId));
     await _store.delete(_lastActiveKey(userId));
+    await _store.delete(_appSettingsKey(userId));
   }
+
+  /// Preferencias locales de la app (tema, tamaño, orden…). No se sincronizan.
+  Future<AppSettings> readAppSettings(String userId) async {
+    final raw = await _store.read(_appSettingsKey(userId));
+    if (raw == null) return const AppSettings();
+    try {
+      final decoded = jsonDecode(raw);
+      if (decoded is! Map) return const AppSettings();
+      T pick<T>(
+        List<T> values,
+        String Function(T) wire,
+        String? stored,
+        T fallback,
+      ) => values.firstWhere((v) => wire(v) == stored, orElse: () => fallback);
+      return AppSettings(
+        theme: pick(
+          ThemePreference.values,
+          (v) => v.wire,
+          decoded['theme'] as String?,
+          ThemePreference.system,
+        ),
+        textSize: pick(
+          TextSize.values,
+          (v) => v.wire,
+          decoded['textSize'] as String?,
+          TextSize.medium,
+        ),
+        noteOrder: pick(
+          NoteOrder.values,
+          (v) => v.wire,
+          decoded['noteOrder'] as String?,
+          NoteOrder.updated,
+        ),
+        openWithNewNote: decoded['openWithNewNote'] as bool? ?? false,
+        showPreview: decoded['showPreview'] as bool? ?? true,
+        language: decoded['language'] as String? ?? 'es',
+      );
+    } on FormatException {
+      return const AppSettings();
+    } on TypeError {
+      return const AppSettings();
+    }
+  }
+
+  Future<void> writeAppSettings(String userId, AppSettings settings) =>
+      _store.write(
+        _appSettingsKey(userId),
+        jsonEncode({
+          'theme': settings.theme.wire,
+          'textSize': settings.textSize.wire,
+          'noteOrder': settings.noteOrder.wire,
+          'openWithNewNote': settings.openWithNewNote,
+          'showPreview': settings.showPreview,
+          'language': settings.language,
+        }),
+      );
 
   /// Si la persona ya vio la introducción en este dispositivo (marca global, no por cuenta).
   Future<bool> readOnboardingSeen() async =>

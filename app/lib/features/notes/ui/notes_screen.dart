@@ -7,6 +7,7 @@ import '../../../bootstrap/providers.dart';
 import '../../../ui/app_icon.dart';
 import '../../../ui/components.dart';
 import '../../../ui/tokens.dart';
+import '../../settings/state/settings_controller.dart';
 import '../../sync/state/sync_controller.dart';
 import '../state/notes_actions.dart';
 import '../state/notes_providers.dart';
@@ -34,6 +35,9 @@ class _NotesScreenState extends ConsumerState<NotesScreen> {
   /// del `build` está por encima del `Scaffold` y `Scaffold.of(context)` fallaría.
   final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
 
+  /// «Abrir con una nota nueva»: se abre una sola vez por visita a la lista.
+  bool _openedNewNote = false;
+
   @override
   Widget build(BuildContext context) {
     final folderId = widget.folderId;
@@ -46,6 +50,7 @@ class _NotesScreenState extends ConsumerState<NotesScreen> {
     final offline =
         ref.watch(syncControllerProvider).phase == SyncPhase.offline;
     final now = ref.watch(clockProvider).now();
+    final showPreview = ref.watch(settingsProvider).showPreview;
 
     // Cuando aparece un conflicto, se ofrece resolverlo (una vez por nota).
     ref.listen(syncControllerProvider, (_, next) {
@@ -162,6 +167,7 @@ class _NotesScreenState extends ConsumerState<NotesScreen> {
                   child: NoteGroupsList(
                     rows: rows,
                     now: now,
+                    showPreview: showPreview,
                     folderNames: folderNames,
                     onOpen: (note) => context.push('/notes/${note.id}'),
                     onLongPress: (note) => showNoteContextSheet(
@@ -216,6 +222,18 @@ class _NotesScreenState extends ConsumerState<NotesScreen> {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: children,
       );
+    }
+
+    // «Abrir con una nota nueva»: al mostrar la lista, abre una nota nueva una sola vez.
+    if (!_openedNewNote &&
+        !loading &&
+        !error &&
+        folderId == null &&
+        ref.read(settingsProvider).openWithNewNote) {
+      _openedNewNote = true;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) _newNote(context, ref, null);
+      });
     }
 
     return Scaffold(

@@ -22,6 +22,7 @@ class EditorView extends StatelessWidget {
     this.onBack,
     this.onShare,
     this.onMore,
+    this.syncing = false,
   });
 
   final Note note;
@@ -32,6 +33,9 @@ class EditorView extends StatelessWidget {
   final VoidCallback? onBack;
   final VoidCallback? onShare;
   final VoidCallback? onMore;
+
+  /// Muestra la barra «Sincronizando…» mientras el motor sincroniza (§7).
+  final bool syncing;
 
   @override
   Widget build(BuildContext context) {
@@ -55,6 +59,7 @@ class EditorView extends StatelessWidget {
       ),
       body: Column(
         children: [
+          if (syncing) const EditorSyncBanner(),
           if (note.unreadable)
             const Padding(
               padding: EdgeInsets.symmetric(horizontal: 12),
@@ -78,6 +83,38 @@ class EditorView extends StatelessWidget {
             ),
           ),
           _FormatBarSurface(controller: controller),
+        ],
+      ),
+    );
+  }
+}
+
+/// Indicador de «sincronizando» (de `notify_web`; Pencil no lo dibuja).
+class EditorSyncBanner extends StatelessWidget {
+  const EditorSyncBanner({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    final c = Theme.of(context).extension<AxoColors>()!;
+    return Container(
+      width: double.infinity,
+      color: c.bgSelected,
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      child: Row(
+        children: [
+          SizedBox(
+            width: 14,
+            height: 14,
+            child: CircularProgressIndicator(
+              strokeWidth: 2,
+              color: c.accentDefault,
+            ),
+          ),
+          const SizedBox(width: 10),
+          Text(
+            'Sincronizando…',
+            style: AxoType.bodySmall.copyWith(color: c.accentDefault),
+          ),
         ],
       ),
     );

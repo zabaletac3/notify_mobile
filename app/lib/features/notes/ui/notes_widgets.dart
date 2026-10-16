@@ -179,6 +179,7 @@ class NoteGroupsList extends StatelessWidget {
     this.swipeStart,
     this.swipeEnd,
     this.folderNames = const {},
+    this.showPreview = true,
     this.padding = const EdgeInsets.symmetric(horizontal: 12),
   });
 
@@ -195,6 +196,9 @@ class NoteGroupsList extends StatelessWidget {
   final AxoSwipeAction? Function(Note note)? swipeEnd;
   final Map<Id, String> folderNames;
   final EdgeInsets padding;
+
+  /// Mostrar la vista previa de cada nota (ajuste «Mostrar vista previa en la lista»).
+  final bool showPreview;
 
   @override
   Widget build(BuildContext context) {
@@ -216,6 +220,7 @@ class NoteGroupsList extends StatelessWidget {
             date: noteListDate(value.updatedAt, now),
             pinned: value.pinned,
             unreadable: value.unreadable,
+            showPreview: showPreview,
             folderLabel: value.folderId == null
                 ? null
                 : folderNames[value.folderId],

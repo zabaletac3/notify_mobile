@@ -414,6 +414,50 @@ abstract final class AxoType {
 
   /// Estilo de párrafo de la barra de formato («Aa»). 14/600.
   static const TextStyle formatStyleLabel = chipActive;
+
+  // ── Ajustes (tableros «Android — Ajustes…, Mi cuenta, …») ──
+
+  /// Etiqueta de una fila de ajustes. 15/500.
+  static const TextStyle settingsRowLabel = TextStyle(
+    fontFamily: family,
+    fontSize: 15,
+    fontWeight: FontWeight.w500,
+    height: 1.2,
+  );
+
+  /// Descripción de una fila de ajustes. 13/400.
+  static const TextStyle settingsRowDescription = TextStyle(
+    fontFamily: family,
+    fontSize: 13,
+    fontWeight: FontWeight.w400,
+    height: 18 / 13,
+  );
+
+  /// Valor de una fila de ajustes. 14/500.
+  static const TextStyle settingsRowValue = TextStyle(
+    fontFamily: family,
+    fontSize: 14,
+    fontWeight: FontWeight.w500,
+    height: 1.2,
+  );
+
+  /// Acción de una fila de ajustes («Cambiar», «Quitar»). 14/600.
+  static const TextStyle settingsRowAction = TextStyle(
+    fontFamily: family,
+    fontSize: 14,
+    fontWeight: FontWeight.w600,
+    height: 1.2,
+  );
+
+  /// Encabezado de sección de Ajustes, en mayúsculas. 11/600 con ls 0.66 (tableros «Android —
+  /// Ajustes…»).
+  static const TextStyle settingsSectionLabel = TextStyle(
+    fontFamily: family,
+    fontSize: 11,
+    fontWeight: FontWeight.w600,
+    height: 1.2,
+    letterSpacing: 0.66,
+  );
 }
 
 /// Radios del diseño (Penpot incluye el del marco del dispositivo, 28, y el de las tarjetas/buscador).
@@ -514,6 +558,29 @@ abstract final class AxoSizes {
 
   /// Alto de la barra de formato. 52 (barra 40 + 2×6 de relleno).
   static const double formatBar = 52;
+
+  // ── Ajustes (tableros «Android — Ajustes…») ──
+
+  /// Fila de ajustes. 52.
+  static const double settingsRow = 52;
+
+  /// Fila de ajustes con interruptor. 54.
+  static const double settingsRowSwitch = 54;
+
+  /// Fila de ajustes solo con acción (o de peligro). 46.
+  static const double settingsRowCompact = 46;
+
+  /// Fila de ajustes con descripción. 66.
+  static const double settingsRowTall = 66;
+
+  /// Avatar del perfil en «Mi cuenta». 56.
+  static const double settingsAvatar = 56;
+
+  /// Logotipo de «Acerca de». 72.
+  static const double settingsLogo = 72;
+
+  /// Barra de uso de almacenamiento. 8.
+  static const double settingsProgress = 8;
 }
 
 /// Colores del resplandor decorativo de las pantallas de autenticación (medidos en el tablero

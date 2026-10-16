@@ -1,3 +1,4 @@
+import '../app_settings.dart';
 import '../lock_settings.dart';
 
 /// Quién tiene sesión guardada en este dispositivo (para el arranque en frío).
@@ -18,6 +19,12 @@ abstract interface class VaultPrefsRepository {
   Future<LockSettings> readLockSettings(String userId);
 
   Future<void> writeLockSettings(String userId, LockSettings settings);
+
+  /// Preferencias locales de la app de `userId` (tema, tamaño, orden…), o los valores por defecto.
+  /// No se sincronizan (igual que la web).
+  Future<AppSettings> readAppSettings(String userId);
+
+  Future<void> writeAppSettings(String userId, AppSettings settings);
 
   /// Última actividad real de `userId`, para que el tiempo de bloqueo sobreviva a que el sistema
   /// mate el proceso (plan §5.3).

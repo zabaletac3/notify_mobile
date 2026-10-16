@@ -94,16 +94,9 @@ class _EditorGalleryState extends State<EditorGallery> {
             onBack: _noop,
             onShare: _noop,
             onMore: _noop,
+            syncing: _state == EditorMockState.syncing,
           );
 
-          if (_state == EditorMockState.syncing) {
-            view = Column(
-              children: [
-                const _SyncIndicator(),
-                Expanded(child: view),
-              ],
-            );
-          }
           if (_state == EditorMockState.keyboard) {
             view = MediaQuery(
               data: MediaQuery.of(context).copyWith(
@@ -277,38 +270,6 @@ class _DevBar extends StatelessWidget {
           ),
           const SizedBox(width: 12),
           AxoSwitch(value: dark, onChanged: onDark),
-        ],
-      ),
-    );
-  }
-}
-
-/// Indicador de «sincronizando» (de `notify_web`; Pencil no lo dibuja).
-class _SyncIndicator extends StatelessWidget {
-  const _SyncIndicator();
-
-  @override
-  Widget build(BuildContext context) {
-    final c = Theme.of(context).extension<AxoColors>()!;
-    return Container(
-      width: double.infinity,
-      color: c.bgSelected,
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-      child: Row(
-        children: [
-          SizedBox(
-            width: 14,
-            height: 14,
-            child: CircularProgressIndicator(
-              strokeWidth: 2,
-              color: c.accentDefault,
-            ),
-          ),
-          const SizedBox(width: 10),
-          Text(
-            'Sincronizando…',
-            style: AxoType.bodySmall.copyWith(color: c.accentDefault),
-          ),
         ],
       ),
     );
