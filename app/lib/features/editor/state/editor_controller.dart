@@ -33,6 +33,10 @@ class NoteEditorController {
   bool _dirty = false;
   String _savedContent = '';
 
+  /// Última selección conocida. AppFlowy borra la selección cuando el editor pierde el foco (al abrir
+  /// el menú de estilo o al tocar la barra), y sin ella los comandos de formato no tendrían efecto.
+  Selection? _lastSelection;
+
   /// `true` si hay cambios sin guardar.
   bool get isDirty => _dirty;
 
@@ -46,9 +50,27 @@ class NoteEditorController {
     final blocks = MarkdownParser.parse(note.content).content;
     editorState = EditorState(document: EditorAdapter.toDocument(blocks));
     editorState.editableNotifier.value = editable;
+    editorState.selectionNotifier.addListener(_rememberSelection);
     if (editable) {
       _subscription = editorState.transactionStream.listen((_) => _onChanged());
     }
+  }
+
+  void _rememberSelection() {
+    final selection = editorState.selection;
+    if (selection != null) _lastSelection = selection;
+  }
+
+  /// Selección vigente o, si el editor la perdió al perder el foco, la última conocida.
+  Selection? get _selection => editorState.selection ?? _lastSelection;
+
+  /// Devuelve la selección al editor antes de aplicar un comando; `false` si nunca hubo una.
+  bool _restoreSelection() {
+    if (editorState.selection != null) return true;
+    final last = _lastSelection;
+    if (last == null) return false;
+    editorState.selection = last;
+    return true;
   }
 
   void _onChanged() {
@@ -92,53 +114,65 @@ class NoteEditorController {
 
   /// Tipo del bloque en el cursor: `paragraph`, `heading`, `bulleted_list`, `todo_list`…
   String? get blockType {
-    final selection = editorState.selection;
+    final selection = _selection;
     if (selection == null) return null;
     final node = editorState.getNodeAtPath(selection.start.path);
     return node?.type;
   }
 
-  void toggleBold() => editorState.toggleAttribute(AppFlowyRichTextKeys.bold);
+  void _toggle(String key) {
+    if (_restoreSelection()) editorState.toggleAttribute(key);
+  }
 
-  void toggleItalic() =>
-      editorState.toggleAttribute(AppFlowyRichTextKeys.italic);
+  void toggleBold() => _toggle(AppFlowyRichTextKeys.bold);
 
-  void toggleStrike() =>
-      editorState.toggleAttribute(AppFlowyRichTextKeys.strikethrough);
+  void toggleItalic() => _toggle(AppFlowyRichTextKeys.italic);
 
-  void toggleUnderline() =>
-      editorState.toggleAttribute(AppFlowyRichTextKeys.underline);
+  void toggleStrike() => _toggle(AppFlowyRichTextKeys.strikethrough);
 
-  void toggleCode() => editorState.toggleAttribute(AppFlowyRichTextKeys.code);
+  void toggleUnderline() => _toggle(AppFlowyRichTextKeys.underline);
+
+  void toggleCode() => _toggle(AppFlowyRichTextKeys.code);
 
   /// Cambia el estilo de párrafo del bloque actual (párrafo, título 1‑3, cita, código).
   void setBlockType(String type, {int level = 1}) {
-    final selection = editorState.selection;
-    if (selection == null) return;
+    if (!_restoreSelection()) return;
+    final selection = editorState.selection!;
     editorState.formatNode(
       selection,
+      // `copyWith(attributes:)` REEMPLAZA los atributos, y el texto (`delta`) vive en ellos: hay que
+      // partir siempre de los atributos del nodo o la nota pierde el contenido del bloque.
       (node) => node.type == type && node.attributes['level'] == level
-          ? node.copyWith(type: 'paragraph', attributes: {'level': null})
-          : node.copyWith(type: type, attributes: {'level': level}),
+          ? node.copyWith(
+              type: 'paragraph',
+              attributes: {...node.attributes}..remove('level'),
+            )
+          : node.copyWith(
+              type: type,
+              attributes: {...node.attributes, 'level': level},
+            ),
     );
   }
 
   /// Alterna una lista (viñetas o tareas) en el bloque actual.
   void toggleList(String type) {
-    final selection = editorState.selection;
-    if (selection == null) return;
+    if (!_restoreSelection()) return;
+    final selection = editorState.selection!;
     editorState.formatNode(
       selection,
       (node) => node.copyWith(
         type: node.type == type ? 'paragraph' : type,
-        attributes: type == 'todo_list' ? {'checked': false} : null,
+        attributes: {
+          ...node.attributes,
+          if (type == 'todo_list' && node.type != type) 'checked': false,
+        },
       ),
     );
   }
 
   /// `true` si la marca está activa en el cursor (para el estado activo de la barra).
   bool isMarkActive(String key) {
-    final selection = editorState.selection;
+    final selection = _selection;
     if (selection == null || !selection.isSingle) return false;
     final node = editorState.getNodeAtPath(selection.start.path);
     final delta = node?.delta;
@@ -157,9 +191,16 @@ class NoteEditorController {
     return false;
   }
 
+  /// Mantiene el foco (y el teclado) en el editor mientras la barra abre un menú; sin esto AppFlowy
+  /// cierra el teclado y borra la selección al perder el foco.
+  void holdEditorFocus() => keepEditorFocusNotifier.increase();
+
+  void releaseEditorFocus() => keepEditorFocusNotifier.decrease();
+
   void undo() => editorState.undoManager.undo();
 
   void dispose() {
+    editorState.selectionNotifier.removeListener(_rememberSelection);
     _timer?.cancel();
     _subscription?.cancel();
   }

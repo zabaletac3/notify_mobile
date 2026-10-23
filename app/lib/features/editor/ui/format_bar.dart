@@ -109,7 +109,10 @@ class _TextStyleButton extends StatelessWidget {
     final c = Theme.of(context).extension<AxoColors>()!;
     return PopupMenuButton<String>(
       tooltip: 'Estilo de párrafo',
+      onOpened: controller.holdEditorFocus,
+      onCanceled: controller.releaseEditorFocus,
       onSelected: (value) {
+        controller.releaseEditorFocus();
         switch (value) {
           case 'paragraph':
             controller.setBlockType('paragraph');
@@ -174,6 +177,7 @@ class _ToolbarButton extends StatelessWidget {
       label: label,
       child: InkWell(
         onTap: onPressed,
+        canRequestFocus: false,
         borderRadius: BorderRadius.circular(8),
         child: Container(
           width: AxoSizes.formatBarButton,
