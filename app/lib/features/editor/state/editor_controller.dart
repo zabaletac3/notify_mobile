@@ -64,12 +64,38 @@ class NoteEditorController {
   /// Selección vigente o, si el editor la perdió al perder el foco, la última conocida.
   Selection? get _selection => editorState.selection ?? _lastSelection;
 
-  /// Devuelve la selección al editor antes de aplicar un comando; `false` si nunca hubo una.
+  /// Cursor al final del último bloque de texto; sirve cuando el usuario aún no ha tocado el cuerpo
+  /// (p. ej. escribió solo el título) y pulsa la barra de formato.
+  Selection? _endOfDocument() {
+    Node? node = editorState.document.root;
+    Node? lastText;
+    final pending = <Node>[node];
+    while (pending.isNotEmpty) {
+      final current = pending.removeLast();
+      if (current.delta != null) lastText = current;
+      pending.addAll(current.children);
+    }
+    node = lastText;
+    final delta = node?.delta;
+    if (node == null || delta == null) return null;
+    return Selection.collapsed(
+      Position(path: node.path, offset: delta.toPlainText().length),
+    );
+  }
+
+  /// Devuelve la selección al editor antes de aplicar un comando: la vigente, la última conocida o,
+  /// si nunca hubo, el final del documento. `false` si no hay dónde aplicarlo.
   bool _restoreSelection() {
     if (editorState.selection != null) return true;
-    final last = _lastSelection;
-    if (last == null) return false;
-    editorState.selection = last;
+    final target = _lastSelection ?? _endOfDocument();
+    if (target == null) return false;
+    // Con `uiEvent` el editor muestra el cursor y abre el teclado, como si el usuario hubiera tocado.
+    unawaited(
+      editorState.updateSelectionWithReason(
+        target,
+        reason: SelectionUpdateReason.uiEvent,
+      ),
+    );
     return true;
   }
 

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../../ui/app_icon.dart';
+import '../../../ui/components.dart';
 import '../../../ui/tokens.dart';
 import '../state/editor_controller.dart';
 
@@ -82,7 +83,11 @@ class _EditorFormatBarState extends State<EditorFormatBar> {
               icon: 'image',
               label: 'Imagen',
               active: false,
-              onPressed: () {},
+              onPressed: () => showAxoToast(
+                context,
+                message: 'Las imágenes llegarán próximamente',
+                variant: AxoToastVariant.info,
+              ),
             ),
           ],
         ),
