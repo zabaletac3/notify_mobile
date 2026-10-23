@@ -93,4 +93,24 @@ void main() {
       startsWith('Normalización hasta 3FN'),
     );
   });
+
+  testWidgets(
+    'sin cursor en el cuerpo (solo el título), los botones actúan sobre el final',
+    (tester) async {
+      final h = await buildNotesHarness();
+      await pumpNotesRouter(tester, h);
+      await tester.tap(find.text('Resumen: Bases de datos II'));
+      await tester.pumpAndSettle();
+      final state = tester
+          .widget<AppFlowyEditor>(find.byType(AppFlowyEditor))
+          .editorState;
+      expect(state.selection, isNull);
+
+      await tester.tap(find.bySemanticsLabel('Lista'));
+      await tester.pumpAndSettle();
+      final last = state.document.root.children.last;
+      expect(last.type, 'bulleted_list');
+      expect(last.delta?.toPlainText(), isNotEmpty);
+    },
+  );
 }
