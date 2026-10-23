@@ -128,3 +128,35 @@ Los clientes viejos **degradan la imagen a texto** (web) o la tratan como opaca 
 - El costo real de recomprimir en el ZTE y en el Tecno (modelo de gama baja).
 - Si el vendorizado de `appflowy_editor` admite un bloque de imagen propio sin tocar su núcleo (probable, como se hizo con tareas y código).
 - Cómo está desplegada la base (disco del VPS, política de copias) para dimensionar `bytea`.
+
+## 10. Decisiones del dueño (2026-10-23) y su efecto en el diseño
+
+| Decisión | Efecto |
+| --- | --- |
+| **Guardar en bucket y en PostgreSQL a la vez** (respaldo mutuo) | Escritura doble: el bucket es el **primario** (lectura) y PostgreSQL guarda una copia `bytea` en una tabla aparte (`attachment_blobs`), fuera de las consultas calientes. Un barrido comprueba que ambas copias coincidan (sha256 del cifrado) y repara la que falte. Costo: la base crece hasta el total de imágenes y las copias/WAL también; se acota con la cuota de imágenes y un job que **no** replica a la base los archivos mayores de cierto tamaño si se decide. |
+| **Límite de 20 MB por imagen** | `MAX_ATTACHMENT_BYTES` ≈ 20 MB + sobrecarga del cifrado, con su propia ruta (el cuerpo normal sigue en 1 MB); subida binaria, por partes o directa al bucket con URL firmada; con 1 GB de cuota caben ~50 imágenes del máximo, por eso la cuota de imágenes hay que fijarla. Cloudflare permite cuerpos de 100 MB, no es obstáculo. |
+| **Imágenes animadas también** (GIF, WebP animado) | **No se recomprimen** (un `canvas` o un recodificador pierden la animación): se conservan los bytes originales tras **eliminar metadatos** (EXIF/XMP) y se validan firma y estructura. La web las anima con `<img>`; en Flutter, `Image.memory` anima GIF/WebP, pero **descodificar un GIF de 20 MB puede ocupar cientos de MB de RAM**: hay que limitar dimensiones/cuadros al mostrar, usar la caché de imágenes acotada y probarlo en el Tecno y el ZTE. Las fijas siguen reduciéndose a ≤ 4096 px (el límite de 20 MB deja de forzar 2048). |
+
+### Cómo serían los enlaces de las imágenes
+
+Hay tres tipos de «enlace», y ninguno es una URL pública de la imagen en claro:
+
+1. **Referencia dentro de la nota (Markdown):** `![texto](axonote-img:<id>)`. No es una URL: es un identificador. Cada cliente
+   descarga el binario cifrado, lo descifra con la clave de la nota y lo muestra como `blob:` (web) o `Image.memory` (móvil).
+2. **Descarga del binario cifrado (API):** `GET /v1/attachments/{id}` (con sesión) o una **URL firmada del bucket de vida corta**
+   (p. ej. 5 min) que apunta al objeto cifrado. El bucket **nunca es público** y la clave jamás sale del cliente.
+3. **Enlace público de la nota con imágenes:** el enlace sigue siendo el de hoy, `https://<web>/n/<slug>#<claveDelEnlace>` (la clave va en el
+   fragmento y el servidor no la recibe). Para que se vea sin cuenta, al compartir (y al republicar) el cliente **vuelve a cifrar cada imagen con la
+   `shareKey`** y la sube como copia pública: `GET /v1/public/shares/{slug}/attachments/{id}`. El navegador del lector la
+   descarga, la descifra con la clave del fragmento y la muestra. Al revocar el enlace se borran esas copias.
+   - **Una imagen sola no tiene enlace propio** en la primera entrega (por privacidad no hay URL que sirva `<img src>` directo). Si se quisiera
+     «compartir solo una imagen», sería un enlace del mismo estilo, `/i/<slug>#<clave>`, como fase posterior.
+
+### Efecto en las fases
+- I1 (backend) crece: dos almacenes, sincronizador/reparador, URLs firmadas, `public/shares/.../attachments` y limpieza al revocar.
+- I4 (enlaces públicos con imágenes) entra en la primera entrega, no después.
+- Nueva prueba obligatoria: **GIF de 20 MB** en el ZTE y el Tecno (memoria y fluidez), y foto con GPS para comprobar que se elimina el EXIF.
+
+### Decisiones que siguen abiertas
+Cuota de imágenes por cuenta (¿dentro del 1 GB o aparte?), tamaño máximo de **dimensiones** de las animadas, cámara en el móvil (¿v1 o solo galería?),
+si te sirve la sintaxis `axonote-img:<id>` y el orden de entrega (web primero, móvil primero o a la vez).
